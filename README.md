@@ -9,13 +9,6 @@ This repository provides code and notebooks for generating synthetic financial t
 It includes data collection, exploratory analysis, LLM-based generation (zero-shot, few-shot, fine-tuning), GAN-based generation, and statistical comparison of real vs. synthetic data.
 
 
-![Python](https://img.shields.io/badge/Python-3.8%2B-blue)
-![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-![Status](https://img.shields.io/badge/status-active-brightgreen)
-
-This repository provides code and notebooks for generating synthetic financial time series (e.g., NVIDIA log returns) using both Large Language Models (LLMs) and Generative Adversarial Networks (GANs).  
-It includes data collection, exploratory analysis, LLM-based generation (zero-shot, few-shot, fine-tuning), GAN-based generation, and statistical comparison of real vs. synthetic data.
-
 ---
 
 ## 📁 Project Structure
