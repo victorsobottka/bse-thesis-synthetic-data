@@ -42,16 +42,18 @@ Open the Jupyter notebook for EDA:
 
 ### Synthetic Data Generation
 
-- **LLM Zero-Shot:**  
+- **LLMs:**
+
+    - **LLM Zero-Shot:**  
   `2_1_LLM_Zero_Shot.ipynb`
 
-- **LLM Few-Shot:**  
+    - **LLM Few-Shot:**  
   `2_2_LLM_Few_Shot.ipynb`
 
-- **LLM Fine-Tuning (Training):**  
+    - **LLM Fine-Tuning (Training):**  
   `2_3_1_LLM_Fine_Tunning_Model_Trainning.ipynb`
 
-- **LLM Fine-Tuning (Inference):**  
+    - **LLM Fine-Tuning (Inference):**  
   `2_3_2_LLM_Fine_Tunning_Model_Inference.ipynb`
 
 - **GANs:**
