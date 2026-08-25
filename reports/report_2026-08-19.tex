@@ -1,0 +1,962 @@
+
+\documentclass[10pt]{article}
+\usepackage[a4paper,landscape,top=1.6cm,bottom=1.6cm,left=1.8cm,right=1.8cm]{geometry}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb}
+\usepackage{xcolor}
+\usepackage[most,breakable]{tcolorbox}
+\usepackage{multicol}
+\usepackage{booktabs,tabularx,longtable,array,colortbl}
+\usepackage{fancyhdr}
+\usepackage{enumitem}
+\usepackage{lastpage}
+\usepackage[hidelinks]{hyperref}
+
+%% ── Colours ─────────────────────────────────────────────────────────────────
+\definecolor{Navy}{HTML}{0D2B6B}
+\definecolor{Sky}{HTML}{1976D2}
+\definecolor{Teal}{HTML}{00695C}
+\definecolor{FGreen}{HTML}{2E7D32}
+\definecolor{Amber}{HTML}{E65100}
+\definecolor{DRed}{HTML}{B71C1C}
+\definecolor{Purple}{HTML}{6A1B9A}
+\definecolor{Indigo}{HTML}{303F9F}
+\definecolor{LBg}{HTML}{F5F7FA}
+\definecolor{BBg}{HTML}{E3F2FD}
+\definecolor{GBg}{HTML}{E8F5E9}
+\definecolor{RBg}{HTML}{FFEBEE}
+\definecolor{ABg}{HTML}{FFF8E1}
+\definecolor{IBg}{HTML}{E8EAF6}
+\definecolor{TabOdd}{HTML}{EEF2F7}
+\definecolor{TGcol}{HTML}{E65100}
+\definecolor{QGcol}{HTML}{1565C0}
+\definecolor{FGcol}{HTML}{2E7D32}
+
+%% ── tcolorbox styles ────────────────────────────────────────────────────────
+\tcbuselibrary{skins,breakable}
+\tcbset{
+  mybox/.style 2 args={
+    enhanced, arc=3pt, boxrule=0.7pt,
+    fonttitle=\bfseries\small\color{white},
+    colbacktitle=#1, colframe=#1, colback=#2,
+    lefttitle=5pt, toptitle=3pt, bottomtitle=3pt,
+    top=5pt, bottom=5pt, left=6pt, right=6pt,
+    before skip=5pt, after skip=5pt, breakable
+  }
+}
+\newcommand{\navybox}[2]{\begin{tcolorbox}[mybox={Navy}{LBg},title={#1}]#2\end{tcolorbox}}
+\newcommand{\skybox}[2]{\begin{tcolorbox}[mybox={Sky}{BBg},title={#1}]#2\end{tcolorbox}}
+\newcommand{\tealbox}[2]{\begin{tcolorbox}[mybox={Teal}{LBg},title={#1}]#2\end{tcolorbox}}
+\newcommand{\greenbox}[2]{\begin{tcolorbox}[mybox={FGreen}{GBg},title={#1}]#2\end{tcolorbox}}
+\newcommand{\amberbox}[2]{\begin{tcolorbox}[mybox={Amber}{ABg},title={#1}]#2\end{tcolorbox}}
+\newcommand{\redbox}[2]{\begin{tcolorbox}[mybox={DRed}{RBg},title={#1}]#2\end{tcolorbox}}
+\newcommand{\purplebox}[2]{\begin{tcolorbox}[mybox={Purple}{LBg},title={#1}]#2\end{tcolorbox}}
+\newcommand{\indigobox}[2]{\begin{tcolorbox}[mybox={Indigo}{IBg},title={#1}]#2\end{tcolorbox}}
+
+%% ── Page header helper ───────────────────────────────────────────────────────
+\newcommand{\pagehead}[2]{%
+  \begin{tcolorbox}[enhanced,arc=0pt,outer arc=0pt,boxrule=0pt,
+    colback=Navy,colframe=Navy,
+    top=5pt,bottom=5pt,left=8pt,right=8pt,
+    before skip=0pt,after skip=10pt]
+  {\color{white}\large\bfseries #1}%
+  \ifx\relax#2\relax\else\\[1pt]{\color{blue!30!white}\small #2}\fi
+  \hfill{\color{blue!20!white}\footnotesize Synthetic Financial Time Series $\cdot$ UPC}
+  \end{tcolorbox}}
+
+%% ── Footer ───────────────────────────────────────────────────────────────────
+\pagestyle{fancy}\fancyhf{}\renewcommand{\headrulewidth}{0pt}
+\fancyfoot[C]{\small\color{gray!70}
+  Page~\thepage\ of~\pageref{LastPage}\quad$\cdot$\quad
+  Synthetic Financial Time Series --- GAN Benchmark\quad$\cdot$\quad UPC Research}
+
+%% ── Misc ─────────────────────────────────────────────────────────────────────
+\setlength{\parindent}{0pt}\setlength{\parskip}{4pt}\setlength{\columnsep}{14pt}
+\setlist[itemize]{noitemsep,topsep=2pt,leftmargin=14pt,label=\textbullet}
+\setlist[enumerate]{noitemsep,topsep=2pt,leftmargin=16pt}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\norm}[1]{\left\|#1\right\|}
+
+%% ═══════════════════════════════════════════════════════════════════════════════
+\begin{document}
+
+%% ─── Page 1: Title ───────────────────────────────────────────────────────────
+\thispagestyle{empty}
+\pagecolor{Navy}\color{white}
+\vspace*{2.0cm}
+\begin{center}
+{\fontsize{26}{32}\selectfont\bfseries Synthetic Financial Time Series Generation\par}
+\vspace{0.4cm}
+{\Large GAN Benchmark:\quad TimeGAN\ \ $\cdot$\ \ QuantGAN\ \ $\cdot$\ \ FinGAN\par}
+\vspace{0.2cm}
+{\large BRICS Emerging Market Indices\par}
+\vspace{0.7cm}
+\textcolor{blue!40!white}{\rule{0.65\textwidth}{0.5pt}}
+\vspace{0.7cm}
+
+\begin{tabular}{r@{\hspace{10pt}}l}
+  \textbf{Collaboration}  & Universitat Polit\`{e}cnica de Catalunya (UPC) \\[4pt]
+  \textbf{Document type}  & Project Status \& In-Depth Technical Review \\[4pt]
+  \textbf{Purpose}        & Paper publication preparation \\[4pt]
+  \textbf{Models}         & TimeGAN (RNN) $\cdot$ QuantGAN (TCN-WGAN-GP) $\cdot$ FinGAN (CNN-WGAN-GP) \\[4pt]
+  \textbf{Markets}        & BOVESPA $\cdot$ FTSE JSE $\cdot$ MSCI $\cdot$ NIFTY50 $\cdot$ SHANGHAI \\[4pt]
+  \textbf{Generated}      & 2026-08-19 \\
+\end{tabular}
+\end{center}
+\clearpage\pagecolor{white}\color{black}
+
+%% ─── Page 2: Project Overview ────────────────────────────────────────────────
+\pagehead{Project Status Overview}
+         {Research context $\cdot$ data pipeline $\cdot$ model status $\cdot$ open tasks}
+
+\begin{multicols}{2}
+
+\navybox{Research Goal}{%
+\begin{itemize}
+  \item Benchmark three GAN architectures for synthetic financial log-return generation
+  \item Evaluate on 5 BRICS emerging-market indices (multi-market generalisation)
+  \item Systematically validate hyperparameters via grid search for publication
+  \item Compare stylized-fact reproduction: fat tails, volatility clustering, long memory
+  \item Prepare peer-reviewed paper in collaboration with UPC
+\end{itemize}}
+
+\skybox{Data Pipeline}{%
+\begin{itemize}
+  \item Source: 5 CSV files --- BOVESPA, FTSE JSE, MSCI, NIFTY50, SHANGHAI
+  \item Feature: daily log return $r_t = \ln(P_t / P_{t-1})$
+  \item \textbf{No outlier clipping} applied to log returns (deliberate --- see Code Audit)
+  \item Temporal 80\,/\,10\,/\,10 split (no shuffle) --- saved as Parquet files
+  \item GAN training: windows of 128 steps pooled across all 5 markets; temporal order preserved within each window
+\end{itemize}}
+
+\columnbreak
+
+\begin{tcolorbox}[mybox={TGcol}{ABg},title={TimeGAN}]
+Yoon et al.\ (2019), NeurIPS 32. 4-phase training (autoencoder $\to$ supervisor $\to$ joint GAN) using GRU networks. BCE loss + moment matching. MinMax $[0,1]$ normalisation.
+\textcolor{DRed}{\bfseries\small Current: epochs=5 (far too low --- see Audit)}
+\end{tcolorbox}
+
+\begin{tcolorbox}[mybox={QGcol}{BBg},title={QuantGAN}]
+Wiese et al.\ (2020), Quantitative Finance. WGAN-GP + TCN with causal dilated convolutions. Adam $\beta_1=0$, $\beta_2=0.9$, n\_critic=3, $\lambda_\text{gp}=10$.
+\end{tcolorbox}
+
+\begin{tcolorbox}[mybox={FGcol}{GBg},title={FinGAN}]
+Custom CNN-WGAN-GP. Generator: FC $\to$ 3$\times$ \texttt{ConvTranspose1d}. Critic: \texttt{Conv1d} + LayerNorm. seq\_len must be divisible by 8. Same Adam/WGAN-GP settings as QuantGAN.
+\end{tcolorbox}
+
+\greenbox{Pipeline Status}{%
+\begin{itemize}
+  \item \textbf{DONE:} Reproducibility seeds; deprecated API fixes; grid search wired
+  \item \textbf{DONE:} \texttt{FinancialMetrics} rewritten with time-series-aware tests
+  \item \textbf{TODO:} Re-run pipeline to regenerate results with updated metric schema
+  \item \textbf{TODO:} Increase TimeGAN epochs ($\geq 50$--$100$ per phase)
+\end{itemize}}
+
+\end{multicols}
+
+\clearpage
+
+%% ─── Page 3: Financial Time Series from Scratch ──────────────────────────────
+\pagehead{The Problem --- Financial Time Series from First Principles}
+         {Understanding the data before understanding the models}
+
+\begin{multicols}{2}
+
+\navybox{What is a Financial Time Series?}{%
+A financial time series is simply a sequence of numbers measured over time.
+For a stock or index: $P_1, P_2, \ldots, P_T$ where $P_t$ is the closing price on day $t$.
+
+\smallskip
+\textbf{Problem with raw prices:} they grow over time (non-stationary), making comparisons across periods misleading. Statistical models require (approximate) stationarity.}
+
+\skybox{Why Log Returns?}{%
+Instead of prices we compute the \textbf{log return} for each day:
+\begin{equation*}
+  r_t = \ln\!\left(\frac{P_t}{P_{t-1}}\right) = \ln P_t - \ln P_{t-1}
+\end{equation*}
+
+\textbf{Why the logarithm?}
+\begin{enumerate}
+  \item \textit{Additivity:}\ $r_{1\to3} = r_{1\to2} + r_{2\to3}$ exactly (simple returns do not add).
+  \item \textit{Approximation:}\ $\ln(P_t/P_{t-1}) \approx (P_t-P_{t-1})/P_{t-1}$ for small moves.
+  \item \textit{Stationarity:}\ Log returns fluctuate around zero with no long-run trend.
+\end{enumerate}}
+
+\redbox{The Core Problem: Returns Are NOT Normal}{%
+The simplest model: $r_t \overset{\text{i.i.d.}}{\sim} \mathcal{N}(\mu,\sigma^2)$.
+This is the foundation of Black--Scholes and many classical models.
+\textbf{It is empirically wrong in the tails.}
+
+Under $\mathcal{N}(0,\sigma^2)$ with $\sigma \approx 1.2\%$:
+\begin{itemize}
+  \item A day with $|r| > 3\sigma \approx 3.6\%$ should occur $\approx 0.27\%$ of days \\ $\Rightarrow$ roughly 1 day per year.
+  \item Reality: 3--5$\times$ more frequent (\textbf{heavy tails}).
+  \item A ``$5\sigma$ crash'': under Gaussian $\approx$ once every \textbf{14\,000 years}; \\ in practice: several times per decade.
+\end{itemize}
+The 2008 crisis was described as a ``25-sigma event'' by some risk systems --- probabilistically impossible under Gaussian assumptions.}
+
+\columnbreak
+
+\tealbox{What Are Stylized Facts?}{%
+Cont (2001) coined the term \textbf{stylized facts}: statistical properties that appear consistently across virtually all financial markets and time periods. They are the fingerprint of financial returns.
+
+\textbf{Any generative model claiming to produce realistic synthetic returns MUST reproduce them.}
+
+The five most important:
+\begin{enumerate}
+  \item \textbf{Heavy tails:}\ $P(|r|>x) \sim x^{-\alpha}$ (Pareto tail, $\alpha \approx 3$--$5$) $\Rightarrow$ kurtosis $\gg 3$.
+  \item \textbf{Near-zero autocorrelation:}\ $\text{Corr}(r_t, r_{t+k}) \approx 0$ for $k \geq 1$ (efficient market).
+  \item \textbf{Volatility clustering:}\ $\text{Corr}(|r_t|, |r_{t+k}|) > 0$ for $k = 1,\ldots,100+$. Large moves beget large moves.
+  \item \textbf{Long memory:}\ ACF of $|r_t|$ decays as $k^{-\beta}$, $\beta \in (0,1)$; Hurst exponent $H > 0.5$.
+  \item \textbf{Negative skewness:}\ crashes are sharper than rallies ($\text{skew}(r) < 0$ for equity indices).
+\end{enumerate}}
+
+\purplebox{Why Generate Synthetic Data?}{%
+If real data exists, why generate synthetic data?
+\begin{itemize}
+  \item \textbf{Data augmentation:}\ deep learning models need large datasets; markets produce $\sim$250 observations/year.
+  \item \textbf{Stress testing:}\ banks test risk models under extreme scenarios not in historical data.
+  \item \textbf{Privacy:}\ real data may be proprietary; synthetic data with the same statistical properties can be shared freely.
+  \item \textbf{Scenario generation:}\ sample many plausible futures for portfolio optimisation.
+\end{itemize}
+\textbf{The challenge:} a Gaussian generator fails immediately (wrong tails, no clustering). This motivates deep generative models.}
+
+\end{multicols}
+
+\clearpage
+
+%% ─── Page 4: What is a GAN? ──────────────────────────────────────────────────
+\pagehead{The Solution Candidate: What is a Generative Adversarial Network?}
+         {From the counterfeiter--detective analogy to the minimax formulation (Goodfellow et al., 2014)}
+
+\begin{multicols}{2}
+
+\navybox{The Core Idea --- A Two-Player Game}{%
+Goodfellow et al.\ (2014) proposed training \textbf{two} neural networks that compete:
+
+\smallskip
+\textbf{Generator} $G$: takes random noise $z \sim p_z$ $\to$ outputs fake sample $G(z) = \tilde{x}$.
+\textbf{Discriminator} $D$: given a sample (real or fake) $\to$ outputs $D(x) \in [0,1]$ (probability of being real).
+
+\smallskip
+\textbf{Analogy:} Counterfeiter ($G$) makes fake banknotes; detective ($D$) tries to spot them.
+Both improve iteratively until fakes are indistinguishable.
+
+\smallskip
+The \textbf{minimax objective}:
+\begin{equation*}
+  \min_G\ \max_D\ V(D,G) =
+  \underbrace{\E_{x \sim p_\text{data}}\!\bigl[\log D(x)\bigr]}_{\text{reward } D \text{ for real}}
+  +
+  \underbrace{\E_{z \sim p_z}\!\bigl[\log(1 - D(G(z)))\bigr]}_{\text{penalise } G \text{ when caught}}
+\end{equation*}
+
+Reading each term:
+\begin{itemize}
+  \item $D$ \emph{maximises}: wants $D(x_\text{real}) \to 1$ and $D(G(z)) \to 0$.
+  \item $G$ \emph{minimises}: wants $D(G(z)) \to 1$ (fool $D$).
+\end{itemize}
+
+At the \textbf{Nash equilibrium} (Goodfellow et al., 2014, Proposition 1):
+\begin{equation*}
+  D^*(x) = \frac{p_\text{data}(x)}{p_\text{data}(x)+p_g(x)} = \tfrac{1}{2}\ \forall\,x
+  \quad\Longrightarrow\quad p_g = p_\text{data}
+\end{equation*}
+The generator has perfectly learnt the real distribution.}
+
+\redbox{Critical Problem: Vanishing Gradients \& Mode Collapse}{%
+\textbf{Mode collapse:}\ $G$ learns to output only a few samples that reliably fool $D$, ignoring the true diversity of $p_\text{data}$.
+
+\textbf{Vanishing gradients:}\ The GAN loss uses Jensen--Shannon (JS) divergence internally:
+\begin{equation*}
+  \text{JS}(p_\text{data} \| p_g) = \log 2 \quad\text{when } \text{supp}(p_\text{data}) \cap \text{supp}(p_g) = \varnothing
+\end{equation*}
+A \textit{constant} has zero derivative with respect to $G$'s parameters $\Rightarrow$ $G$ receives no learning signal.
+
+\textbf{In practice:} early in training, if $G$ produces very different-looking samples from reality, $D$ immediately says ``fake'' with no useful feedback on \emph{how} $G$ should improve.}
+
+\columnbreak
+
+\skybox{What Makes GANs Suitable for Financial Returns?}{%
+Unlike parametric models (GARCH, EVT), a GAN:
+\begin{itemize}
+  \item Makes \textbf{no distributional assumption} about the shape of returns; learns $p_\text{data}$ implicitly.
+  \item Can model arbitrarily complex joint distributions $p(r_1, r_2, \ldots, r_T)$, capturing both the marginal distribution \emph{and} temporal dependencies.
+  \item Scales to multivariate settings without specifying a copula.
+\end{itemize}
+
+\textbf{The GAN sees sequences, not points.}
+A window $[r_1, r_2, \ldots, r_{128}]$ is the training unit. $D$ learns to recognise temporal patterns: bursts of high volatility, calm periods. $G$ must generate sequences exhibiting those patterns.
+
+This is what distinguishes GAN-based generators from models that generate each timestep independently (which would produce no volatility clustering even if the marginal distribution were correct).}
+
+\navybox{Three Architectural Choices in This Benchmark}{%
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Model} & \textbf{Backbone} & \textbf{Key mechanism} \\
+\midrule
+\textcolor{TGcol}{\textbf{TimeGAN}}  & GRU (recurrent)  & Latent embedding space \\
+\textcolor{QGcol}{\textbf{QuantGAN}} & TCN (causal dil.) & Long receptive field via dilation \\
+\textcolor{FGcol}{\textbf{FinGAN}}   & CNN deconvolution & Noise $\to$ sequence via upsampling \\
+\bottomrule
+\end{tabular}
+\end{center}}
+
+\end{multicols}
+
+\clearpage
+
+%% ─── Page 5: WGAN-GP ─────────────────────────────────────────────────────────
+\pagehead{Better Training: The Wasserstein GAN and Gradient Penalty}
+         {Arjovsky et al.\ (2017) ICML $\cdot$ Gulrajani et al.\ (2017) NeurIPS}
+
+\begin{multicols}{2}
+
+\navybox{A Better Distance Between Distributions}{%
+The JS divergence fails because it equals $\log 2$ (a constant) when supports do not overlap --- giving $G$ zero gradient.
+
+\textbf{Wasserstein-1 distance} (``Earth Mover's distance''):
+\begin{equation*}
+  W(p, q) = \inf_{\gamma \in \Pi(p,q)} \E_{(x,y)\sim\gamma}\bigl[\norm{x - y}\bigr]
+\end{equation*}
+where $\Pi(p,q)$ is the set of all joint distributions with marginals $p$ and $q$.
+
+\textbf{Physical intuition:}
+Think of $p_\text{data}$ and $p_g$ as two piles of sand.
+$W$ is the minimum total work (mass $\times$ distance) needed to reshape one pile into the other.
+
+\textbf{Why is this better?}
+\begin{itemize}
+  \item $W$ is continuous and \emph{always} provides a gradient signal, even when distributions do not overlap.
+  \item $W$ correlates with visual generation quality, unlike the JS loss which can plateau.
+\end{itemize}}
+
+\skybox{Kantorovich--Rubinstein Duality --- Making $W$ Tractable}{%
+The infimum over all joint distributions in $W(p,q)$ is computationally intractable.
+The key theorem (Kantorovich--Rubinstein):
+\begin{equation*}
+  W(p_\text{data}, p_g)
+  = \sup_{\norm{f}_L \leq 1}
+    \Bigl(\E_{x \sim p_\text{data}}[f(x)] - \E_{x \sim p_g}[f(x)]\Bigr)
+\end{equation*}
+where the supremum is over all \textbf{1-Lipschitz} functions:
+\begin{equation*}
+  \norm{f}_L \leq 1 \;\Longleftrightarrow\; |f(x) - f(y)| \leq \norm{x - y}\quad\forall\,x,y
+\end{equation*}
+\textbf{Implication:} the WGAN \textbf{Critic} $D$ (now unbounded, not a probability) plays the role of $f$.
+We parameterise $D$ with a neural network and train it to approximate the optimal $f$.
+
+WGAN training objective:
+\begin{equation*}
+  \min_G\ \max_{\norm{D}_L \leq 1}\ \E_{x \sim p_\text{data}}[D(x)] - \E_{z \sim p_z}[D(G(z))]
+\end{equation*}}
+
+\columnbreak
+
+\tealbox{Gradient Penalty (Gulrajani et al., 2017)}{%
+The original WGAN enforces the Lipschitz constraint by weight clipping (crude, slow).
+WGAN-GP uses a differentiable penalty instead:
+\begin{equation*}
+  \mathcal{L}_\text{GP}
+  = \lambda \cdot \E_{\hat{x} \sim p_{\hat{x}}}\!\left[
+      \Bigl(\norm{\nabla_{\hat{x}}\, D(\hat{x})}_2 - 1\Bigr)^2\right]
+\end{equation*}
+where the interpolated point and mixing coefficient are:
+\begin{equation*}
+  \hat{x} = \varepsilon\, x_\text{real} + (1-\varepsilon)\, x_\text{fake},
+  \qquad \varepsilon \sim \mathcal{U}[0,1],\quad \lambda = 10
+\end{equation*}
+The penalty pushes $\norm{\nabla D(\hat{x})}_2 \to 1$ throughout training.
+
+\textbf{Full training losses:}
+\begin{align*}
+  \mathcal{L}_D &= \E[D(\tilde{x})] - \E[D(x)] + \lambda\,\mathcal{L}_\text{GP}
+                   \quad\text{($D$ minimises $-\mathcal{L}_D$)} \\
+  \mathcal{L}_G &= -\E[D(G(z))]
+\end{align*}
+\textbf{n\_critic\,$=3$:}\ $D$ is updated 3$\times$ per $G$ update. This ensures $D$ tracks the true Wasserstein distance accurately before $G$ uses the gradient signal.}
+
+\navybox{Adam Optimiser: Why $\beta_1 = 0$?}{%
+Standard Adam uses $\beta_1 = 0.9$ (momentum) and $\beta_2 = 0.999$ (RMS scaling). Gulrajani et al.\ (2017) recommend $\beta_1 = 0$, $\beta_2 = 0.9$.
+
+In adversarial training, gradients \emph{reverse direction frequently}: in one step $D$ pushes $G$ one way, in the next step their roles shift. Momentum ($\beta_1 > 0$) accumulates past gradients and pushes in the \emph{wrong} direction, causing oscillations. Setting $\beta_1 = 0$ disables momentum; only the current gradient scaled by $\beta_2$-RMS is used.}
+
+\amberbox{Why No BatchNorm in the WGAN-GP Critic?}{%
+BatchNorm normalises across the batch: $\hat{x}_i = (x_i - \mu_\text{batch})/\sigma_\text{batch}$.
+When computing $\mathcal{L}_\text{GP}$, the gradient $\nabla_{\hat{x}} D(\hat{x})$ must reflect how $D$ responds to a \emph{single} interpolated point. BatchNorm introduces a dependency on \emph{other samples} in the batch, corrupting the gradient norm calculation and breaking the Lipschitz enforcement.
+
+Solution: use \textbf{LayerNorm} (normalises per sample across features), which has no batch dependency. Both QuantGAN and FinGAN use LayerNorm in the critic.}
+
+\end{multicols}
+
+\clearpage
+
+%% ─── Page 6: TimeGAN ────────────────────────────────────────────────────────
+\pagehead{TimeGAN: Making the GAN Time-Aware}
+         {Yoon, Jarrett \& van der Schaar (2019) NeurIPS 32 --- GRU + embedding space + 4-phase training}
+
+\begin{multicols}{2}
+
+\navybox{Why a Plain GAN Fails on Time Series}{%
+A basic GAN generates each window independently from a noise vector. It \emph{can} match the marginal distribution $p(r_t)$ (correct tails, correct scale), but has no mechanism to enforce that consecutive steps within a window exhibit temporal patterns like volatility clustering.
+
+\textbf{Analogy:}\ Writing a novel by choosing each word independently from a realistic vocabulary. Individual words are real English, but the sequence is incoherent.}
+
+\skybox{What is a GRU? (From Scratch)}{%
+A \textbf{GRU} (Gated Recurrent Unit) processes a sequence step by step, maintaining a ``hidden state'' $h_t$ --- a running summary of all past inputs.
+
+At each step $t$, given $x_t$ (current input) and $h_{t-1}$ (previous summary):
+\begin{align*}
+  r_t &= \sigma\!\bigl(W_r [h_{t-1},\, x_t]\bigr) && \text{reset gate} \\
+  z_t &= \sigma\!\bigl(W_z [h_{t-1},\, x_t]\bigr) && \text{update gate} \\
+  \tilde{h}_t &= \tanh\!\bigl(W [r_t \odot h_{t-1},\, x_t]\bigr) && \text{candidate state} \\
+  h_t &= (1-z_t)\odot h_{t-1} + z_t \odot \tilde{h}_t && \text{new hidden state}
+\end{align*}
+The update gate $z_t$ controls how much past information to keep vs.\ replace. The key property: $h_t$ is a \emph{compressed summary} of all inputs so far.}
+
+\navybox{Key Innovation: Generating in Embedding Space}{%
+TimeGAN trains the GAN in a \textbf{learned latent space} $\mathcal{H}$, not in the raw return space $\mathcal{X}$.
+
+\textbf{Why?}\ Raw returns are noisy. A smooth latent space is easier to model with a GAN. Moreover, a \emph{Supervisor} network is trained to predict $h_{t+1}$ from $h_t$, embedding the temporal dynamics into $\mathcal{H}$. $G$ then generates sequences in $\mathcal{H}$ that follow these learned dynamics.}
+
+\columnbreak
+
+\tealbox{The Four-Phase Training Algorithm}{%
+\textbf{Phase 1 --- Autoencoder} (epochs\,//\,2 steps):
+\begin{itemize}
+  \item Embedder $e: \mathcal{X} \to \mathcal{H}$; Recovery $\hat{r}: \mathcal{H} \to \tilde{\mathcal{X}}$
+  \item $\mathcal{L}_R = \norm{X - \hat{r}(e(X))}^2$ \quad (reconstruction)
+\end{itemize}
+
+\textbf{Phase 2 --- Supervisor} (epochs\,//\,2 steps):
+\begin{itemize}
+  \item Supervisor $s: \mathcal{H} \to \hat{\mathcal{H}}$\ (step-ahead prediction in latent space)
+  \item $\mathcal{L}_S = \norm{H_{t+1} - s(H_t)}^2$
+\end{itemize}
+
+\textbf{Phase 3 --- Joint Adversarial Training} (epochs steps):
+\begin{equation*}
+  z \to G(z)=\hat{H} \to s(\hat{H}) \to \hat{r}(\cdot) \to \tilde{X}
+\end{equation*}
+\begin{align*}
+  \mathcal{L}_G &= \mathcal{L}_U + 100\sqrt{\mathcal{L}_S} + 100\,\mathcal{L}_V \\[2pt]
+  \mathcal{L}_U &= -\E\!\bigl[\log D(s(G(z)))\bigr] \quad\text{(adversarial)} \\
+  \mathcal{L}_V &= |\mu_H - \mu_{\hat{H}}| + |\sigma_H - \sigma_{\hat{H}}| \quad\text{(moments)}
+\end{align*}
+Discriminator: $\mathcal{L}_D = \text{BCE}\!\bigl(D(H_\text{real}),1\bigr) + \text{BCE}\!\bigl(D(H_\text{fake}),0\bigr)$}
+
+\redbox{Critical Issue: Training Budget}{%
+With the current setting \texttt{epochs = 5}:
+\begin{itemize}
+  \item Phase 1 gets $5 // 2 = 2$ gradient steps.
+  \item Phase 2 gets $5 // 2 = 2$ gradient steps.
+\end{itemize}
+\textbf{A GRU cannot converge in 2 steps.}\ The embedding space $\mathcal{H}$ is essentially random noise $\Rightarrow$ Phase 3 trains a GAN on top of garbage.
+
+Yoon et al.\ (2019) use \textbf{5\,000--10\,000 iterations per phase}. TimeGAN's poor ranking (avg\_rank\,$= 2.36$) almost certainly reflects this budget, not its architecture.
+
+\textbf{Fix required:}\ epochs\,$\geq 50$ (or add explicit per-phase iteration counts).}
+
+\end{multicols}
+
+\clearpage
+
+%% ─── Page 7: QuantGAN & FinGAN ───────────────────────────────────────────────
+\pagehead{QuantGAN \& FinGAN: Convolutional Approaches to Time Series Generation}
+         {Building from convolutions to causal dilated TCNs to CNN-WGAN-GP generators}
+
+\begin{multicols}{2}
+
+\navybox{What is a Convolution? (From Scratch)}{%
+A 1D convolution slides a small filter (kernel) of size $K$ over a sequence:
+\begin{equation*}
+  \text{out}[t] = \sum_{k=0}^{K-1} w_k \cdot \text{in}[t - k]
+\end{equation*}
+Think of it as a magnifying glass that scans the time series, highlighting patterns of a specific shape. The weights $w_0,\ldots,w_{K-1}$ are learnt from data.
+
+\textbf{Causal constraint} (no future leakage):\ only inputs at $t, t-1, \ldots, t-(K-1)$ are used.
+
+\textbf{Dilated convolution} (skip steps to see further back cheaply):
+\begin{equation*}
+  \text{out}[t] = \sum_{k=0}^{K-1} w_k \cdot \text{in}[t - k \cdot d]
+\end{equation*}
+With dilation $d=1,2,4,8,\ldots$ and $K=2$: receptive field grows as $1+\sum_l 2^l$, doubling per layer with no extra parameters.}
+
+\begin{tcolorbox}[mybox={QGcol}{BBg},title={QuantGAN --- TCN-based WGAN-GP (Wiese et al., 2020)}]
+\textbf{Key innovation:}\ replace GRU with a Temporal Convolutional Network (TCN) --- fully parallelisable, no vanishing-gradient-across-time problem.
+
+\textbf{Generator:} $z$ (\texttt{noise\_dim=100}) $\to$ \texttt{Linear} $\to$ reshape $(C, T/4)$ $\to$ \texttt{ConvTranspose1d}$\times$2 (stride 2, $2\times$ upsample) $\to$ TCN (3 residual blocks, dilations 1/2/4) $\to$ \texttt{Conv1d(1)} $\to$ \texttt{Tanh} $\to \tilde{x}$
+
+\textbf{Critic:} $x$ $(T\times 1)$ $\to$ permute $\to$ TCN (3 blocks) $\to$ \texttt{AdaptiveAvgPool1d(1)} $\to$ \texttt{Linear(128)} $\to$ \texttt{LeakyReLU} $\to$ \texttt{Linear(1)}
+
+\texttt{AdaptiveAvgPool} averages the entire temporal dimension, making the critic size-agnostic and capturing global sequence statistics.
+\end{tcolorbox}
+
+\columnbreak
+
+\begin{tcolorbox}[mybox={FGcol}{GBg},title={FinGAN --- CNN Deconvolution WGAN-GP}]
+\textbf{Transposed convolution:}\ the ``reverse'' of a strided convolution; inserts zeros between inputs then applies a kernel. Stride 2 doubles the output length. Three such layers: $T/8 \to T/4 \to T/2 \to T$ (hence seq\_len divisible by 8).
+
+\textbf{Generator:} $z \to$ \texttt{Linear+BN} $\to$ reshape $(C, T/8)$ $\to$ \texttt{ConvTranspose1d} $\times$ 3 (each stride 2, BN, LeakyReLU) $\to$ \texttt{Tanh}
+
+\textbf{Critic:} \texttt{Conv1d} $\times$ 3 with \textbf{LayerNorm} (not BatchNorm; see page 5) + \texttt{LeakyReLU} $\to$ \texttt{Flatten} $\to$ \texttt{Linear(128)} $\to$ \texttt{Linear(1)}
+\end{tcolorbox}
+
+\navybox{Architectural Comparison}{%
+\small\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\linewidth}{@{}lXXX@{}}
+\toprule
+& \textbf{TimeGAN} & \textbf{QuantGAN} & \textbf{FinGAN} \\
+\midrule
+Backbone      & GRU (recurrent)          & TCN (parallel)          & CNN deconv \\
+Temporal      & Step-by-step hidden state & Dilated receptive field & Global upsample \\
+Normalisation & MinMax $[0,1]$            & MinMax $[-1,1]$         & MinMax $[-1,1]$ \\
+Loss          & BCE + moments             & WGAN-GP                 & WGAN-GP \\
+avg\_rank     & 2.36                      & 1.79                    & 1.85 \\
+\bottomrule
+\end{tabularx}
+\footnotesize TimeGAN's poor ranking is almost certainly due to \texttt{epochs=5}, not its architecture.}
+
+\end{multicols}
+
+\clearpage
+
+%% ─── Page 8: Stylized Facts Table ───────────────────────────────────────────
+\pagehead{What We Measure: The 10 Stylized Facts of Financial Returns}
+         {Cont (2001) $\cdot$ Mandelbrot (1963) $\cdot$ Ding, Granger \& Engle (1993)}
+
+\vspace{2pt}
+\small
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{1.4}
+\begin{longtable}{%
+  >{\bfseries\centering}p{0.02\textwidth}
+  >{\bfseries}p{0.16\textwidth}
+  p{0.24\textwidth}
+  p{0.25\textwidth}
+  p{0.25\textwidth}}
+
+\rowcolor{Navy}
+{\color{white}\#} &
+{\color{white}Stylized Fact} &
+{\color{white}In Plain English} &
+{\color{white}Mathematical Statement} &
+{\color{white}Our Metric} \\[2pt]
+\endfirsthead
+\rowcolor{Navy}
+{\color{white}\#} &
+{\color{white}Stylized Fact} &
+{\color{white}In Plain English} &
+{\color{white}Mathematical Statement} &
+{\color{white}Our Metric} \\[2pt]
+\endhead
+
+\rowcolor{TabOdd}
+1 & Heavy tails &
+  Extreme events occur far more often than a bell curve predicts. &
+  $P(|r|>x) \sim x^{-\alpha}$, $\alpha \approx 3$--$5$ (Pareto); kurtosis$(r) \gg 3$ &
+  Kurtosis diff $\cdot$ tail-index diff \\
+
+2 & Near-zero autocorrelation &
+  Knowing today's direction gives no useful information about tomorrow's. &
+  $\operatorname{Corr}(r_t, r_{t+k}) \approx 0$ for $k \geq 1$ (weak-form efficiency) &
+  ACF returns MAE \\
+
+\rowcolor{TabOdd}
+3 & Volatility clustering &
+  Large moves tend to be followed by large moves (Mandelbrot, 1963). &
+  $\operatorname{Corr}(|r_t|, |r_{t+k}|) > 0$ for $k = 1, \ldots, 100{+}$ &
+  ACF $|$returns$|$ MAE $\cdot$ ARCH-LM stat diff \\
+
+4 & Long memory in volatility &
+  The clustering effect persists for hundreds of trading days. &
+  $\operatorname{ACF}(|r_t|) \sim k^{-\beta}$, $\beta \in (0,1)$; Hurst exponent $H > 0.5$ &
+  Hurst exponent diff \\
+
+\rowcolor{TabOdd}
+5 & Gain/loss asymmetry &
+  Crashes are sharper and more extreme than equivalent-size rallies. &
+  skewness$(r) < 0$ for equity indices; left tail heavier than right &
+  Skewness diff \\
+
+6 & ARCH effects &
+  Return variance changes over time; it is not constant. &
+  $\operatorname{Var}(r_t \mid \mathcal{F}_{t-1}) = \sigma^2_t$ (time-varying, not constant $\sigma^2$) &
+  ARCH-LM test (Engle, 1982) \\
+
+\rowcolor{TabOdd}
+7 & Conditional heavy tails &
+  After removing time-varying variance, residuals are still non-Gaussian. &
+  $\varepsilon_t = r_t/\sigma_t$ still has kurtosis $\gg 3$ (GARCH standardised residuals) &
+  Kurtosis diff on residuals (ext.) \\
+
+8 & Extreme events &
+  Very large days occur far more frequently than Gaussian probability predicts. &
+  \% of days with $|r| > 2\sigma$ exceeds the $5\%$ expected under $\mathcal{N}(0,1)$ &
+  Extreme events diff \\
+
+\rowcolor{TabOdd}
+9 & Distributional match &
+  The full shape of the return distribution --- not just its tails --- must be reproduced. &
+  $W_1(p_g, p_\text{data}) \approx 0$;\; $\hat{F}_\text{syn} \approx \hat{F}_\text{real}$ (quantile-by-quantile) &
+  Wasserstein $\cdot$ Quantile MSE $\cdot$ Energy distance \\
+
+10 & Indistinguishability &
+  A classifier trained to separate real from synthetic should perform at chance level. &
+  $\operatorname{AUC}(\text{classifier}) \to 0.5$;\; $p_g = p_\text{data}$ at GAN optimum &
+  Discriminative AUC \\
+
+\bottomrule
+\end{longtable}
+
+\clearpage
+
+%% ─── Page 9: Why Classic Tests Fail ─────────────────────────────────────────
+\pagehead{Evaluation Metrics Part 1 --- Why Standard Statistical Tests Fail}
+         {The i.i.d.\ assumption: what it means, why financial series violate it, mathematical consequences}
+
+\begin{multicols}{2}
+
+\navybox{What Does i.i.d.\ Mean?}{%
+A sample $\{X_1, X_2, \ldots, X_n\}$ is \textbf{i.i.d.}\ (independent and identically distributed) if:
+\begin{itemize}
+  \item \textit{Identically distributed:}\ every $X_i$ has the same distribution $F$.
+  \item \textit{Independent:}\ knowing $X_1,\ldots,X_{t-1}$ gives \textbf{no} information about $X_t$.
+\end{itemize}
+Coin flips are i.i.d.\ Financial returns are \textbf{not}:
+\begin{itemize}
+  \item $|r_{t+1}|$ is correlated with $|r_t|$ (volatility clustering).
+  \item $\operatorname{Var}(r_t \mid \mathcal{F}_{t-1}) = \sigma^2_t \neq \text{const}$ (ARCH effects).
+  \item $\operatorname{ACF}(|r_t|)$ is still positive at lag $k=100{+}$ (long memory).
+\end{itemize}
+Most classical statistical tests are \emph{derived} under the i.i.d.\ assumption.}
+
+\skybox{The Kolmogorov--Smirnov Test and Its Failure}{%
+The two-sample KS statistic:
+\begin{equation*}
+  D_{n,m} = \sup_x\, \bigl|\hat{F}_n(x) - \hat{G}_m(x)\bigr|
+\end{equation*}
+
+Under $H_0$ (same distribution) \textbf{and} i.i.d.:
+\begin{equation*}
+  \sqrt{\frac{nm}{n+m}}\cdot D_{n,m} \;\xrightarrow{d}\; K \quad\text{(Kolmogorov distribution)}
+\end{equation*}
+
+For \emph{dependent} series, the CLT underlying this limit changes:
+\begin{equation*}
+  \operatorname{Var}\!\left(\frac{1}{n}\sum_{t=1}^n X_t\right)
+  = \frac{\sigma^2}{n}\!\left(1 + 2\sum_{k=1}^{\infty}\rho_k\right)
+\end{equation*}
+
+This defines the \textbf{effective sample size}:
+\begin{equation*}
+  n_\text{eff} = \frac{n}{1 + 2\displaystyle\sum_{k=1}^{\infty}\rho_k}
+\end{equation*}
+
+For BRICS $|$returns$|$: $\sum_{k=1}^{100}\rho_{|r|}(k) \approx 5$--$15$, so:
+\begin{equation*}
+  n_\text{eff} \approx \frac{n}{11}\ \text{ to }\ \frac{n}{31}
+\end{equation*}
+
+\textbf{Consequence:}\ The KS test uses $n$ but the effective information is only $n_\text{eff}$.
+$\Rightarrow$ Test statistic is \emph{inflated}.
+$\Rightarrow$ $p$-values are \emph{too small} (anti-conservative).
+$\Rightarrow$ We over-reject $H_0$ even when the marginal distributions match, because temporal dependence is mistaken for distributional difference.}
+
+\columnbreak
+
+\amberbox{What Can the KS Test Still Tell Us?}{%
+Despite its limitations, the KS test is not useless:
+\begin{itemize}
+  \item It tests the \emph{marginal} distribution $F(x) = P(r \leq x)$, which is well-defined even for stationary dependent series.
+  \item A GAN producing the wrong scale or non-financial-looking returns will fail the KS test.
+\end{itemize}
+
+\textbf{Strategy used in this project:}
+\begin{enumerate}
+  \item Report the KS \emph{statistic} (not the $p$-value) as a marginal-distribution distance measure.
+  \item Use \textbf{Wasserstein distance} $W_1(p_g, p_\text{data})$ as the primary distributional metric --- a proper metric that is more stable under temporal dependence.
+  \item Add time-series-aware tests (ARCH-LM, Hurst exponent, discriminative AUC) to capture what KS cannot.
+\end{enumerate}}
+
+\redbox{Why Pointwise MSE/MAE Are Wrong}{%
+The evaluation previously used:
+\begin{equation*}
+  \text{MSE} = \frac{1}{T}\sum_{t=1}^T \bigl(r_\text{real}(t) - r_\text{syn}(t)\bigr)^2
+\end{equation*}
+This compares the $t$-th real return to the $t$-th synthetic return. But real and synthetic series are \textbf{independently generated} --- there is no meaningful alignment between their temporal indices.
+
+\textbf{Analogy:}\ Measuring the ``error'' between two random walks by comparing step 1 to step 1, step 2 to step 2, etc.\ This measures nothing about distributional similarity.
+
+\textbf{Fix:}\ Use \textbf{Quantile MSE} (compares sorted distributions) and \textbf{Energy distance} (a proper metric on the space of distributions). See next page.}
+
+\navybox{Welch's $t$-test: A Narrower Failure}{%
+Welch's test checks $H_0: \mu_\text{real} = \mu_\text{syn}$:
+\begin{equation*}
+  t = \frac{\bar{X} - \bar{Y}}{\sqrt{s^2_X/n + s^2_Y/m}}
+\end{equation*}
+For log returns, $\rho_k(r_t) \approx 0$ for $k \geq 1$, so Welch's test is \emph{approximately valid} for testing mean equality. However, it tests \textbf{only the mean} --- providing no information about tails, volatility clustering, or any other stylized fact. Using it as the primary evaluation metric tells us almost nothing about financial realism.}
+
+\end{multicols}
+
+\clearpage
+
+%% ─── Page 10: New Metrics ───────────────────────────────────────────────────
+\pagehead{Evaluation Metrics Part 2 --- New Time-Series-Aware Tests Added}
+         {ARCH-LM $\cdot$ Hurst exponent $\cdot$ Energy distance $\cdot$ Discriminative AUC $\cdot$ Quantile MSE}
+
+\begin{multicols}{2}
+
+\redbox{1.\ ARCH-LM Test --- Volatility Clustering}{%
+\textbf{What it tests:}\ $H_0 =$ no ARCH effects (homoskedasticity).
+
+\textbf{Procedure} (Engle, 1982):
+\begin{enumerate}
+  \item Regress squared residuals on their own lags:
+        \[\hat{\varepsilon}^2_t = \alpha_0 + \sum_{j=1}^q \alpha_j\,\hat{\varepsilon}^2_{t-j} + v_t\]
+  \item Compute $\text{LM} = n \cdot R^2$, where $R^2$ is from the auxiliary regression.
+  \item Under $H_0$:\ $\text{LM} \sim \chi^2(q)$.
+  \item If $p < 0.05$: reject $H_0$ $\Rightarrow$ ARCH effects present.
+\end{enumerate}
+
+\textbf{How we use it:}\ BRICS real returns consistently show ARCH ($p \ll 0.05$). A good GAN's synthetic returns should also show ARCH. Our metric: $|\text{LM}_\text{real} - \text{LM}_\text{syn}| \to 0$.}
+
+\purplebox{2.\ Hurst Exponent --- Long Memory}{%
+\textbf{What it captures:}\ whether $|$returns$|$ have the slow ACF decay (long memory, Stylized Fact 4) that real financial series exhibit.
+
+The Hurst exponent $H$ characterises the scaling of the rescaled range $R/S$:
+\begin{equation*}
+  \E\!\left[\frac{R_n}{S_n}\right] \sim c \cdot n^H
+\end{equation*}
+where $R_n = \max_t(\text{partial sums}) - \min_t(\text{partial sums})$ and $S_n = \operatorname{std}(\{r_t\})$.
+
+\textbf{Interpretation:}
+\begin{itemize}
+  \item $H = 0.5$: Brownian motion (no memory, i.i.d.\ increments).
+  \item $H > 0.5$: persistent long memory (trends reinforce).
+  \item $H < 0.5$: mean-reverting (anti-persistent).
+\end{itemize}
+For log returns $r_t$: $H \approx 0.5$ (efficient). For $|r_t|$: $H \approx 0.6$--$0.7$.
+
+Our metric: $|H_\text{real} - H_\text{syn}| \to 0$.}
+
+\columnbreak
+
+\skybox{3.\ Energy Distance --- A Proper Distributional Metric}{%
+The energy distance between distributions $P$ and $Q$ (Sz\'{e}kely \& Rizzo, 2004):
+\begin{equation*}
+  E(P,Q) = 2\,\E\norm{X - Y} - \E\norm{X - X'} - \E\norm{Y - Y'}
+\end{equation*}
+where $X, X' \sim P$ and $Y, Y' \sim Q$ are independent copies.
+
+\textbf{Key properties:}
+\begin{itemize}
+  \item $E(P,Q) \geq 0$, with $E(P,Q) = 0$ iff $P = Q$. A \emph{true metric} on distributions.
+  \item Does not require a density function or independence.
+  \item Uses only marginal expectations (no joint $\gamma$); avoids the i.i.d.\ problem of KS.
+\end{itemize}
+Estimated using subsampled pairs ($n = \min(500, N)$), $O(n^2)$ cost.}
+
+\tealbox{4.\ Discriminative AUC --- The Holistic Score}{%
+\textbf{Procedure} (TSGBench, Ang et al., 2023):
+\begin{enumerate}
+  \item Extract rolling-window features from both real and synthetic (mean, std, skewness, kurtosis, $|\bar{r}|$, $\max|r|$).
+  \item Label real windows 0, synthetic windows 1.
+  \item Train logistic regression; report AUC via 5-fold CV.
+\end{enumerate}
+$\text{AUC} = 0.5$: distributions indistinguishable. $\text{AUC} = 1.0$: trivially separable.
+
+This is the best single summary because it captures both distributional \emph{and} temporal structure simultaneously. A GAN with the correct marginal but wrong temporal structure will still show AUC $> 0.5$.}
+
+\amberbox{5.\ Quantile MSE --- Proper Distribution Shape Comparison}{%
+Pointwise MSE is meaningless (no index alignment). Quantile MSE compares empirical quantile functions:
+\begin{equation*}
+  \text{QMSE} = \frac{1}{K}\sum_{k=1}^K
+    \bigl(Q_\text{real}(\alpha_k) - Q_\text{syn}(\alpha_k)\bigr)^2,
+  \quad \alpha_k = \frac{k}{K+1},\quad K = 99
+\end{equation*}
+\textbf{Interpretation:}\ sort both series independently; compare the $k$-th smallest real return to the $k$-th smallest synthetic return. This is the only meaningful way to compare two unaligned distributions.
+
+$\text{QMSE} = 0 \Leftrightarrow \hat{F}_\text{real} = \hat{F}_\text{syn}$. Equivalent to the $L^2$ distance between empirical CDFs. Captures tail differences (1st, 5th percentile) critical for finance.}
+
+\end{multicols}
+
+\clearpage
+
+%% ─── Page 11: Code Audit ────────────────────────────────────────────────────
+\pagehead{Code Audit: Issues Found, Mathematical Justification \& Changes Applied}
+         {\texttt{3\_4\_integrated\_pipeline.ipynb} --- reviewed and updated July 2026}
+
+\vspace{4pt}
+\newcommand{\auditrow}[5]{%
+  \begin{tcolorbox}[mybox={#2}{#3},
+    title={\textbf{[#1]}\quad #4},
+    before skip=4pt, after skip=4pt, breakable]
+  \small #5
+  \end{tcolorbox}}
+
+\auditrow{FIXED}{DRed}{RBg}%
+  {KS / Welch tests assumed i.i.d.\ --- CRITICAL}%
+  {$n_\text{eff} = n/(1+2\sum_k\rho_k) \ll n$ for financial series (the sum of ACF of $|\text{returns}|$ is $\approx 5$--$15$ for BRICS). The KS statistic is inflated, making $p$-values anti-conservative. \textbf{Fix:} added ARCH-LM test, Hurst exponent, energy distance, and discriminative AUC. KS statistic retained with explicit caveat; Wasserstein distance used as primary distributional metric.}
+
+\auditrow{FIXED}{DRed}{RBg}%
+  {Pointwise MSE/MAE had no semantic meaning}%
+  {MSE compared $r_\text{real}(t)$ to $r_\text{syn}(t)$, but real and synthetic are independently generated: no temporal alignment exists between indices. \textbf{Fix:} replaced with Quantile MSE ($L^2$ distance between empirical quantile functions) and Energy distance (Sz\'{e}kely \& Rizzo, 2004 --- a proper metric on the space of distributions).}
+
+\auditrow{DECISION}{Indigo}{IBg}%
+  {No outlier clipping applied to log returns --- deliberate methodological choice}%
+  {The preprocessing notebook computed 0.5th/99.9th percentile bounds on raw price columns, but the clip line was commented out and was \emph{never} applied to log returns. This is kept intentionally. Clipping at 0.5th/99.5th removes exactly the observations that determine kurtosis, the tail index, and the ``\% of $|r|>2\sigma$'' metric --- all three appear in the evaluation table. Truncating the tail and then reporting that models reproduce tails is circular. Adams et al.\ (2019, \textit{Financial Management}) show that winsorizing/trimming can worsen rather than fix distributional misfit. LeBaron's EVT work finds BRICS emerging markets have systematically fatter tails than developed markets --- the very property motivating the BRICS market choice.}
+
+\auditrow{FIXED}{Amber}{ABg}%
+  {Ljung-Box test used deprecated statsmodels API}%
+  {\texttt{acorr\_ljungbox(..., return\_df=False)} returns a DataFrame in statsmodels $\geq$\,0.13, not a tuple. Accessing \texttt{lb[1][-1]} raised \texttt{TypeError}. \textbf{Fix:} \texttt{return\_df=True}, \texttt{lags=[n]} (list syntax), accessed via \texttt{.iloc[-1]["lb\_pvalue"]}.}
+
+\auditrow{FIXED}{Amber}{ABg}%
+  {\texttt{ResidualBlock} class defined but never used in FinGAN cell}%
+  {\texttt{class ResidualBlock(nn.Module)} was defined at the top of the FinGAN cell but neither \texttt{FinGAN\_Generator} nor \texttt{FinGAN\_Critic} reference it. Dead code misleads readers into thinking residual connections are active. \textbf{Fix:} class removed entirely.}
+
+\auditrow{FIXED}{Amber}{ABg}%
+  {Grid search \texttt{score\_cols} included pointwise MSE and MAE}%
+  {The composite ranking used to select hyperparameter configurations included \texttt{mse} and \texttt{mae} --- meaningless as explained above. \textbf{Fix:} removed from \texttt{score\_cols}; added \texttt{hurst\_diff}, \texttt{energy\_distance}, \texttt{arch\_stat\_diff}.}
+
+\auditrow{OK}{FGreen}{GBg}%
+  {WGAN-GP gradient penalty computation is correct (QuantGAN \& FinGAN)}%
+  {$\hat{x} = \varepsilon x_\text{real} + (1-\varepsilon)x_\text{fake}$; \texttt{requires\_grad\_(True)}; gradients computed via \texttt{torch.autograd.grad} with \texttt{create\_graph=True}. \texttt{fake.detach()} prevents spurious gradient accumulation. Correctly implements Gulrajani et al.\ (2017), Equation 3.}
+
+\auditrow{OK}{FGreen}{GBg}%
+  {Adam $\beta_1=0$, $\beta_2=0.9$ for WGAN-GP --- correct}%
+  {$\beta_1=0$ disables first-moment (momentum) accumulation. In adversarial training, gradients reverse direction frequently; momentum from the previous step destabilises training. $\beta_2=0.9$ retains RMS adaptive scaling. Recommended explicitly by Gulrajani et al.\ (2017).}
+
+\auditrow{CONCERN}{Amber}{ABg}%
+  {TimeGAN training budget of \texttt{epochs=5} is scientifically insufficient}%
+  {Phases 1 and 2 each receive $5//2=2$ gradient steps. A GRU cannot converge in 2 steps; the embedding space $\mathcal{H}$ is effectively random. Yoon et al.\ (2019) use 5\,000--10\,000 iterations per phase. TimeGAN's poor ranking (avg\_rank\,$=2.36$) almost certainly reflects this budget, not its architecture. Requires fix: \texttt{epochs}\,$\geq 50$ (or add explicit per-phase iteration counts).}
+
+\clearpage
+
+%% ─── Page 12: Grid Search ───────────────────────────────────────────────────
+\pagehead{Hyperparameter Grid Search: Why, How, and What It Documents}
+         {Required for publication: systematic evidence that parameters were tested before selection}
+
+\begin{multicols}{2}
+
+\navybox{Why Grid Search is Required for Publication}{%
+A common reviewer critique: ``how were hyperparameters chosen?'' If the answer is ``we tried a few and picked the best-looking result'', reviewers rightly question reproducibility.
+
+Grid search provides a \textbf{paper trail}:
+\begin{itemize}
+  \item Search space is defined \emph{ex ante} (before seeing results).
+  \item Selection criterion is objective (composite rank of stylized-fact metrics).
+  \item Every candidate configuration is logged to a CSV (appendix).
+  \item The winning configuration is retrained at full epochs.
+\end{itemize}
+This turns hyperparameter choice from a hidden decision into a documented, reproducible scientific step.}
+
+\skybox{The Search Protocol}{%
+For each (model, config) combination:
+\begin{enumerate}
+  \item Set \texttt{epochs=3} (reduced budget for speed), \texttt{seed=42}.
+  \item Train on pooled BRICS training windows.
+  \item Generate synthetic series; score with \texttt{FinancialMetrics}.
+  \item Rank each candidate on each metric (rank 1 = best).
+  \item $\text{composite\_score}_i = \frac{1}{|\text{score\_cols}|} \sum_m \text{rank}_m(i)$
+  \item Best config $\to$ retrain at full epochs for final results.
+\end{enumerate}}
+
+\tealbox{Composite Scoring Formula}{%
+\texttt{score\_cols} $= \{$wasserstein, ks\_statistic, kurtosis\_diff, skewness\_diff, acf\_returns\_mae, acf\_absolute\_mae, tail\_index\_diff, hurst\_diff, energy\_distance, arch\_stat\_diff$\}$
+
+\textbf{Excluded from scoring:}
+\begin{itemize}
+  \item \texttt{mse}, \texttt{mae} --- pointwise metrics (no temporal alignment, meaningless)
+  \item \texttt{ks\_pvalue} --- correlated with \texttt{ks\_statistic}; double-counting
+\end{itemize}}
+
+\columnbreak
+
+\navybox{Search Space (8 candidates $= 2^3$ per model)}{%
+\begin{center}
+\small\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Model} & \textbf{Parameter} & \textbf{Values} \\
+\midrule
+\textcolor{TGcol}{TimeGAN}  & \texttt{hidden\_dim} & $\{24, 48\}$ \\
+                             & \texttt{num\_layers}  & $\{2, 3\}$ \\
+                             & \texttt{lr}           & $\{10^{-3}, 5\!\times\!10^{-4}\}$ \\[4pt]
+\textcolor{QGcol}{QuantGAN} & \texttt{lr}           & $\{10^{-4}, 2\!\times\!10^{-4}\}$ \\
+                             & \texttt{n\_critic}    & $\{3, 5\}$ \\
+                             & \texttt{lambda\_gp}   & $\{5, 10\}$ \\[4pt]
+\textcolor{FGcol}{FinGAN}   & \texttt{lr}           & $\{10^{-4}, 2\!\times\!10^{-4}\}$ \\
+                             & \texttt{n\_critic}    & $\{3, 5\}$ \\
+                             & \texttt{base\_channels}& $\{32, 64\}$ \\
+\bottomrule
+\end{tabular}
+\end{center}}
+
+\greenbox{Reproducibility}{%
+Each candidate calls \texttt{torch.manual\_seed(seed)} and \texttt{np.random.seed(seed)}.
+Same config + same seed $\Rightarrow$ identical weight initialisation and training trajectory.
+
+Results saved to: \texttt{grid\_search\_results/\{Model\}\_grid\_search.csv}. This CSV is the paper appendix for hyperparameter documentation.}
+
+\amberbox{Recommended Extensions for Publication}{%
+\begin{itemize}
+  \item Extend to 20--30 configs $\times$ 10 epochs per candidate (currently 8\,$\times$\,3).
+  \item Use Bayesian optimisation (Optuna) for more efficient exploration.
+  \item Ablation table: vary one parameter at a time, fix all others; report marginal effect on composite score.
+  \item 5-fold cross-validation across market splits for robust scoring.
+  \item Report best config with 95\,\% CI on composite score across seeds.
+\end{itemize}}
+
+\end{multicols}
+
+\clearpage
+
+%% ─── Page 13: Next Steps ────────────────────────────────────────────────────
+\pagehead{Ranked Next Steps for Paper Publication}
+         {Priority order based on impact on scientific rigour and reviewability}
+
+\vspace{4pt}
+\auditrow{CRITICAL}{DRed}{RBg}%
+  {1 --- Re-run the full pipeline and regenerate all results}%
+  {Evaluation metrics schema changed (ARCH-LM, Hurst, discriminative AUC, energy distance added; pointwise MSE/MAE removed from ranking). All files in \texttt{thesis\_results/} are stale. Must regenerate before any comparative analysis or figure creation for the paper.}
+
+\auditrow{CRITICAL}{DRed}{RBg}%
+  {2 --- Fix TimeGAN training budget (\texttt{epochs=5} is scientifically unsound)}%
+  {Phases 1 and 2 each get 2 gradient steps. Yoon et al.\ (2019) use 5\,000--10\,000 iterations per phase. Recommendation: set \texttt{epochs}\,$\geq 50$ or add explicit per-phase iteration count parameters.}
+
+\auditrow{HIGH}{Amber}{ABg}%
+  {3 --- Robustness test on a different asset class (FX or Crypto)}%
+  {Supervisor request: train the best GAN (QuantGAN) on BRICS, then evaluate on EUR/USD or BTC/USD daily log returns. Validates out-of-distribution generalisation --- a key contribution distinguishing the paper from single-asset GAN studies.}
+
+\auditrow{HIGH}{Amber}{ABg}%
+  {4 --- Add or discuss diffusion model baseline}%
+  {Takahashi \& Mizuno (2025, \textit{Quantitative Finance} 25(10)) showed diffusion models outperform GANs on several stylized-fact metrics. Reviewers will ask why diffusion was not included. At minimum: a dedicated Discussion section. Best: include a simple DDPM or score-matching baseline.}
+
+\auditrow{HIGH}{Amber}{ABg}%
+  {5 --- Document all LLM parameters for reproducibility}%
+  {DeepSeek experiments: report temperature, \texttt{top\_p}, \texttt{max\_tokens}, system/user prompt verbatim. LoRA fine-tuning: $r=8$, $\alpha=16$, target modules (\texttt{q\_proj}, \texttt{v\_proj}), dropout, epochs, batch size, gradient accumulation steps.}
+
+\auditrow{MEDIUM}{Sky}{BBg}%
+  {6 --- Expand grid search and publish full ablation table}%
+  {Current: 8 configs $\times$ 3 epochs. For publication: extend to 20--30 configs $\times$ 10 epochs; add ablation table showing marginal effect of each hyperparameter.}
+
+\auditrow{MEDIUM}{Sky}{BBg}%
+  {7 --- Update literature review with 2024/2025 papers}%
+  {Must cite: Meldrum et al.\ (2025) arXiv:2510.26076; SFAG (2026) arXiv:2601.12990; TSGBench Ang et al.\ (2023) PVLDB 17(3); Chronos Ansari et al.\ (2024) arXiv:2403.07815; LLMTime Gruver et al.\ NeurIPS 2023; Forging TS Hamdouche et al.\ (2025) arXiv:2505.17103.}
+
+\auditrow{LOW}{FGreen}{GBg}%
+  {8 --- LLM diversity analysis: correlation between independent generation runs}%
+  {Generate 10+ independent synthetic series from each LLM. Compute pairwise Wasserstein distances and correlations. Mode collapse $\to$ high correlation. Diversity $\to$ low. Addresses the supervisor's question about LLM output diversity.}
+
+\auditrow{LOW}{FGreen}{GBg}%
+  {9 --- Fix cosmetic filename strip in \texttt{validate\_models()}}%
+  {\texttt{validate\_models()} calls \texttt{.replace("\_val.parquet","")} but files are named \texttt{"\_valid.parquet"}. Display names show as \texttt{"BOVESPA\_valid"} instead of \texttt{"BOVESPA"}. One-line fix; no effect on results.}
+
+\end{document}
