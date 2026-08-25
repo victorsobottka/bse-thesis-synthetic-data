@@ -29,7 +29,9 @@ for key, filename in files.items():
     )
     df["Price"] = pd.to_numeric(df["Price"], errors="coerce")
 
-    # Ordenar por fecha
+    # Parse dates so sort is chronological, not lexicographic (MM/DD/YYYY strings
+    # sort wrong across year boundaries: "01/01/2021" < "12/31/2020" alphabetically)
+    df["Date"] = pd.to_datetime(df["Date"], dayfirst=False)
     df = df.sort_values("Date")
 
     # Calcular log return
