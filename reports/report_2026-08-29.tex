@@ -782,16 +782,17 @@ where $X, X' \sim P$ and $Y, Y' \sim Q$ are independent copies.
 \end{itemize}
 Estimated using subsampled pairs ($n = \min(500, N)$), $O(n^2)$ cost.}
 
-\tealbox{4.\ Discriminative AUC --- The Holistic Score}{%
+\tealbox{4.\ Discriminative AUC --- Calibrated Against Empirical Null}{%
 \textbf{Procedure} (TSGBench, Ang et al., 2023\tcite{15}):
 \begin{enumerate}
-  \item Extract rolling-window features from both real and synthetic (mean, std, skewness, kurtosis, $|\bar{r}|$, $\max|r|$).
-  \item Label real windows 0, synthetic windows 1.
-  \item Train logistic regression; report AUC via 5-fold CV.
+  \item Extract 20-day rolling-window features from real and synthetic (mean, std, mean-abs, mean-sq).
+  \item Label real windows 0, synthetic windows 1; train logistic regression; report AUC via 5-fold CV.
+  \item \textbf{Empirical null calibration:} split the real series in half 20 times (random permutation), compute AUC(real$_A$, real$_B$) each time. This gives the null distribution for a ``perfect'' generator.
+  \item Report observed AUC as a $z$-score: $z = (\text{AUC}_\text{obs} - \bar{\mu}_\text{null}) / \sigma_\text{null}$.
 \end{enumerate}
-$\text{AUC} = 0.5$: distributions indistinguishable. $\text{AUC} = 1.0$: trivially separable.
+\textbf{Why:} null AUC (no-shuffle CV) has std $\approx 0.08$ --- an observed AUC of 0.62 is entirely consistent with perfect generation. The $z$-score turns an uninterpretable number into a calibrated signal. \textbf{Note:} do not add \texttt{shuffle=True} to the CV; that pushes the null to $0.584 \pm 0.048$ (genuine leakage from overlapping windows).
 
-This is the best single summary because it captures both distributional \emph{and} temporal structure simultaneously. A GAN with the correct marginal but wrong temporal structure will still show AUC $> 0.5$.}
+$z \approx 0$: indistinguishable from same-distribution splits. $z \gg 0$: GAN fails to match the real distribution.}
 
 \amberbox{5.\ Quantile MSE --- Proper Distribution Shape Comparison}{%
 Pointwise MSE is meaningless (no index alignment). Quantile MSE compares empirical quantile functions:
@@ -836,13 +837,21 @@ $\text{QMSE} = 0 \Leftrightarrow \hat{F}_\text{real} = \hat{F}_\text{syn}$. Equi
   {Ljung-Box test used deprecated statsmodels API}%
   {\texttt{acorr\_ljungbox(..., return\_df=False)} returns a DataFrame in statsmodels $\geq$\,0.13, not a tuple. Accessing \texttt{lb[1][-1]} raised \texttt{TypeError}. \textbf{Fix:} \texttt{return\_df=True}, \texttt{lags=[n]} (list syntax), accessed via \texttt{.iloc[-1]["lb\_pvalue"]}.}
 
+\auditrow{FIXED}{Red}{RBg}%
+  {ARCH-LM ranking metric produced rank inversions (\texttt{arch\_pvalue\_diff})}%
+  {The $p$-value difference $|\Delta p|$ ranks IID noise (no clustering) \emph{better} than weak-GARCH, because both have large $p$-values and the distance from real (near 0) is similar. Confirmed empirically: $|\Delta p|_\text{iid}=0.321 < |\Delta p|_\text{weak}=0.551$, a rank inversion. The LM statistic correctly orders all three cases ($|\Delta\text{LM}|_\text{good}=6$, $|\Delta\text{LM}|_\text{iid}\approx 94$). \textbf{Fix:} ranking now uses \texttt{arch\_stat\_diff} $= |\text{LM}_\text{real} - \text{LM}_\text{syn}|$; \texttt{pvalue\_diff} retained in output for diagnostics only.}
+
+\auditrow{FIXED}{Amber}{ABg}%
+  {Discriminative AUC uninterpretable without null calibration}%
+  {Null AUC (no shuffle, same distribution) has $\sigma \approx 0.084$; an observed AUC of 0.62 is entirely consistent with a perfect generator. \textbf{Fix:} empirical null distribution computed by splitting the real series in half 20 times; AUC reported as $z$-score $= (\text{AUC} - \bar{\mu}_\text{null})/\sigma_\text{null}$. Warning: adding \texttt{shuffle=True} to the CV folds is \emph{not} the fix --- it pushes the null to $0.584 \pm 0.048$ (genuine look-ahead leakage from overlapping windows).}
+
 \auditrow{FIXED}{Amber}{ABg}%
   {\texttt{ResidualBlock} class defined but never used in FinGAN cell}%
   {\texttt{class ResidualBlock(nn.Module)} was defined at the top of the FinGAN cell but neither \texttt{FinGAN\_Generator} nor \texttt{FinGAN\_Critic} reference it. Dead code misleads readers into thinking residual connections are active. \textbf{Fix:} class removed entirely.}
 
 \auditrow{FIXED}{Amber}{ABg}%
   {Composite ranking \texttt{score\_cols} included pointwise MSE and MAE}%
-  {The \texttt{evaluate\_multiple\_models()} composite ranking (used to compare model quality) included \texttt{mse} and \texttt{mae} --- meaningless as explained above (no temporal alignment between independently generated series). \textbf{Fix:} removed from \texttt{score\_cols}; replaced with \texttt{energy\_distance}, \texttt{quantile\_mse}, \texttt{hurst\_diff}, \texttt{arch\_pvalue\_diff}, and \texttt{discriminative\_auc}.}
+  {The \texttt{evaluate\_multiple\_models()} composite ranking included \texttt{mse} and \texttt{mae} --- meaningless for GANs (no temporal alignment). \textbf{Fix:} removed; replaced with \texttt{energy\_distance}, \texttt{quantile\_mse}, \texttt{hurst\_diff}, \texttt{arch\_stat\_diff}, and \texttt{discriminative\_auc\_zscore}.}
 
 \auditrow{OK}{FGreen}{GBg}%
   {WGAN-GP gradient penalty computation is correct (QuantGAN \& FinGAN)}%
