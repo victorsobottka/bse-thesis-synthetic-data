@@ -609,7 +609,7 @@ avg\_rank     & 2.36                      & 1.79                    & 1.85 \\
 7 & Conditional heavy tails &
   After removing time-varying variance, residuals are still non-Gaussian. &
   $\varepsilon_t = r_t/\sigma_t$ still has kurtosis $\gg 3$ (GARCH standardised residuals) &
-  Kurtosis diff on residuals (ext.) \\
+  \texttt{resid\_kurtosis\_diff} (GARCH(1,1) Gaussian QMLE) \\
 
 8 & Extreme events &
   Very large days occur far more frequently than Gaussian probability predicts. &
