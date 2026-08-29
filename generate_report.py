@@ -605,7 +605,7 @@ avg\_rank     & 2.36                      & 1.79                    & 1.85 \\
 3 & Volatility clustering &
   Large moves tend to be followed by large moves (Mandelbrot, 1963\tcite{9}). &
   $\operatorname{Corr}(|r_t|, |r_{t+k}|) > 0$ for $k = 1, \ldots, 100{+}$ &
-  ACF $|$returns$|$ MAE $\cdot$ ARCH-LM stat diff \\
+  ACF $|$returns$|$ MAE $\cdot$ ARCH-LM ($p$-diff \& stat diff) \\
 
 4 & Long memory in volatility &
   The clustering effect persists for hundreds of trading days. &
@@ -855,9 +855,9 @@ $\text{QMSE} = 0 \Leftrightarrow \hat{F}_\text{real} = \hat{F}_\text{syn}$. Equi
   {Ljung-Box test used deprecated statsmodels API}%
   {\texttt{acorr\_ljungbox(..., return\_df=False)} returns a DataFrame in statsmodels $\geq$\,0.13, not a tuple. Accessing \texttt{lb[1][-1]} raised \texttt{TypeError}. \textbf{Fix:} \texttt{return\_df=True}, \texttt{lags=[n]} (list syntax), accessed via \texttt{.iloc[-1]["lb\_pvalue"]}.}
 
-\auditrow{FIXED}{Red}{RBg}%
-  {ARCH-LM ranking metric produced rank inversions (\texttt{arch\_pvalue\_diff})}%
-  {The $p$-value difference $|\Delta p|$ ranks IID noise (no clustering) \emph{better} than weak-GARCH, because both have large $p$-values and the distance from real (near 0) is similar. Confirmed empirically: $|\Delta p|_\text{iid}=0.321 < |\Delta p|_\text{weak}=0.551$, a rank inversion. The LM statistic correctly orders all three cases ($|\Delta\text{LM}|_\text{good}=6$, $|\Delta\text{LM}|_\text{iid}\approx 94$). \textbf{Fix:} ranking now uses \texttt{arch\_stat\_diff} $= |\text{LM}_\text{real} - \text{LM}_\text{syn}|$; \texttt{pvalue\_diff} retained in output for diagnostics only.}
+\auditrow{REVISED}{Amber}{ABg}%
+  {ARCH-LM: both metrics now reported; neither used as sole ranking criterion}%
+  {Initial finding: $|\Delta p|$ ranks IID noise better than weak-GARCH (a rank inversion, $|\Delta p|_\text{iid}=0.321 < |\Delta p|_\text{weak}=0.551$). However, a subsequent 80-replication Monte Carlo ($n=1{,}200$, GARCH(1,1)) shows \texttt{pvalue\_diff} correctly identifies the better model in 99\,\% of replications vs.\ 76\,\% for \texttt{stat\_diff}. The LM statistic is far noisier than assumed (two draws from the same process gave LM\,$=$\,56.8 and 124.8; null std\,$\approx$\,46). \texttt{pvalue\_diff} wins because saturation (both real and good synthetic hit $p\approx 0$) suppresses noise. The inversion is real but only occurs when \emph{both} models fail to reproduce clustering --- a limitation of ARCH-LM as a ranking device, not a reason to prefer \texttt{stat\_diff}. \textbf{Resolution:} both metrics reported in output; primary volatility-clustering ranking uses ACF-MAE (continuous, no saturation, 88\,\% Monte Carlo accuracy).}
 
 \auditrow{FIXED}{Amber}{ABg}%
   {Discriminative AUC uninterpretable without null calibration}%
@@ -869,7 +869,7 @@ $\text{QMSE} = 0 \Leftrightarrow \hat{F}_\text{real} = \hat{F}_\text{syn}$. Equi
 
 \auditrow{FIXED}{Amber}{ABg}%
   {Composite ranking \texttt{score\_cols} included pointwise MSE and MAE}%
-  {The \texttt{evaluate\_multiple\_models()} composite ranking included \texttt{mse} and \texttt{mae} --- meaningless for GANs (no temporal alignment). \textbf{Fix:} removed; replaced with \texttt{energy\_distance}, \texttt{quantile\_mse}, \texttt{hurst\_diff}, \texttt{arch\_stat\_diff}, and \texttt{discriminative\_auc\_zscore}.}
+  {The \texttt{evaluate\_multiple\_models()} composite ranking included \texttt{mse} and \texttt{mae} --- meaningless for GANs (no temporal alignment). \textbf{Fix:} removed; replaced with \texttt{energy\_distance}, \texttt{quantile\_mse}, \texttt{hurst\_diff}, \texttt{arch\_stat\_diff} (diagnostic), \texttt{acf\_absolute\_mae} (primary volatility-clustering metric), and \texttt{discriminative\_auc\_z}.}
 
 \auditrow{OK}{FGreen}{GBg}%
   {WGAN-GP gradient penalty computation is correct (QuantGAN \& FinGAN)}%
@@ -952,7 +952,8 @@ Any parameter search for this paper must take these as given.}
 \texttt{kurtosis\_diff}     & heavy-tail reproduction \\
 \texttt{acf\_absolute\_mae} & volatility clustering \\
 \texttt{hurst\_diff}        & long memory of $|r_t|$ \\
-\texttt{arch\_pvalue\_diff} & ARCH effects \\
+\texttt{arch\_pvalue\_diff} & ARCH effects ($p$-diff; 99\,\% MC accuracy, primary) \\
+\texttt{arch\_stat\_diff}   & ARCH effects (LM-stat diff; diagnostic) \\
 \texttt{discriminative\_auc}& temporal indistinguishability \\
 \bottomrule
 \end{tabular}
