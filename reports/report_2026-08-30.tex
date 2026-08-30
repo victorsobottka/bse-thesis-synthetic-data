@@ -1,22 +1,4 @@
-"""
-LaTeX-based PDF report — Synthetic Financial Time Series Generation.
-Run from the project root:  python generate_report.py
-Requires pdflatex (TeX Live or MiKTeX).
-Output: reports/report_YYYY-MM-DD.pdf
-"""
 
-import os, sys, datetime, subprocess, shutil
-
-DATE     = datetime.date.today().isoformat()
-OUT_DIR  = "reports"
-TEX_PATH = f"{OUT_DIR}/report_{DATE}.tex"
-PDF_PATH = f"{OUT_DIR}/report_{DATE}.pdf"
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Full LaTeX document
-# ─────────────────────────────────────────────────────────────────────────────
-
-TEX = r"""
 \documentclass[10pt]{article}
 \usepackage[a4paper,landscape,top=1.6cm,bottom=1.6cm,left=1.8cm,right=1.8cm]{geometry}
 \usepackage[utf8]{inputenc}
@@ -134,7 +116,7 @@ TEX = r"""
   \textbf{Purpose}        & Paper publication preparation \\[4pt]
   \textbf{Models}         & TimeGAN (RNN) $\cdot$ QuantGAN (TCN-WGAN-GP) $\cdot$ FinGAN (CNN-WGAN-GP) \\[4pt]
   \textbf{Markets}        & BOVESPA $\cdot$ FTSE JSE $\cdot$ MSCI $\cdot$ NIFTY50 $\cdot$ SHANGHAI \\[4pt]
-  \textbf{Generated}      & <<<DATE>>> \\
+  \textbf{Generated}      & 2026-08-30 \\
 \end{tabular}
 \end{center}
 \clearpage\pagecolor{white}\color{black}
@@ -1813,47 +1795,3 @@ A GAN that reproduces all 10 is considered finance-grade. None of the three test
 }
 
 \end{document}
-"""
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Build and compile
-# ─────────────────────────────────────────────────────────────────────────────
-
-def main():
-    if not shutil.which('pdflatex'):
-        print("ERROR: pdflatex not found. Install TeX Live or MiKTeX.")
-        sys.exit(1)
-
-    os.makedirs(OUT_DIR, exist_ok=True)
-    content = TEX.replace('<<<DATE>>>', DATE)
-
-    with open(TEX_PATH, 'w', encoding='utf-8') as f:
-        f.write(content)
-    print(f"Wrote {TEX_PATH}")
-
-    for run in range(1, 3):
-        print(f"pdflatex pass {run}/2 ...")
-        result = subprocess.run(
-            ['pdflatex', '-interaction=nonstopmode',
-             '-output-directory', OUT_DIR, TEX_PATH],
-            capture_output=True, text=True
-        )
-        if result.returncode != 0 and run == 2:
-            print("─── LaTeX errors (last 80 lines) ───")
-            print('\n'.join(result.stdout.splitlines()[-80:]))
-            sys.exit(1)
-
-    # Remove auxiliary files
-    base = TEX_PATH.replace('.tex', '')
-    for ext in ('.aux', '.log', '.out', '.toc', '.fls', '.fdb_latexmk'):
-        p = base + ext
-        if os.path.exists(p):
-            os.remove(p)
-
-    kb = os.path.getsize(PDF_PATH) / 1024
-    print(f"\nGenerated: {PDF_PATH}  ({kb:.0f} KB)")
-
-
-if __name__ == '__main__':
-    main()
