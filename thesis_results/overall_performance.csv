@@ -1,0 +1,5 @@
+model,avg_rank,wasserstein,energy_distance,quantile_mse,kurtosis_diff,acf_absolute_mae,tail_index_diff,arch_pvalue_diff,hurst_diff,discriminative_auc_dist
+QuantGAN,1.7571,0.0463,0.0576,0.0052,5.0049,0.0653,6.7863,0.18,0.0568,0.491
+TimeGAN,1.9714,0.0319,0.0522,0.0032,79.3454,0.0754,9306.7194,0.1747,0.1334,0.5
+FinGAN,2.2714,0.06,0.046,0.011,5.3021,0.1054,44.7195,0.2791,0.0475,0.5
+CONTROL: shuffled real,,0.0,0.0,0.0,0.0,0.073,0.0,0.5446,0.0759,0.1179
