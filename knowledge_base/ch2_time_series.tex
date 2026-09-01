@@ -1,0 +1,223 @@
+\chapter{Time Series Analysis}
+\label{ch:timeseries}
+
+A \textbf{time series} is a sequence of measurements indexed by time: $r_1, r_2, \ldots, r_T$.
+Market returns form a time series. This chapter explains the tools we use to characterise their structure.
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Stationarity}
+
+\situation{
+The temperature in Barcelona fluctuates around 18\textdegree C year-round (ignoring seasons). The sea level has been rising 3mm/year for decades. The temperature process is \emph{stationary} --- its statistical properties do not change over time. Sea level is \emph{non-stationary} --- its mean is drifting.
+}
+
+\problem{
+If a time series is non-stationary, any statistics we compute (mean, variance, correlations) depend on when we measured them, making them meaningless for predicting the future. All our models assume stationarity of log returns.
+}
+
+\formaldef{
+A process $\{X_t\}$ is \textbf{weakly stationary} if:
+\begin{enumerate}
+  \item $\E[X_t] = \mu$ (constant mean)
+  \item $\Var(X_t) = \sigma^2 < \infty$ (constant finite variance)
+  \item $\Cov(X_t, X_{t+k}) = \gamma(k)$ (covariance depends only on lag $k$, not $t$)
+\end{enumerate}
+Raw price levels $P_t$ are non-stationary (trending). Log returns $r_t = \ln(P_t/P_{t-1})$ are approximately stationary.
+}
+
+\analogybreak{
+``Stationarity'' in the weak sense does not require the distribution to be normal, only that the first two moments are constant. BRICS markets have constant mean (near zero) and stable variance in the long run, but their higher moments (skewness, kurtosis) exhibit regime changes (e.g., the MOEX invasion event).
+}
+
+\whyhere{
+All evaluation metrics in this thesis assume stationarity: the Wasserstein distance, ACF-MAE, Hurst exponent, and discriminative AUC are all computed on the assumption that the distribution of $r_t$ does not change between train and test. The temporal 80/10/10 split (no shuffling) is the correct design for non-stationary data.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Autocorrelation Function (ACF)}
+
+\situation{
+You write down today's temperature and tomorrow's temperature for 365 days. You plot them as $(x_t, x_{t+1})$ pairs. Because temperature is persistent (a hot day is likely to be followed by another hot day), the scatter plot shows a positive slope. The \emph{correlation} between today's and tomorrow's temperature is around $+0.8$.
+
+Now do the same for today's and next week's temperature: the correlation is lower, maybe $+0.4$.
+After a month, it might be nearly zero --- last month's weather tells you little about today.
+}
+
+\problem{
+For market returns, the correlation between $r_t$ and $r_{t+1}$ is \emph{near zero} for all lags (fact~2: markets are approximately unpredictable). But the correlation between $|r_t|$ and $|r_{t+1}|$ --- the absolute return, a measure of how wild each day was --- is \emph{significantly positive} for lags of 1 to 100 or more (volatility clustering).
+}
+
+\workedarith{
+BOVESPA 20-year data ($n=4{,}953$):
+
+\smallskip
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Lag $k$ & $\hat{\rho}(r, k)$ & $\hat{\rho}(|r|, k)$ & $\hat{\rho}(r^2, k)$ \\
+\midrule
+1  & $+0.03$ & $+0.19$ & $+0.17$ \\
+5  & $-0.01$ & $+0.14$ & $+0.12$ \\
+20 & $+0.01$ & $+0.09$ & $+0.08$ \\
+50 & $\approx 0$ & $+0.05$ & $+0.04$ \\
+\bottomrule
+\end{tabular}
+
+\smallskip
+The raw return autocorrelation is near zero (unpredictable direction).
+The absolute and squared return autocorrelation is positive and decays slowly (persistent volatility).
+A good generator must produce synthetic $|r_t|$ sequences with the \emph{same} slow decay.
+}
+
+\formaldef{
+The \textbf{sample autocorrelation} at lag $k$ is:
+\[
+  \hat{\rho}(k) = \frac{\sum_{t=1}^{T-k}(x_t - \bar{x})(x_{t+k} - \bar{x})}{\sum_{t=1}^T (x_t - \bar{x})^2}
+\]
+The \textbf{Autocorrelation Function} (ACF) is the sequence $\{\hat{\rho}(0), \hat{\rho}(1), \hat{\rho}(2), \ldots\}$.
+
+Our metric \textbf{ACF-MAE} compares real and synthetic ACF vectors:
+\[
+  \text{ACF-MAE}(f) = \frac{1}{K}\sum_{k=1}^K \abs{\hat{\rho}_\text{real}(k) - \hat{\rho}_\text{syn}(k)}, \quad K=20
+\]
+We compute this for three transforms: raw returns $r_t$, absolute returns $|r_t|$, squared returns $r_t^2$.
+}
+
+\analogybreak{
+ACF-MAE measures average discrepancy, which can miss systematic biases at specific lags. However, it has the crucial property of being \emph{continuous with no saturation}: unlike ARCH-LM, it does not underflow to 0 when applied to real fat-tailed data.
+}
+
+\whyhere{
+ACF-MAE on $|r_t|$ and $r_t^2$ is the \emph{primary} ranking signal for volatility clustering (Temporal family). The shuffled control scores 0.043 on ACF(returns) and 0.076 on ACF($|r|$) --- correctly penalised. Any generator that correctly reproduces clustering will have smaller ACF-MAE than the shuffled control on these metrics.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{GARCH: The Volatility Clustering Model}
+
+\situation{
+Think of the stock market as a mood thermometer. On quiet days, it reads ``calm'' and barely moves. On anxious days, it reads ``stormy'' and moves a lot. The key insight: the mood today is heavily influenced by the mood yesterday. If yesterday was stormy, today is probably also stormy.
+}
+
+\problem{
+The normal distribution assigns the same probability to a 2\% move on every day. Real markets have quiet periods where 0.5\% moves are normal and turbulent periods where 2\% moves are common. A model that ignores this will badly misjudge risk on quiet days (underestimating tail risk) and turbulent days (overestimating) simultaneously.
+}
+
+\workedarith{
+GARCH(1,1) fit to BOVESPA (20-year):
+
+\smallskip
+$\omega = 0.000002$, $\alpha = 0.08$, $\beta = 0.91$
+
+\textbf{Long-run variance:} $\sigma^2_\infty = \omega/(1-\alpha-\beta) = 0.000002/(1-0.08-0.91) = 0.0002$
+
+\textbf{Long-run volatility:} $\sigma_\infty = \sqrt{0.0002} \approx 1.41\%$/day \checkmark
+
+\textbf{Persistence:} $\alpha+\beta = 0.99$ (close to 1 = very slow mean-reversion)
+
+On a day following a 3\% return ($r_{t-1}^2 = 0.0009$):
+\[
+  \sigma_t^2 = \omega + \alpha r_{t-1}^2 + \beta \sigma_{t-1}^2
+            = 0.000002 + 0.08 \times 0.0009 + 0.91 \times 0.0002
+            = 0.000274
+\]
+$\sigma_t = 1.66\%$/day --- 18\% higher than the long-run average. Turbulence persists.
+}
+
+\formaldef{
+The \textbf{GARCH(1,1)} model (Bollerslev 1986) specifies:
+\begin{align*}
+  r_t &= \mu + \varepsilon_t, \quad \varepsilon_t = \sigma_t z_t, \quad z_t \overset{iid}{\sim} F(0,1) \\
+  \sigma_t^2 &= \omega + \alpha \varepsilon_{t-1}^2 + \beta \sigma_{t-1}^2
+\end{align*}
+Constraints: $\omega > 0$, $\alpha \geq 0$, $\beta \geq 0$, $\alpha + \beta < 1$ (covariance-stationarity).
+Persistence = $\alpha + \beta$ (close to 1 in BRICS markets: slow volatility mean-reversion).
+
+\textbf{Gaussian QMLE:} we fit assuming $z_t \sim \N(0,1)$ even when $z_t$ has heavy tails.
+This gives consistent estimates of $(\omega, \alpha, \beta)$ regardless of the true distribution.
+The residuals $\hat{\varepsilon}_t / \hat{\sigma}_t$ will exhibit excess kurtosis if the true conditional distribution is non-Gaussian (stylized fact~7).
+}
+
+\analogybreak{
+GARCH is a parametric model. It assumes a specific mathematical form for how today's variance relates to yesterday's. Real markets show leverage effects (negative returns increase volatility more than positive returns of the same size), jump components, and long-memory volatility that GARCH(1,1) cannot fully capture. GARCH is a diagnostic tool here, not a generative model.
+}
+
+\whyhere{
+GARCH appears in two places: (1) \textbf{Conditional heavy-tail metric} --- we fit Gaussian QMLE, extract residuals $\varepsilon_t/\hat{\sigma}_t$, and measure residual excess kurtosis; a good generator's synthetic residuals should have similar kurtosis. (2) \textbf{Downstream utility (TSTR)} --- we fit GARCH on synthetic data, use the estimated parameters to filter real data, and compute conditional VaR backtest results.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{ARCH Test}
+
+\situation{
+You want to know whether a return series has volatility clustering or not. The ARCH-LM test gives a statistical answer: it checks whether squared past returns predict current squared returns.
+}
+
+\workedarith{
+ARCH-LM regression: regress $r_t^2$ on $r_{t-1}^2, \ldots, r_{t-p}^2$ and test $R^2$.
+
+LM statistic $= n \cdot R^2 \sim \chi^2(p)$ under the null of no ARCH.
+
+\textbf{Simulated GARCH data ($n=1{,}200$):} LM $\approx 56$--$125$, $p$-value $\approx 0.0$.
+
+\textbf{Real BRICS data (real series):} LM $\approx 51$, $p$-value $= 0.0$.
+
+\textbf{Real BRICS data (shuffled series):} LM $\approx 67$, $p$-value $= 0.0$.
+
+The test saturates: both real and shuffled series give $p=0.0$. The $p$-value difference $|\Delta p| = 0.000000$. The ARCH-LM $p$-value cannot distinguish a good generator from a shuffled deck on real BRICS data.
+}
+
+\formaldef{
+Engle's (1982) ARCH-LM statistic for $p$ lags:
+\[
+  LM = n \cdot R^2_\text{aux}, \quad \text{where aux: } r_t^2 = \gamma_0 + \sum_{j=1}^p \gamma_j r_{t-j}^2 + \eta_t
+\]
+Under $H_0$ (no ARCH): $LM \overset{d}{\to} \chi^2(p)$.
+}
+
+\analogybreak{
+The ARCH-LM test is powerful in theory and in simulation (99\% correct on simulated GARCH). It fails on real fat-tailed data because the squared-return regression is dominated by extreme values. Both real and shuffled series have the same squared-return distribution, so both produce large LM statistics and zero $p$-values. The test is correctly described as ``saturated on real data''.
+}
+
+\whyhere{
+Both \texttt{arch\_pvalue\_diff} and \texttt{arch\_stat\_diff} are placed in \textbf{DESCRIPTIVE\_COLS} --- computed and displayed for diagnostic transparency, but excluded from all composite ranking scores. ACF-MAE on $|r_t|$ is the primary volatility-clustering ranking signal because it never saturates.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Hurst Exponent and Long Memory}
+
+\situation{
+The Nile River's floods are not independent year to year. A decade of high floods tends to be followed by another decade of high floods. This is \emph{long memory}: correlations that decay so slowly they never fully disappear.
+}
+
+\workedarith{
+For a process with long memory, the R/S statistic (range divided by standard deviation) scales as:
+\[
+  \E[R_n/S_n] \approx c \cdot n^H
+\]
+For independent data: $H=0.5$ exactly.
+For BRICS $|r_t|$ (volatility proxy): $H \approx 0.57$--$0.65$ typically.
+
+Estimation at BOVESPA ($n=4{,}953$):
+divide series into $m$ blocks of size $n/m$, compute R/S for each, regress $\log(R/S)$ vs $\log(n)$, slope = $\hat{H}$.
+
+Standard deviation: $\approx 0.022$ at $n=1{,}000$; $\approx 0.004$ at $n=4{,}000$.
+At 5-year data ($n=995$): $\hat{H} \pm 0.022$ --- barely significant above $H=0.5$.
+At 20-year data ($n=4{,}960$): $\hat{H} \pm 0.004$ --- clearly significant.
+}
+
+\formaldef{
+The \textbf{Hurst exponent} $H \in (0,1)$ characterises long-range dependence:
+\begin{itemize}
+  \item $H=0.5$: independent (random walk, Brownian motion)
+  \item $H>0.5$: positively correlated at long lags (persistent, long memory)
+  \item $H<0.5$: negatively correlated at long lags (anti-persistent, mean-reverting)
+\end{itemize}
+Applied to $|r_t|$, $H>0.5$ implies that large-volatility periods have a tendency to persist longer than an independent process would predict (fact 4: long memory in volatility).
+}
+
+\analogybreak{
+The R/S estimator is biased in small samples and sensitive to non-stationarities. The 20-year data substantially reduces this bias. We apply $H$ to $|r_t|$, not $r_t$ itself, because raw returns have $H \approx 0.5$ (the near-zero ACF fact) while volatility has $H > 0.5$.
+}
+
+\whyhere{
+\texttt{hurst\_diff} = $|H_\text{real} - H_\text{syn}|$ is in the \textbf{Temporal} family. The shuffled control achieves Hurst diff $\approx 0.052$ (correctly penalised: shuffling destroys long memory). A good generator should reproduce $H \approx 0.6$ for the absolute return series of each market.
+}

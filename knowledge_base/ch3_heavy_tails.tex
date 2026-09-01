@@ -1,0 +1,137 @@
+\chapter{Heavy Tails and Power Laws}
+\label{ch:heavytails}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Power Laws}
+
+\situation{
+City sizes: New York has 8 million people. The next three cities have 4M, 3M, 2M. Cut the population threshold in half, and twice as many cities qualify. This doubling relationship is a \emph{power law}: the number of cities with population $> x$ scales like $x^{-\alpha}$ for some exponent $\alpha$.
+}
+
+\problem{
+The normal distribution has \emph{exponential} tails: the probability of a 10$\sigma$ event is not just much smaller than a 5$\sigma$ event --- it is impossibly smaller (ratio $\approx 10^{17}$). Power-law tails decay much more slowly, making extreme events genuinely probable on financial timescales.
+}
+
+\workedarith{
+NIFTY50 daily returns (20-year, $n=4{,}954$):
+
+The top 5\% of $|r_t|$ values: 248 observations, smallest $= 1.97\%$, largest $= 15.91\%$.
+
+\textbf{Hill estimate:} $\hat{\alpha} = k / \sum_{i=1}^k \ln(|r|_{(n-i+1)} / |r|_{(n-k)})$
+
+With $k = \lfloor 0.05n \rfloor = 248$: $\hat{\alpha} \approx 2.8$.
+
+\textbf{Implication:} $\Prob(|r| > x) \approx C \cdot x^{-2.8}$.
+
+At $x = 5\sigma$: normal predicts $5.7 \times 10^{-7}$; power-law predicts $\approx (5)^{-2.8} \times C$.
+
+If $C = 0.05 \times 5^{2.8} \approx 3.3$: $\Prob \approx 3.3 \times 5^{-2.8} \approx 0.022 = 2.2\%$ vs Gaussian's $0.00006\%$.
+}
+
+\formaldef{
+A random variable $X$ has a \textbf{power-law tail} with index $\alpha > 0$ if:
+\[
+  \Prob(|X| > x) \sim L(x) \cdot x^{-\alpha} \quad \text{as } x \to \infty
+\]
+where $L(x)$ is a slowly varying function (converges to a constant). The \textbf{tail index} $\alpha$ determines which moments exist:
+\[
+  \E[|X|^k] < \infty \iff k < \alpha
+\]
+With BRICS $\hat{\alpha} = 2.54$--$3.21$: variance exists ($k=2 < \alpha$), skewness is borderline ($k=3$: exists only for $\hat{\alpha}>3$, i.e., only BOVESPA marginally), kurtosis does not exist anywhere ($k=4 > \hat{\alpha}$ everywhere).
+}
+
+\analogybreak{
+``Tail index'' is an asymptotic property --- it describes what happens in the extreme tail, not the bulk of the distribution. In finite samples (even 20-year daily data), the Hill estimator averages over both the power-law region and the Gaussian-like body of the distribution. The estimate is sensitive to the choice of $k$ (number of order statistics used).
+}
+
+\whyhere{
+\texttt{tail\_index\_diff} $= |\hat{\alpha}_\text{real} - \hat{\alpha}_\text{syn}|$ is the primary heavy-tail metric in the \textbf{Fidelity} family. This replaces \texttt{kurtosis\_diff}, which is undefined for $\hat{\alpha} < 4$. The Hill estimator has sd $\approx 0.035$ at $n=4{,}960$ --- precise enough to distinguish generators that reproduce the tail index from those that do not.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Why Kurtosis Is Unreliable for BRICS Markets}
+
+\situation{
+You want to measure how ``extreme'' a dataset is. The obvious measure is kurtosis: the fourth standardised moment. A larger kurtosis means more extreme events. You measure kurtosis on 250 days of BOVESPA data. Then on 2{,}000 days. The number changes dramatically.
+}
+
+\workedarith{
+BOVESPA kurtosis at different sample sizes (demonstrated in the session):
+
+\begin{tabular}{@{}rrc@{}}
+\toprule
+Sample $n$ & Sample kurtosis & Hill $\hat{\alpha}$ \\
+\midrule
+250  & 2.53  & 4.83 (sd 1.253) \\
+2000 & 11.84 & 3.11 (sd 0.316) \\
+\bottomrule
+\end{tabular}
+
+Sample kurtosis \emph{increases} as $n$ grows --- diverging rather than converging.
+Hill $\hat{\alpha}$ \emph{converges} as $n$ grows.
+
+\textbf{Mathematical reason:} if $\E[X^4] = \infty$ (which occurs when $\hat{\alpha} < 4$), the sample kurtosis $\hat{\kappa}_n = \frac{n^{-1}\sum x_i^4}{(n^{-1}\sum x_i^2)^2}$ diverges almost surely as $n \to \infty$.
+}
+
+\formaldef{
+For a distribution with tail index $\alpha$:
+\[
+  \E[|X|^k] < \infty \iff k < \alpha
+\]
+When $\alpha < 4$ (as in all BRICS markets): $\E[X^4] = \infty$, so the population kurtosis is undefined.
+The \textbf{Law of Large Numbers} requires finite expectation; without it, the sample mean of $X^4$ does not converge.
+The sample kurtosis $\hat{\kappa}_n$ grows without bound, following a stable distribution with index $\alpha/4 < 1$.
+
+\textbf{Contrast with Hill:} the Hill estimator uses log spacings of order statistics, which are $\Gamma(1,1)$ distributed under the power-law model. These have finite moments of all orders, making the Hill estimator consistent and asymptotically normal regardless of $\alpha$.
+}
+
+\analogybreak{
+``Sample kurtosis = 65.70 for MOEX'' is not a measurement of the population kurtosis --- the population kurtosis is infinite. It is an artifact of sample size, driven by the handful of extreme observations (especially 2022-02-24: $-33.3\%$). If we took a different 20-year window, the sample kurtosis might be 30 or 150. The Hill estimate $\hat{\alpha} \approx 2.7$ for MOEX is comparatively stable.
+}
+
+\whyhere{
+\textbf{This is the core motivation for TASK 17 in the pipeline.} Kurtosis\_diff and skewness\_diff are demoted from FIDELITY\_COLS (7 metrics, ranked) to DESCRIPTIVE\_COLS (7 metrics, displayed but not ranked). tail\_index\_diff takes their role as the primary heavy-tail fidelity metric. The length guard in \texttt{FinancialMetrics.\_\_init\_\_} warns when comparing series of different lengths, because kurtosis differences between unequal-length series are biased by length alone.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Wasserstein Distance}
+
+\situation{
+Imagine two piles of sand on a table. One pile represents the distribution of real returns; the other represents synthetic returns. You want to measure how different they are. The Wasserstein distance asks: what is the minimum amount of ``work'' (mass times distance) needed to move one pile into the shape of the other?
+}
+
+\problem{
+The Kolmogorov-Smirnov (KS) test measures the maximum gap between two CDFs. It was designed for independent data. Market returns are not independent (ACF of $|r_t| > 0$ for 100+ lags). For correlated data, the effective sample size is $n_\text{eff} = n/(1+2\sum_k \rho_k) \ll n$. KS uses the nominal $n$, making its $p$-values severely anti-conservative.
+}
+
+\workedarith{
+For one-dimensional distributions, the Wasserstein-1 distance is the $L_1$ distance between quantile functions:
+\[
+  W_1(P, Q) = \int_0^1 \abs{F_P^{-1}(u) - F_Q^{-1}(u)} \, du
+\]
+\textbf{Practical computation:} sort both series in ascending order. Pair each real return with its rank-matched synthetic return. Average absolute difference.
+
+For the shuffled control: $W_1 = 0.000e{+}00$ (exact zero). The shuffled series is a permutation of the real data; sorted, they are identical.
+
+For a well-trained generator: $W_1 \approx 0.001$--$0.005$ (residual fitting error).
+}
+
+\formaldef{
+The \textbf{Wasserstein-$p$ distance} between distributions $P$ and $Q$:
+\[
+  W_p(P,Q) = \left(\inf_\gamma \E_{(X,Y)\sim\gamma} \norm{X-Y}^p\right)^{1/p}
+\]
+where the infimum is over joint distributions (couplings) with marginals $P$ and $Q$.
+For $p=1$ in 1D: reduces to the integral of the absolute difference of CDFs:
+\[
+  W_1(P,Q) = \int_{-\infty}^{\infty} |F_P(x) - F_Q(x)| \, dx
+\]
+}
+
+\analogybreak{
+Wasserstein is permutation-invariant: $W_1(\text{real}, \text{shuffled}) = 0$ because sorting both produces the same sequence. This is a feature (it correctly measures distributional proximity) and a limitation (it does not measure temporal proximity). This is precisely why it sits in FIDELITY rather than TEMPORAL.
+}
+
+\whyhere{
+\texttt{wasserstein} is one of the 7 Fidelity metrics. The shuffled-control audit revealed that Wasserstein, like all Fidelity metrics, gives a perfect score to the shuffled control. This motivated the three-score composite design: Fidelity metrics measure ``do the individual values look right?''; Temporal metrics measure ``does the ordering look right?''.
+}

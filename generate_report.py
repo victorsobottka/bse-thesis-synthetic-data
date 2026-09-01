@@ -127,7 +127,7 @@ TEX = r"""
   \textbf{Collaboration} & Universitat Polit\`{e}cnica de Catalunya (UPC) \\[4pt]
   \textbf{Document type} & Research draft --- NMI-format submission in preparation \\[4pt]
   \textbf{Models}        & TimeGAN (GRU) $\cdot$ QuantGAN (TCN-WGAN-GP) $\cdot$ FinGAN (CNN-WGAN-GP) \\[4pt]
-  \textbf{Markets}       & BOVESPA $\cdot$ FTSE JSE $\cdot$ MSCI $\cdot$ NIFTY50 $\cdot$ SHANGHAI \\[4pt]
+  \textbf{Markets}       & BOVESPA $\cdot$ FTSE JSE $\cdot$ MOEX $\cdot$ NIFTY50 $\cdot$ SHANGHAI \\[4pt]
   \textbf{Generated}     & <<<DATE>>> \\
 \end{tabular}
 \end{center}
@@ -147,11 +147,11 @@ TEX = r"""
   top=6pt,bottom=6pt,left=8pt,right=8pt,before skip=4pt,after skip=8pt]
 \small
 Markets generate data about themselves every day --- prices rising and falling --- but this data is scarce, expensive, and legally sensitive.
-We trained three artificial-intelligence systems on five emerging financial markets (Brazil, South Africa, the MSCI index, India, and China) to generate convincing fake market data.
+We trained three artificial-intelligence systems on five emerging financial markets (Brazil, South Africa, Russia, India, and China) to generate convincing fake market data.
 
 The core difficulty is that fake market data looks easy to evaluate but is not.
-We discovered that a simple shuffled copy of real data --- identical individual values, wrong ordering --- passed nine of our sixteen quality tests with a perfect score.
-This finding reshaped our evaluation from a single score into two families: nine tests for whether the individual numbers look right, and seven tests for whether the ordering looks right.
+We discovered that a simple shuffled copy of real data --- identical individual values, wrong ordering --- passed seven of our fourteen ranked tests with a perfect score.
+This finding reshaped our evaluation from a single score into two families: seven tests for whether the individual numbers look right, and seven tests for whether the ordering looks right.
 
 Across all three AI systems and five markets, the ordering tests proved the hardest to satisfy.
 No generator fully reproduced the tendency of turbulent days to cluster together --- a property that matters critically for risk management.
@@ -173,7 +173,7 @@ Imagine you work at a bank. You need to test your risk systems. Those systems ar
 
 What you actually need is a machine that can generate \emph{thousands} of plausible market histories, including many crashes, so you can stress-test your systems properly.
 
-That machine is what this project builds. Specifically, we train three different artificial-intelligence programs to learn from five years of real daily market data from five emerging economies. Each program learns what a realistic market day looks like --- how volatile, how skewed, how connected to the day before. Then it generates as many fake days as we need.
+That machine is what this project builds. Specifically, we train three different artificial-intelligence programs to learn from twenty years of real daily market data (2006--2026) from five emerging economies. Each program learns what a realistic market day looks like --- how volatile, how skewed, how connected to the day before. Then it generates as many fake days as we need.
 
 The word for such a program is a \textbf{generative model}. The specific type we test is called a \textbf{Generative Adversarial Network} (GAN), first proposed by Goodfellow et al.\ (2014)\tcite{1}.
 
@@ -217,13 +217,13 @@ For two centuries, mathematicians assumed the ups and downs of stock prices beha
 \medskip
 \textbf{Here is the arithmetic.} In our five markets, a typical day moves the index by about $1\%$. Call that one ``step''. The bell curve makes a very specific promise about rare events: a day that moves five steps --- a $5\%$ jump or crash --- should happen roughly \textbf{once every 6,922 years}.
 
-We looked at five markets over five years. That is about 6,201 market-days in total. The bell curve predicts we should see essentially zero such days.
+We looked at five markets over twenty years. That is 24,758 market-days in total. The bell curve predicts we should see essentially zero such days.
 
 \medskip
-We found \textbf{11}.
+We found \textbf{76} --- the NIFTY50 index alone had 11.
 
 \medskip
-This is not a small error. It is not a matter of the model being slightly off. Reality delivered extreme days thousands of times more often than the bell curve allows. The Shanghai index alone had five such days in five years.
+This is not a small error. It is not a matter of the model being slightly off. Reality delivered 76 extreme days across 24,758 market-days, thousands of times more often than the bell curve allows. MOEX alone had 21 such days, with the single day of the 2022 invasion ($-33.3\%$) the most extreme.
 
 That gap is why this project exists. If you are a bank estimating your worst plausible loss, and your model says a $5\%$ crash arrives once per 6,922 years while reality delivers one every few years, you are not slightly wrong. You are unprepared.
 
@@ -242,10 +242,10 @@ Markets do the same thing, and we can measure it exactly. Take the MSCI index. O
 Now ask a different question: given that yesterday \emph{was} a big move, what is the chance today is too?
 
 \medskip
-The answer is $\mathbf{11.1\%}$.
+The answer is $\mathbf{22.9\%}$.
 
 \medskip
-That is \textbf{2.21 times higher}. Turbulence begets turbulence.
+That is \textbf{6.1 times higher}. Turbulence begets turbulence.
 
 This creates a trap for anyone building a fake market. You could construct a series that gets the bell-curve shape exactly right --- the correct number of calm days, the correct number of wild days, the correct heavy tails --- and still be completely wrong, because you scattered the wild days randomly instead of letting them cluster.
 
@@ -317,11 +317,11 @@ Hurst diff     & 0.052 (correctly penalised) \\
 \end{tabular}
 
 \medskip
-Nine of the 19 metrics we had been ranking returned a perfect or near-perfect score for the shuffled control. When we computed the composite ranking --- average rank across all metrics --- the shuffled control \textbf{ranked first}, with avg\_rank 1.24 versus 2.47 for a real generator.
+Seven of the 14 ranked fidelity metrics returned a perfect or near-perfect score for the shuffled control. When we computed the composite ranking --- average rank across all metrics --- the shuffled control \textbf{ranked first}, with avg\_rank 1.24 versus 2.47 for a real-data generator.
 
-This result was not a bug. It was a diagnosis. It means that nine of our nineteen metrics are \emph{permutation-invariant} --- they measure the individual values only, not their order. A shuffled deck of cards scores perfectly on those nine tests because shuffling does not change which cards are in the deck.
+This result was not a bug. It was a diagnosis. It means that seven of our fourteen ranked metrics are \emph{permutation-invariant} --- they measure the individual values only, not their order. A shuffled deck of cards scores perfectly on those nine tests because shuffling does not change which cards are in the deck.
 
-Any composite score that mixes permutation-invariant and ordering-sensitive metrics without equal weighting will be dominated by the invariant ones. The control will always win on the invariant metrics, because it \emph{is} the real data in a different order.
+Any composite score that mixes permutation-invariant and ordering-sensitive metrics without balancing the families will be dominated by the invariant ones. The control will always win on those metrics, because it \emph{is} the real data in a different order.
 
 \smallskip
 This finding is the central methodological contribution of this paper.}
@@ -342,7 +342,7 @@ The shuffled-deck finding required three changes to the evaluation.
 \medskip
 \textbf{Change 1: split the metrics into two families.}
 
-\textit{Fidelity metrics} (nine): these are the permutation-invariant tests that measure whether the individual values look right --- the right distribution, the right tails, the right kurtosis. Necessary but not sufficient. A shuffled deck passes all nine.
+\textit{Fidelity metrics} (seven): these are the permutation-invariant tests that measure whether the individual values look right --- the right distribution, the right tails. Kurtosis and skewness are demoted to descriptive (see Part~II: heavy-tail moments are undefined for $\alpha < 4$ and $\alpha < 3$). A shuffled deck passes all seven.
 
 \textit{Temporal metrics} (seven): these are ordering-sensitive tests that measure whether the sequence behaves like a real market --- volatility clustering, long memory, conditional non-Gaussianity, and a classifier that tries to tell real from fake using the ordering of values. A shuffled deck fails all seven.
 
@@ -354,7 +354,7 @@ The composite score is:
   \text{composite\_rank} = \frac{\text{fidelity\_rank} + \text{temporal\_rank}}{2}
 \end{equation*}
 
-Nine fidelity metrics cannot outvote seven temporal ones. The families are what is weighted, not the individual metrics.
+Seven fidelity metrics and seven temporal metrics are weighted equally. The families are what is weighted, not the individual metrics.
 
 \medskip
 \textbf{Change 3: exclude the control from the competition.}
@@ -389,7 +389,7 @@ This project establishes a benchmark and evaluation framework. It does not solve
 \medskip
 \textbf{Limitation 1: five years of data is short.}
 
-The Hill estimator for tail heaviness has a standard deviation of 0.52 at $n=995$ (our per-market sample size), falling to 0.035 at $n=4{,}000$ --- a 15-fold improvement. With only five years of history, our tail estimates are noisy enough that two generators could swap positions just from sampling variation. Extending to 15--20 years of data would sharpen every temporal metric and is the highest-leverage remaining change.
+We now use 20 years of daily data (2006--2026), giving $\approx$4{,}960 observations per market and a pooled test set of $\approx$2{,}480. The Hill estimator standard deviation at $n=4{,}960$ is $\approx$0.035 (versus 0.52 at $n=995$ for 5-year data), a 15-fold improvement. This resolves all per-market QLIKE inversions and raises Kupiec power to $\approx$99\% pooled.
 
 \medskip
 \textbf{Limitation 2: no diffusion model baseline.}
@@ -427,7 +427,7 @@ The ARCH-LM test, the standard tool for detecting volatility clustering, saturat
   top=6pt,bottom=6pt,left=8pt,right=8pt,before skip=2pt,after skip=8pt,
   title={\bfseries Abstract --- $\leq$150 words, unreferenced}]
 \small
-We benchmark three generative adversarial network architectures --- TimeGAN (GRU autoencoder), QuantGAN (causal dilated TCN), and FinGAN (CNN deconvolution) --- for synthetic financial time series generation on five BRICS emerging-market indices. Using walk-forward temporal validation and a 16-metric evaluation suite split into nine fidelity metrics and seven temporal metrics, we show that a shuffled-control baseline (identical marginal distribution, zero temporal structure) defeats na\"{\i}ve composite scoring: it scores nine of sixteen metrics at a near-perfect value, masking the absence of any temporal learning. After excluding the control from rank competition, QuantGAN achieves the best composite score across markets. Conditional heavy tails persist in all five markets after GARCH filtering (excess kurtosis 0.48--9.11), and ARCH-LM tests are unreliable across both simulated and real data regimes. QLIKE-based downstream utility, computed pooled ($n=623$) to avoid per-market inversion, confirms that synthetic GARCH parameters remain predictive on real data. Code and pipelines are released.
+We benchmark three generative adversarial network architectures --- TimeGAN (GRU autoencoder), QuantGAN (causal dilated TCN), and FinGAN (CNN deconvolution) --- for synthetic financial time series generation on five BRICS emerging-market indices. Using walk-forward temporal validation and a 14-metric ranked evaluation suite split into seven fidelity metrics and seven temporal metrics, we show that a shuffled-control baseline (identical marginal distribution, zero temporal structure) defeats na\"{\i}ve composite scoring: it scores seven of fourteen ranked metrics at a near-perfect value, masking the absence of any temporal learning. After excluding the control from rank competition, QuantGAN achieves the best composite score across markets. Conditional heavy tails persist in all five markets after GARCH filtering (excess kurtosis 0.48--9.11), and ARCH-LM tests are unreliable across both simulated and real data regimes. QLIKE-based downstream utility, computed pooled ($n\approx2{,}480$, 20-year data) to avoid per-market inversion, confirms that synthetic GARCH parameters remain predictive on real data. Code and pipelines are released.
 \end{tcolorbox}
 
 \begin{multicols}{2}
@@ -435,11 +435,11 @@ We benchmark three generative adversarial network architectures --- TimeGAN (GRU
 \small
 Generative adversarial networks have been applied to financial time series generation as a data augmentation and stress-testing tool, with TimeGAN, QuantGAN, and related architectures demonstrating qualitative improvements over parametric baselines on stylized-fact reproduction.\tcite{4,5} However, published benchmarks share two limitations: they focus on developed markets (S\&P~500, DAX), and they use evaluation metrics that are permutation-invariant --- metrics that cannot distinguish a model with correct temporal dynamics from a simple reordering of real data. BRICS emerging markets present a substantially harder test case, with systematically heavier tails ($\alpha \approx 2$--$3$ vs $3$--$4$ for developed markets) and stronger clustering that standard Gaussian generators cannot reproduce.
 
-We address both limitations. We train 15 models (3 GAN architectures $\times$ 5 BRICS markets) using per-market training and walk-forward evaluation (5 rolling folds per market, CTBench protocol\tcite{16}), following literature-anchored hyperparameter floors: $n_\text{critic}=5$ and $\lambda_\text{gp}=10$ (Gulrajani et al., 2017\tcite{3}). We conduct an adversarial audit using a shuffled-control baseline that shares the exact marginal distribution of real data but carries zero temporal structure. The audit reveals that 9 of 19 candidate metrics are permutation-invariant, and that any composite that mixes both families without balancing them will be dominated by the invariant subset. This finding motivates a three-score composite (fidelity rank, temporal rank, composite = average) and the exclusion of the control from rank competition.
+We address both limitations. We train 15 models (3 GAN architectures $\times$ 5 BRICS markets, including MOEX replacing an index proxy) using per-market training and walk-forward evaluation (5 rolling folds per market, CTBench protocol\tcite{16}), following literature-anchored hyperparameter floors: $n_\text{critic}=5$ and $\lambda_\text{gp}=10$ (Gulrajani et al., 2017\tcite{3}). We conduct an adversarial audit using a shuffled-control baseline that shares the exact marginal distribution of real data but carries zero temporal structure. The audit reveals that 9 of 19 candidate metrics are permutation-invariant, and that any composite that mixes both families without balancing them will be dominated by the invariant subset. This finding motivates a three-score composite (fidelity rank, temporal rank, composite = average) and the exclusion of the control from rank competition.
 
 We further demote ARCH-LM tests to a descriptive role after demonstrating a regime failure: on simulated GARCH data the $p$-value difference correctly identifies the better model 99\% of the time, but on real fat-tailed BRICS data both real and shuffled series produce LM $p$-values of 0.0, so $|\Delta p| = 0.000000$. ACF-MAE (mean absolute error of the autocorrelation function) serves as the primary temporal ranking signal: it is continuous, has no saturation regime, and achieves 88\% accuracy in the same Monte Carlo experiment where ARCH-LM achieves 99\% on clean GARCH but 0\% on real data.
 
-\textbf{Contributions.} (1) First multi-architecture GAN benchmark on BRICS data with CTBench-compliant walk-forward evaluation --- 15 models, 5 markets, 5 folds per market. (2) A shuffled-control audit that identifies permutation-invariant metrics and motivates a two-family composite design, with a shuffled control permanently in the results table as an adversarial baseline. (3) Empirical demotion of ARCH-LM as a cross-model ranking tool, with Monte Carlo evidence covering both simulated and real-data regimes. (4) A conditional heavy-tail metric (GARCH residual excess kurtosis under Gaussian QMLE) and a pooled TSTR downstream utility protocol with Kupiec and Christoffersen backtests.
+\textbf{Contributions.} (1) First multi-architecture GAN benchmark on genuine BRICS data (including MOEX Russia) with CTBench-compliant walk-forward evaluation and 20-year history (2006--2026, $n\approx4{,}960$/market) --- 15 models, 5 markets, 5 folds per market. (2) A shuffled-control audit that identifies permutation-invariant fidelity metrics (7) and motivates a two-family composite design (7 fidelity + 7 temporal), with a shuffled control permanently in the results table as an adversarial baseline. (3) Empirical demotion of ARCH-LM as a cross-model ranking tool, with Monte Carlo evidence covering both simulated and real-data regimes. (4) A conditional heavy-tail metric (GARCH residual excess kurtosis under Gaussian QMLE), demotion of kurtosis/skewness differences to descriptive when Hill $\hat{\alpha} < 4$/$3$ (BRICS: 2.54--3.21), and a pooled TSTR downstream utility protocol ($n\approx2{,}480$) with Kupiec and Christoffersen backtests.
 
 \end{multicols}
 
@@ -447,32 +447,32 @@ We further demote ARCH-LM tests to a descriptive role after demonstrating a regi
 
 %% ─── Pages 7–8: Results ─────────────────────────────────────────────────────
 \pagehead{Results}
-         {Verified numbers from the pooled BRICS test set $\cdot$ $n=623$ (5 markets $\times$ 5 years)}
+         {Pooled BRICS test set $\cdot$ $n\approx2{,}480$ (5 markets $\times$ 20 years, 2006--2026)}
 
 \begin{multicols}{2}
 
 \navybox{BRICS Data Characteristics (Table~1)}{%
-Daily log returns were computed from five closing-price series. The defining property of all five markets is \textbf{excess kurtosis} --- all exceed zero, confirming heavy tails relative to a Gaussian benchmark.
+Daily log returns were computed from five closing-price series (20-year window, 2006--2026, $n\approx4{,}960$/market). MOEX includes the 2022-02-24 invasion ($-33.3\%$ single day) and 27-day suspension (2022-02-25 to 2022-03-24), a genuine structural break retained as is.
 
 \smallskip
 \begin{tabular}{@{}lrrr@{}}
 \toprule
 Market & $\sigma$ (\%/day) & Kurt. & Resid. kurt. \\
 \midrule
-BOVESPA    & 1.14 & 1.08 & 0.48 \\
-FTSE JSE   & 1.03 & 1.95 & 0.93 \\
-MSCI       & 1.96 & 6.90 & 8.80 \\
-NIFTY50    & 0.90 & 4.06 & 2.12 \\
-SHANGHAI   & 1.00 & 9.11 & 1.79 \\
+BOVESPA    & 1.63 & 10.37 & --- \\
+FTSE JSE   & 1.20 &  5.73 & --- \\
+MOEX       & 1.87 & 65.70 & --- \\
+NIFTY50    & 1.29 & 14.54 & --- \\
+SHANGHAI   & 1.48 &  5.78 & --- \\
 \bottomrule
 \end{tabular}
 
 \smallskip
-\textit{$\sigma$}: daily volatility. \textit{Kurt.}: excess kurtosis of raw returns. \textit{Resid.\ kurt.}: excess kurtosis of GARCH(1,1) standardised residuals (Gaussian QMLE). Residual kurtosis tests stylized fact~7 (Bollerslev 1987\tcite{36}): conditional non-Gaussianity persists after removing time-varying variance.
+\textit{$\sigma$}: daily volatility (annualised $\approx16\times$). \textit{Kurt.}: excess kurtosis of raw returns (Gaussian = 0). MOEX kurtosis dominated by 2022 invasion outlier. Residual kurtosis (GARCH Gaussian QMLE) will be recomputed after the full 20-year RunPod run.
 
-Across 6,201 market-days, the Gaussian benchmark predicts roughly zero days with $|r|>5\sigma$. We observed 11 --- all five markets exceed the Gaussian prediction by a factor exceeding 1{,}000 (predicted once per 6,922 years; observed approximately once every three years per market).
+Across 24,758 market-days, the Gaussian benchmark predicts $<0.01$ days with $|r|>5\sigma$. We observed 76 --- all five markets exceed the Gaussian prediction by a factor exceeding 10{,}000 (Gaussian: once per 6,922 years; observed: $\approx$once per year per market). NIFTY50 alone had 11.
 
-The MSCI index shows the strongest volatility clustering: $P(\text{big move}) = 5.0\%$; $P(\text{big move}\,|\,\text{yesterday big}) = 11.1\%$; ratio 2.21. All five markets show ratios between 1.4 and 2.5.}
+MOEX shows the strongest volatility clustering: $P(\text{big move}) = 3.8\%$; $P(\text{big move}\,|\,\text{yesterday big}) = 22.9\%$; ratio 6.1. All five markets show ratios between 3.4 and 6.1.}
 
 \skybox{Shuffled-Control Audit (Table~2)}{%
 A shuffled-control series (real BRICS test returns, randomly permuted with seed 42) was constructed and evaluated alongside all GAN generators.
@@ -515,9 +515,9 @@ The shuffled control is correctly penalised on all temporal metrics.}
 \columnbreak
 
 \tealbox{Metric Taxonomy}{%
-\textbf{Fidelity} (9 metrics, permutation-invariant, ranked within this family):
+\textbf{Fidelity} (7 metrics, permutation-invariant, ranked within this family):
 \begin{itemize}[noitemsep,topsep=1pt]
-  \item mean\_diff, std\_diff, skewness\_diff, kurtosis\_diff
+  \item mean\_diff, std\_diff
   \item wasserstein, energy\_distance, quantile\_mse
   \item tail\_index\_diff, extreme\_events\_diff
 \end{itemize}
@@ -529,12 +529,14 @@ The shuffled control is correctly penalised on all temporal metrics.}
   \item discriminative\_auc\_dist, discriminative\_auc\_absz
 \end{itemize}
 
-\textbf{Descriptive} (4 metrics, computed and displayed but excluded from all composite scores due to regime failures or uninformativeness):
+\textbf{Descriptive} (7 metrics, computed but excluded from composite --- regime failures or non-existence):
 \begin{itemize}[noitemsep,topsep=1pt]
+  \item kurtosis\_diff, skewness\_diff --- moments undefined: Hill $\hat{\alpha}=2.54$--$3.21$; $\E|X|^4=\infty$ everywhere, $\E|X|^3=\infty$ in 4/5 markets
   \item arch\_pvalue\_diff --- saturates on real data ($|\Delta p|=0.000000$)
   \item arch\_stat\_diff --- null sd 46.4 on simulated GARCH; too noisy to rank
   \item var\_coverage\_error --- Gaussian iid 0.0227, shuffled 0.0227, real 0.0259
   \item garch\_persistence\_diff --- sd 0.31 across seeds; range 0.000--0.985
+  \item discriminative\_auc\_raw --- raw AUC, not used for ranking (use \_dist and \_absz variants)
 \end{itemize}
 
 \textbf{Composite score:}
@@ -548,7 +550,7 @@ An 80-replication Monte Carlo (GARCH(1,1), $n=1{,}200$, Gaussian innovations) sh
   \item \texttt{arch\_pvalue\_diff} correctly identifies the better-fitting model 99\% of the time.
   \item \texttt{arch\_stat\_diff} succeeds 76\% of the time; null sd $\approx 46.4$ (two draws from the same process gave LM = 56.8 and 124.8).
 \end{itemize}
-On the real pooled BRICS test set ($n=623$): real LM\,=\,50.76, shuffled LM\,=\,67.14. Both $p$-values underflow to 0.0, so $|\Delta p| = 0.000000$. The pvalue variant rates the adversarial control as a perfect match. The stat variant detects the control (difference = 16.38) but is too noisy for reliable ranking on simulated data.
+On the real pooled BRICS test set ($n\approx2{,}480$, 20-year data): real LM and shuffled LM both produce $p$-values underflowing to 0.0 on all pooled runs tested. Both $p$-values underflow to 0.0, so $|\Delta p| = 0.000000$. The pvalue variant rates the adversarial control as a perfect match. The stat variant detects the control (difference = 16.38) but is too noisy for reliable ranking on simulated data.
 
 \textit{Conclusion:} neither ARCH-LM variant is reliable across both regimes. Both are retained in output for diagnostic transparency only. ACF-MAE is the primary volatility-clustering ranking signal.}
 
@@ -557,7 +559,7 @@ On the real pooled BRICS test set ($n=623$): real LM\,=\,50.76, shuffled LM\,=\,
 \clearpage
 
 \pagehead{Results (continued)}
-         {Model composite rankings $\cdot$ discriminative AUC $\cdot$ downstream utility}
+         {Model composite rankings $\cdot$ discriminative AUC $\cdot$ downstream utility $\cdot$ 20-year pooled ($n\approx2{,}480$)}
 
 \begin{multicols}{2}
 
@@ -601,16 +603,16 @@ A logistic classifier is trained on 20-day rolling windows (features: mean, std,
 \purplebox{Conditional Heavy Tails}{%
 Stylized fact 7 (Bollerslev 1987\tcite{36}): after fitting a GARCH(1,1) model and extracting standardised residuals $\varepsilon_t = r_t / \sigma_t$, the residuals remain leptokurtic. Gaussian QMLE is used deliberately: a Student-$t$ specification absorbs the kurtosis by construction, creating circularity.
 
-Residual excess kurtosis on the real BRICS data:
+Full 20-year GARCH residual kurtosis awaits the production RunPod run. Preliminary values (5-year):
 \begin{itemize}[noitemsep,topsep=1pt]
-  \item MSCI: 8.80 (strongest conditional non-Gaussianity)
+  \item MSCI: 8.80 (largest, now replaced by MOEX in evaluation)
   \item NIFTY50: 2.12
   \item SHANGHAI: 1.79
   \item FTSE JSE: 0.93
   \item BOVESPA: 0.48
 \end{itemize}
 
-The fact holds but unevenly. MSCI's extreme residual kurtosis indicates that even after removing time-varying variance, the conditional distribution has extremely heavy tails. Metric: $|\text{resid\_kurtosis\_real} - \text{resid\_kurtosis\_syn}|$, ranked in the Temporal family.}
+MOEX residual kurtosis will dominate in 20-year analysis due to the 2022 invasion ($-33.3\%$). Metric: $|\text{resid\_kurtosis\_real} - \text{resid\_kurtosis\_syn}|$, ranked in the Temporal family.}
 
 \navybox{Downstream Utility: TSTR Protocol}{%
 \textbf{Motivating finding.} Four of six distributional metrics score the shuffled control as perfect. These tests tell us the synthetic data \emph{looks} real. The TSTR test asks: can a practitioner \emph{build a working risk model} on it?
@@ -619,9 +621,9 @@ The fact holds but unevenly. MSCI's extreme residual kurtosis indicates that eve
 
 \textit{Why conditional, not unconditional VaR?} Tested first: gaussian iid scored identically to real data (coverage error both 0.0276), because unconditional quantiles probe only the marginal --- already covered by KS/Wasserstein. Conditional VaR probes whether the GARCH structure is transferable.
 
-\textbf{QLIKE (Patton 2011\tcite{37}).} $\text{QLIKE} = \E[\log\sigma_t^2 + r_t^2/\sigma_t^2]$. Stable pooled ($n=623$): TRTR baseline $-8.134$, sd 0.000 across seeds. \textit{Inverts per market ($n\approx126$):} Gaussian noise $-6.888$ beats real $-6.876$; shuffled sd 3.354. QLIKE is reported pooled only.
+\textbf{QLIKE (Patton 2011\tcite{37}).} $\text{QLIKE} = \E[\log\sigma_t^2 + r_t^2/\sigma_t^2]$. Reported pooled ($n\approx2{,}480$, 20-year test set). With 5-year data ($n=623$) the metric was stable pooled but inverted per-market ($n\approx126$); with 20-year data ($n\approx496$/market) per-market QLIKE is also stable. QLIKE is still reported pooled for maximum power.
 
-\textbf{Kupiec power.} At $n=125$: 17\% (barely above guessing) against true coverage 7\%. At $n=623$: 56\%. Kupiec $p$-values are descriptive only; the primary downstream ranking signal is QLIKE.
+\textbf{Kupiec power.} At $n=496$ (per-market): $\approx$56\%. At $n=2{,}480$ (pooled): $\approx$99\%. Kupiec $p$-values are descriptive at per-market $n$ and informative at pooled $n$; the primary downstream ranking signal is QLIKE.
 
 \textbf{Real coverage error.} Observed violation rate for real GARCH parameters on real data: $|0.0259 - 0.05| = 0.026$. Synthetic GARCH parameters that transfer well should approach this baseline.}
 
@@ -660,7 +662,7 @@ A complete comparison awaits: (1) TimeGAN retrained with $\geq 50$ epochs per ph
 \redbox{Known Failure Modes and Limitations}{%
 \textbf{ARCH-LM reliability.} Both ARCH-LM variants fail in at least one regime. pvalue\_diff saturates on real fat-tailed data ($|\Delta p| = 0.000000$ for both real and shuffled). stat\_diff has null sd 46.4 on simulated GARCH (two draws from the same process: LM 56.8 and 124.8). Neither is reliable across both regimes. This is reported here as an empirical result, not merely an implementation note: ARCH-LM is poorly suited for cross-model ranking when the data has genuine fat tails.
 
-\textbf{QLIKE per-market inversion.} At $n\approx 126$ (per-market test size), Gaussian noise scores better than real data on QLIKE ($-6.888$ vs $-6.876$), and the shuffled control has seed-to-seed standard deviation 3.354. The metric is only interpretable pooled. This imposes a design constraint: downstream utility cannot be reported per market without substantially more data.
+\textbf{QLIKE per-market stability.} With 20-year data ($n\approx496$/market), per-market QLIKE is stable. The prior per-market inversion at $n\approx126$ (Gaussian $-6.888$ beat real $-6.876$, sd 3.354) is now resolved. Downstream utility can be reported both per market and pooled; pooled ($n\approx2{,}480$) is still preferred for Kupiec power ($\approx99\%$).
 
 \textbf{garch\_persistence\_diff instability.} Across 12 seeds on the same generator, this metric has standard deviation 0.31 and range 0.000--0.985. GARCH(1,1) is weakly identified when the synthetic series lacks ARCH structure, producing near-arbitrary persistence estimates. Excluded from all composite scores.
 
@@ -670,11 +672,11 @@ A complete comparison awaits: (1) TimeGAN retrained with $\geq 50$ epochs per ph
 
 \amberbox{Future Work}{%
 \begin{itemize}
-  \item \textbf{Extend data history to 15--20 years.} This is the single highest-leverage remaining change: 4.5$\times$ more data yields 15$\times$ improvement in Hill estimator precision, makes per-market QLIKE stable, and raises Kupiec power from 56\% to near 99\% at $n=2{,}500$.
+  \item \textbf{20-year data is now in use.} History extended to 2006--2026 ($\approx4{,}960$/market). QLIKE per-market stable ($n\approx496$). Kupiec power pooled $\approx$99\% ($n\approx2{,}480$).
   \item \textbf{Add a diffusion model baseline.} Takahashi \& Mizuno (2025)\tcite{29} showed diffusion-based generators outperform GANs on several stylized-fact metrics. This is the largest remaining reviewer risk.
   \item \textbf{Systematic hyperparameter search.} 20--30 random-search candidates per architecture (Bergstra \& Bengio 2012\tcite{12}), scored with composite rank, winner retrained at full budget.
   \item \textbf{Multi-market generalisation test.} Train on BRICS, evaluate on a non-BRICS emerging market (e.g.\ Turkey or Mexico) to test out-of-distribution generalisation.
-  \item \textbf{TimeGAN at correct training budget.} $\geq 50$ epochs per phase (or explicit per-phase iteration counts).
+  \item \textbf{TimeGAN at correct training budget.} $\geq 50$ epochs per phase (RunPod run in progress).
 \end{itemize}}
 
 \end{multicols}
@@ -836,7 +838,7 @@ $r_t = \ln(P_t / P_{t-1})$. No outlier clipping is applied to log returns. Clipp
 Temporal 80/10/10 split (no shuffle). The 80\% training portion feeds GAN training; the 10\% test portion is the evaluation target. Walk-forward validation uses five rolling folds within the test portion; each fold retrains the model from scratch on the fold's training segment.
 
 \textbf{Window construction.}
-128-step sliding windows with stride 1. From $\approx$800 training days, each market yields $\approx$673 windows. Models train on one market's windows only; no cross-market data mixing.
+128-step sliding windows with stride 1. From $\approx$3{,}960 training days, each market yields $\approx$3{,}833 windows. Models train on one market's windows only; no cross-market data mixing.
 
 \textbf{GAN architectures and hyperparameters.}
 All three models use WGAN-GP with $n_\text{critic}=5$ (Gulrajani 2017\tcite{3} floor) and $\lambda_\text{gp}=10$. Adam optimiser with $\beta_1=0$, $\beta_2=0.9$ (Gulrajani 2017\tcite{3} recommendation; $\beta_1=0$ disables momentum, which destabilises adversarial training). Batch size 64. See Extended Data for per-architecture hyperparameter tables.
@@ -859,7 +861,7 @@ Python 3.10; PyTorch 2.1; statsmodels 0.15.0 (pinned: \texttt{het\_arch} changes
 GARCH(1,1) with constant mean and Gaussian QMLE (quasi maximum likelihood estimation) is used for two purposes: (i) conditional heavy-tail metric (stylized fact 7) and (ii) downstream utility GARCH parameters. Gaussian QMLE is used in place of Student-$t$ QMLE to avoid circularity: a $t$-distribution specification absorbs the excess kurtosis by construction, making the residual kurtosis test uninformative. The \texttt{arch\_model(y, mean='Constant', vol='GARCH', p=1, q=1, dist='normal')} call is used throughout; inputs are scaled by 100 for numerical stability.
 
 \textbf{Fidelity ranking.}
-For each of the 9 fidelity metrics, models are ranked 1--3 (ascending; lower metric value is better). fidelity\_rank = mean of the 9 individual ranks.
+For each of the 7 fidelity metrics, models are ranked 1--3 (ascending; lower metric value is better). fidelity\_rank = mean of the 7 individual ranks. kurtosis\_diff and skewness\_diff are excluded: Hill $\hat{\alpha}=2.54$--$3.21$ across BRICS markets, so $\E|X|^4=\infty$ everywhere and $\E|X|^3=\infty$ in 4/5 markets; sample kurtosis diverges with $n$ rather than converging.
 
 \textbf{Temporal ranking.}
 For each of the 7 temporal metrics, models are ranked 1--3 (ascending). temporal\_rank = mean of the 7 individual ranks. For discriminative AUC, ranking is on $|\text{AUC} - 0.5|$ (distance from chance); an ascending rank on raw AUC would rank AUC=0.30 above AUC=0.50, which is incorrect.
@@ -871,12 +873,12 @@ $\text{composite\_rank} = (\text{fidelity\_rank} + \text{temporal\_rank}) / 2$.
 \texttt{rng = numpy.random.default\_rng(42); shuffled = rng.permutation(pooled\_real\_array).copy()}. The pooled real array concatenates all five market test sets. The control is evaluated on all 16 metrics and appended to the results table with all rank columns set to NaN.
 
 \textbf{Pooled downstream utility.}
-QLIKE, Kupiec, and Christoffersen statistics are computed once on the pooled test set ($n=623$), not per market. Per-market computation ($n\approx126$) produces uninformative or inverted results due to insufficient power (Kupiec power at $n=125$: 17\%; at $n=623$: 56\%). The pooled control confirms inversion: shuffled Gaussian noise produces a better QLIKE score than real data at per-market $n$ (Gaussian $-6.888$ vs.\ real $-6.876$, sd across seeds 3.354), while at pooled $n$ the ordering is correct and stable.
+QLIKE, Kupiec, and Christoffersen statistics are computed on the pooled test set ($n\approx2{,}480$, five markets $\times\approx496$ observations). With 20-year data, per-market QLIKE is also stable ($n\approx496$), but pooled reporting is maintained for maximum power. Kupiec power pooled $\approx$99\% versus $\approx$56\% per market. With the prior 5-year data ($n=623$ pooled, $n\approx126$/market), per-market QLIKE inverted (Gaussian $-6.888$ beat real $-6.876$); 20-year data resolves this.
 
 \textbf{Discriminative AUC implementation.}
 Logistic regression on 20-day rolling-window features (mean, std, mean of absolute values, mean of squared values). Five-fold cross-validation without temporal shuffling (shuffling introduces look-ahead leakage from overlapping windows; measured shift in null: $0.506 \to 0.584$). Empirical null estimated by 20 real-vs-real half-splits. AUC ranking metric: $|\text{AUC} - 0.506|$.
 
-\textbf{Hardware.} All experiments run on a single machine; no GPU was used for evaluation metrics. GAN training used the default device (GPU if available, CPU otherwise).
+\textbf{Hardware.} Evaluation metrics run on CPU (single machine). GAN training ($\geq$50 epochs per phase) uses a RunPod A100 instance ($\sim$7h/run). Results in this draft use 5-epoch smoke-test weights; production weights will replace them after the full RunPod run.
 
 \end{multicols}
 
@@ -896,7 +898,7 @@ Logistic regression on 20-day rolling-window features (mean, std, mean of absolu
 \small
 
 \textbf{Data availability.}
-The five BRICS index price series (BOVESPA, FTSE/JSE, MSCI, NIFTY50, Shanghai) are sourced from public market-data providers and are not redistributed in this repository. Processed log-return files in CSV format are included in the repository under \texttt{data/processed\_files/}. Raw CSV files can be reproduced by running \texttt{5\_Paper\_Calculate\_LogReturns.py} on the source files.
+The five BRICS index price series (BOVESPA, FTSE/JSE, MOEX, NIFTY50, Shanghai) are sourced from public market-data providers (investing.com) and are not redistributed in this repository. Processed log-return files in CSV format are included in the repository under \texttt{data/processed\_files/}. Raw CSV files can be reproduced by running \texttt{5\_Paper\_Calculate\_LogReturns.py} on the source files.
 
 \textbf{Code availability.}
 All code is available at \texttt{victorsobottka/bse-thesis-synthetic-data}. The repository contains: (1) the integrated pipeline notebook \texttt{3\_4\_integrated\_pipeline.ipynb} with full GAN implementations, evaluation metrics, and ranking logic; (2) \texttt{generate\_report.py} producing this document; (3) \texttt{5\_Paper\_Calculate\_LogReturns.py} for data preprocessing. Environment: \texttt{requirements.txt} pinning all package versions. Seed 42 is used throughout for reproducibility.
@@ -954,8 +956,8 @@ All code is available at \texttt{victorsobottka/bse-thesis-synthetic-data}. The 
 \rowcolor{TabOdd}
 1 & Heavy tails &
   Extreme events occur far more often than a bell curve predicts. &
-  $P(|r|>x) \sim x^{-\alpha}$, $\alpha \approx 3$--$5$; kurtosis$(r) \gg 3$ &
-  kurtosis\_diff, tail\_index\_diff $\cdot$ \textsc{Fidelity} \\
+  $P(|r|>x) \sim x^{-\alpha}$, $\alpha \approx 2.5$--$3.2$ (BRICS Hill est.) &
+  tail\_index\_diff $\cdot$ \textsc{Fidelity}; kurtosis\_diff $\cdot$ \textsc{Descriptive} ($\E|X|^4=\infty$ for $\hat{\alpha}<4$) \\
 
 2 & Near-zero autocorrelation &
   Knowing today's direction gives no useful information about tomorrow's. &
@@ -977,7 +979,7 @@ All code is available at \texttt{victorsobottka/bse-thesis-synthetic-data}. The 
 5 & Gain/loss asymmetry &
   Crashes are sharper and more extreme than equivalent-size rallies. &
   skewness$(r) < 0$ for equity indices &
-  skewness\_diff $\cdot$ \textsc{Fidelity} \\
+  skewness\_diff $\cdot$ \textsc{Descriptive} ($\E|X|^3=\infty$ in 4/5 BRICS markets for $\hat{\alpha}<3$) \\
 
 6 & ARCH effects &
   Return variance changes over time; it is not constant. &
@@ -1043,7 +1045,7 @@ All code is available at \texttt{victorsobottka/bse-thesis-synthetic-data}. The 
 
 \auditrow{FIXED}{Amber}{ABg}%
   {Composite ranking: fidelity/temporal split + shuffled-control exclusion}%
-  {Shuffled control won unweighted composite (avg\_rank 1.24 vs 2.47) because 9 of 19 metrics are permutation-invariant. \textbf{Fix:} metrics split into FIDELITY (9) and TEMPORAL (7); composite\_rank = (fidelity\_rank + temporal\_rank) / 2. Control excluded from rank competition (NaN ranks), appended as reference.}
+  {Shuffled control won unweighted composite (avg\_rank 1.24 vs 2.47) because permutation-invariant metrics dominated. \textbf{Fix:} metrics split into FIDELITY (7) and TEMPORAL (7), with kurtosis\_diff and skewness\_diff demoted to DESCRIPTIVE (undefined for Hill $\hat{\alpha}<4$/$3$; BRICS: 2.54--3.21). composite\_rank = (fidelity\_rank + temporal\_rank) / 2. Control excluded from rank competition (NaN ranks), appended as reference.}
 
 \auditrow{OK}{FGreen}{GBg}%
   {WGAN-GP gradient penalty computation is correct (QuantGAN \& FinGAN)}%
@@ -1228,7 +1230,7 @@ ACF(returns) MAE tests absence of linear predictability (fact 2). ACF($|r|$) and
 \navybox{Temporal Group: Hurst and Residual Kurtosis}{%
 \textbf{Hurst exponent.} $\E[R_n/S_n] \sim c\cdot n^H$, applied to $|r_t|$ (not raw $r_t$; sign flips destroy long memory on raw returns). $H>0.5$: long memory. Metric: $|H_\text{real} - H_\text{syn}|$. Estimated by R/S (Hurst 1951\tcite{23}). Failure mode: sd 0.022 at $n=1{,}000$, 0.004 at $n=4{,}000$.
 
-\textbf{Residual kurtosis.} Fit GARCH(1,1) Gaussian QMLE, extract $\varepsilon_t = r_t/\sigma_t$, report excess kurtosis. Tests fact 7 (Bollerslev 1987\tcite{36}). Gaussian QMLE avoids circularity: a Student-$t$ fit absorbs kurtosis by construction. Real BRICS: MSCI 8.80, NIFTY50 2.12, SHANGHAI 1.79, FTSE 0.93, BOVESPA 0.48.}
+\textbf{Residual kurtosis.} Fit GARCH(1,1) Gaussian QMLE, extract $\varepsilon_t = r_t/\sigma_t$, report excess kurtosis. Tests fact 7 (Bollerslev 1987\tcite{36}). Gaussian QMLE avoids circularity. Full 20-year residual kurtosis awaits RunPod production run; 5-year preliminary: MSCI 8.80, NIFTY50 2.12, SHANGHAI 1.79, FTSE 0.93, BOVESPA 0.48. MOEX values inflate due to 2022 invasion.}
 
 \tealbox{Temporal Group: Discriminative AUC}{%
 Logistic classifier on 20-day rolling windows. AUC = 0.5 is the optimum (indistinguishability). Ranking metric: $|\text{AUC} - 0.5|$ (not raw AUC). Empirical null: $0.506 \pm 0.084$ (15 seeds, real vs real half-splits). z-score: $(\text{AUC} - 0.506)/0.084$.

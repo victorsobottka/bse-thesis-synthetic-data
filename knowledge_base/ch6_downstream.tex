@@ -1,0 +1,186 @@
+\chapter{Downstream Utility: VaR Backtesting and QLIKE}
+\label{ch:downstream}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Value at Risk}
+
+\situation{
+A bank risk manager wants to answer: ``What is the most I should expect to lose on any single trading day, with 95\% confidence?'' The answer is the \textbf{Value at Risk} (VaR) at the 5\% level. If the daily VaR is 2\%, it means the bank should expect to lose more than 2\% on at most 1 day in 20.
+}
+
+\workedarith{
+\textbf{Unconditional VaR} (5th percentile of the empirical distribution):
+For BOVESPA 20-year data, the 5th percentile of $r_t \approx -2.7\%$.
+VaR$_{0.05} = -2.7\%$ means: on 5\% of days, expect worse than a $-2.7\%$ return.
+
+\textbf{Conditional VaR} (GARCH-based):
+\begin{align*}
+  \hat{\sigma}_t^2 &= \hat{\omega} + \hat{\alpha} r_{t-1}^2 + \hat{\beta} \hat{\sigma}_{t-1}^2 \\
+  \text{VaR}_t     &= \hat{\mu} + \hat{\sigma}_t \cdot z_{0.05}, \quad z_{0.05} = -1.645
+\end{align*}
+This VaR changes each day based on yesterday's volatility. On a quiet day, $\text{VaR}_t \approx -1.5\%$. After a large move, $\text{VaR}_t \approx -3.5\%$.
+
+\textbf{Why unconditional VaR is useless as an evaluation metric:}
+Gaussian iid noise (white noise with $\sigma$ = historical vol) achieves coverage error $= 0.0276$.
+Real GARCH parameters on real data also achieve coverage error $= 0.0259$.
+The two are nearly identical because unconditional VaR tests only the marginal distribution, which is already covered by Wasserstein and KS.
+}
+
+\formaldef{
+\textbf{Value at Risk} at level $\alpha$:
+\[
+  \text{VaR}_\alpha = \inf\{x : \Prob(r_t \leq x) \geq \alpha\}
+\]
+For a GARCH model with normal innovations:
+\[
+  \text{VaR}_{\alpha,t} = \hat{\mu} + \hat{\sigma}_t \Phi^{-1}(\alpha)
+\]
+\textbf{Coverage error:} $\abs{\hat{v} - \alpha}$ where $\hat{v}$ = fraction of test days with $r_t < \text{VaR}_{\alpha,t}$.
+Correct model: $\hat{v} \approx \alpha = 5\%$. Observed for real GARCH on real BRICS data: $\hat{v} = 7.59\%$, so coverage error $= |0.0759 - 0.05| = 0.0259$.
+}
+
+\analogybreak{
+VaR captures the 5th percentile only. It says nothing about what happens \emph{beyond} the 5th percentile (Expected Shortfall / CVaR covers this). We use VaR because Kupiec and Christoffersen backtests are specifically designed for it, and because the thesis focuses on evaluating the GARCH structure, not the full tail.
+}
+
+\whyhere{
+The real-GARCH coverage error of 0.0259 is the reference baseline in \texttt{var\_coverage\_error}. A synthetic GARCH that transfers well should produce VaR forecasts with similar coverage. This metric is in DESCRIPTIVE (not TEMPORAL) because it probes only the marginal coverage rate, not the temporal dynamics of whether violations cluster together (which is what Christoffersen tests).
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Kupiec Backtest}
+
+\situation{
+If your VaR model is correct, exceedances (days where the loss exceeds VaR) should happen exactly 5\% of the time. If you observe 40 exceedances in 200 test days (20\%), something is wrong. The Kupiec test asks: is the observed exceedance rate statistically distinguishable from the claimed 5\%?
+}
+
+\workedarith{
+Let $n$ = test days, $x$ = observed exceedances, $\alpha$ = claimed coverage (5\%).
+
+Under the null hypothesis ($p = \alpha$):
+\[
+  LR_\text{Kupiec} = -2\ln\!\left[\frac{\alpha^x (1-\alpha)^{n-x}}{\hat{p}^x (1-\hat{p})^{n-x}}\right], \quad \hat{p} = x/n
+\]
+$LR_\text{Kupiec} \sim \chi^2(1)$ under $H_0$.
+
+\textbf{Power at different $n$:}
+$n=125$ (5-year per-market): power = 17\% at true $p=7\%$ --- barely above random.
+$n=496$ (20-year per-market): power $\approx 56\%$.
+$n=2{,}480$ (20-year pooled): power $\approx 99\%$.
+
+With 5-year data, Kupiec is essentially powerless. With 20-year pooled data, it is meaningful.
+}
+
+\formaldef{
+\textbf{Kupiec (1995) unconditional coverage test:}
+\[
+  H_0: p = \alpha, \quad H_1: p \neq \alpha
+\]
+Likelihood ratio statistic:
+\[
+  LR_{uc} = 2\ln\!\left[\hat{p}^x(1-\hat{p})^{n-x}\right] - 2\ln\!\left[\alpha^x(1-\alpha)^{n-x}\right] \sim \chi^2(1)
+\]
+Rejects at 5\% significance if $LR_{uc} > 3.84$.
+}
+
+\analogybreak{
+Kupiec tests only the \emph{unconditional} coverage: is the total fraction of exceedances right? It does not test whether exceedances cluster in time (which would indicate the model fails in precisely the turbulent periods that matter most). That is the Christoffersen test.
+}
+
+\whyhere{
+Kupiec $p$-values are reported in the downstream utility section but are descriptive only at per-market $n$. At pooled $n \approx 2{,}480$, they are informative. The primary ranking metric is QLIKE because it is a proper scoring rule with no minimum-sample-size issue.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Christoffersen Independence Test}
+
+\situation{
+Your VaR model has 5\% coverage (right number of exceedances). But all 5\% happen in a single turbulent week. After that week, perfect calm. The model is correct on average but wrong when it matters: it fails during exactly the periods banks need accurate risk estimates.
+}
+
+\formaldef{
+\textbf{Christoffersen (1998) independence test:} tests whether VaR exceedances are independent over time.
+
+Let $I_t = \mathbf{1}[r_t < \text{VaR}_{\alpha,t}]$ be the indicator of an exceedance.
+Define transition counts: $n_{ij}$ = number of days where $I_{t-1}=i$ and $I_t=j$.
+
+Under independence:
+\[
+  LR_\text{ind} = 2\ln\!\left[\frac{\hat{\pi}_{01}^{n_{01}} (1-\hat{\pi}_{01})^{n_{00}} \hat{\pi}_{11}^{n_{11}} (1-\hat{\pi}_{11})^{n_{10}}}{\hat{\pi}^{n_{01}+n_{11}}(1-\hat{\pi})^{n_{00}+n_{10}}}\right] \sim \chi^2(1)
+\]
+where $\hat{\pi}_{ij} = n_{ij}/(n_{i0}+n_{i1})$ and $\hat{\pi} = (n_{01}+n_{11})/(n_{00}+n_{01}+n_{10}+n_{11})$.
+}
+
+\whyhere{
+The combined Christoffersen test ($LR_\text{cc} = LR_\text{uc} + LR_\text{ind} \sim \chi^2(2)$) tests both unconditional coverage and independence simultaneously. For synthetic GARCH parameters to be useful, the VaR forecasts they produce must have both correct coverage and independent exceedances. This is a substantially harder bar than Kupiec alone.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{QLIKE Loss}
+
+\situation{
+You have two weather forecasters. Forecaster A says ``tomorrow will be a 2\% return day'' (one number). Forecaster B says ``tomorrow's volatility will be 1.5\%'' (a distribution). You observe the actual return. How do you score Forecaster B, who gave you a distribution, not a point forecast?
+}
+
+\workedarith{
+QLIKE (Patton 2011):
+\[
+  \text{QLIKE}_t = \log\hat{\sigma}_t^2 + r_t^2 / \hat{\sigma}_t^2
+\]
+A volatility forecast $\hat{\sigma}_t$ that is too high penalises $\log\hat{\sigma}_t^2$ (unnecessarily large).
+A forecast too low penalises $r_t^2/\hat{\sigma}_t^2$ (missed a large move).
+
+TRTR (train and test on real data) baseline: $\text{QLIKE} \approx -8.134$, sd 0.000.
+A synthetic GARCH that produces parameters close to the true ones will have QLIKE close to $-8.134$.
+
+\textbf{Per-market inversion (5-year data, $n\approx126$):}
+Gaussian noise: $\text{QLIKE} = -6.888$.
+Real data: $\text{QLIKE} = -6.876$.
+Gaussian noise beats real data --- QLIKE is meaningless at this $n$.
+Shuffled control sd across seeds: 3.354 --- random variation dominates.
+
+\textbf{Pooled (20-year, $n\approx2{,}480$):}
+QLIKE is stable and interpretable. Per-market ($n\approx496$) also stable.
+}
+
+\formaldef{
+\textbf{QLIKE} (Quasi-Likelihood): a proper scoring rule for volatility forecasts.
+\[
+  \text{QLIKE}(r, \hat{\sigma}) = \frac{1}{T}\sum_{t=1}^T \left[\log\hat{\sigma}_t^2 + \frac{r_t^2}{\hat{\sigma}_t^2}\right]
+\]
+A scoring rule is \textbf{proper} if it is minimised in expectation when $\hat{\sigma}_t^2 = \E[r_t^2 | \mathcal{F}_{t-1}]$ (the true conditional variance). Patton (2011) shows QLIKE is robust to the use of imperfect variance proxies (here: $r_t^2$ instead of the true $\sigma_t^2$).
+}
+
+\analogybreak{
+QLIKE is minimised (more negative = better) when the volatility forecast matches the conditional variance. It cannot test whether the GARCH model is the right \emph{specification} (e.g., whether leverage effects matter), only whether the estimated parameters are close to the true conditional variance. A synthetic GARCH with wrong parameters but right unconditional volatility might score well on QLIKE by accident --- Kupiec and Christoffersen provide additional checks.
+}
+
+\whyhere{
+QLIKE is the primary downstream utility ranking signal because: (1) it is a proper scoring rule, (2) it directly tests whether the GARCH structure learned from synthetic data transfers to real data, and (3) it is continuous with no minimum-power issues at pooled $n \approx 2{,}480$. The TSTR protocol (Train on Synthetic, Test on Real) uses synthetic GARCH parameters to forecast real-data volatility and computes QLIKE on the real test set.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Walk-Forward Validation}
+
+\situation{
+You want to evaluate a forecasting model on historical data. The naive approach: train on all data up to 2020, test on 2020--2026. But this uses only one test period. If 2022--2026 happened to be unusual (it was, for MOEX), your evaluation might be misleading.
+
+Walk-forward validation uses multiple test periods, each with a fresh training set.
+}
+
+\formaldef{
+\textbf{Rolling-origin walk-forward} (CTBench protocol):
+\begin{itemize}
+  \item Divide data into $K$ folds (here: $K=5$)
+  \item For fold $k$: train on data up to fold $k$'s start, test on fold $k$
+  \item Report metric mean $\pm$ std across 5 folds
+\end{itemize}
+Unlike $K$-fold cross-validation, the order of folds is never shuffled. Later folds always use more training data (expanding window) or a shifted training window (rolling window). We use rolling origin.
+
+\textbf{Why not $K$-fold with shuffling?}
+Financial returns have serial dependence. Shuffling folds puts future data in the training set (look-ahead leakage). The discriminative AUC case showed this explicitly: shuffling 20-day windows shifts the null from 0.506 to 0.584.
+}
+
+\whyhere{
+Five rolling folds per market give mean $\pm$ std across folds rather than a single metric estimate. This enables: (1) confidence intervals, (2) detection of fold-specific anomalies (MOEX fold 3 covers the 2022 invasion), (3) comparison of temporal stability across architectures. The CTBench protocol (Liao et al., 2025) requires this design for standardised reporting.
+}

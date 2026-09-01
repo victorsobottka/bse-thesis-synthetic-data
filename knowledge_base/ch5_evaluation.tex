@@ -1,0 +1,135 @@
+\chapter{Evaluation: Metrics, Taxonomy, and the Shuffled-Control Audit}
+\label{ch:evaluation}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{The Metric Taxonomy}
+
+\situation{
+You built a machine that generates fake playing cards. You want to check whether the fakes are good. You could count the card values (does the fake deck have the right number of aces?) --- that's a \emph{fidelity} check. But you could also shuffle the deck and see if the pattern looks natural --- that's a \emph{temporal} check. Both are necessary; neither alone is sufficient.
+}
+
+\formaldef{
+We classify all evaluation metrics into three groups:
+
+\medskip
+\textbf{Fidelity metrics} (7, permutation-invariant): measure the marginal distribution of $r_t$ only. A metric $m$ is permutation-invariant if $m(\pi(r)) = m(r)$ for any permutation $\pi$. These metrics score the shuffled control perfectly by construction.
+\begin{itemize}
+  \item \texttt{mean\_diff}: $|\bar{r}_\text{real} - \bar{r}_\text{syn}|$
+  \item \texttt{std\_diff}: $|\text{sd}(r_\text{real}) - \text{sd}(r_\text{syn})|$
+  \item \texttt{wasserstein}: $W_1(p_\text{real}, p_\text{syn})$
+  \item \texttt{quantile\_mse}: $K^{-1}\sum_k (Q_\text{real}(\alpha_k) - Q_\text{syn}(\alpha_k))^2$
+  \item \texttt{tail\_index\_diff}: $|\hat{\alpha}_\text{real} - \hat{\alpha}_\text{syn}|$ (Hill estimator, top 5\%)
+  \item \texttt{extreme\_events\_diff}: $|P_\text{real}(|r|>2\sigma) - P_\text{syn}(|r|>2\sigma)|$
+  \item \texttt{energy\_distance}: $2\E\|X{-}Y\| - \E\|X{-}X'\| - \E\|Y{-}Y'\|$
+\end{itemize}
+
+\textbf{Temporal metrics} (7, ordering-sensitive): measure properties that depend on the sequence of $r_t$. The shuffled control scores poorly on all of these.
+\begin{itemize}
+  \item \texttt{acf\_returns\_mae}: ACF-MAE of $r_t$ at lags 1--20 (tests fact~2)
+  \item \texttt{acf\_absolute\_mae}: ACF-MAE of $|r_t|$ (tests volatility clustering, fact~3)
+  \item \texttt{acf\_squared\_mae}: ACF-MAE of $r_t^2$ (tests ARCH effects, fact~6)
+  \item \texttt{hurst\_diff}: $|H_\text{real} - H_\text{syn}|$ applied to $|r_t|$ (tests fact~4)
+  \item \texttt{resid\_kurtosis\_diff}: $|\kappa_\text{real} - \kappa_\text{syn}|$ for GARCH residuals (tests fact~7)
+  \item \texttt{discriminative\_auc\_dist}: $|\text{AUC} - 0.5|$ from logistic classifier
+  \item \texttt{discriminative\_auc\_absz}: $|(\text{AUC} - 0.506)/0.084|$ (z-score vs empirical null)
+\end{itemize}
+
+\textbf{Descriptive metrics} (7, excluded from composite): computed and displayed for diagnosis only.
+\begin{itemize}
+  \item \texttt{kurtosis\_diff}: $\E[X^4]=\infty$ for $\hat{\alpha}<4$; sample values diverge with $n$
+  \item \texttt{skewness\_diff}: $\E[X^3]=\infty$ for $\hat{\alpha}<3$ (4/5 BRICS markets)
+  \item \texttt{arch\_pvalue\_diff}: saturates on real data ($|\Delta p|=0.000000$)
+  \item \texttt{arch\_stat\_diff}: null sd 46.4 on simulated GARCH; too noisy to rank
+  \item \texttt{var\_coverage\_error}: unconditional VaR; cannot distinguish Gaussian noise from real
+  \item \texttt{garch\_persistence\_diff}: sd 0.31 across seeds; range 0.000--0.985
+  \item \texttt{discriminative\_auc\_raw}: raw AUC value (superseded by dist/absz variants)
+\end{itemize}
+}
+
+\whyhere{
+The three-group taxonomy is the central methodological contribution of this paper. The composite score $= (\text{fidelity\_rank} + \text{temporal\_rank})/2$ gives equal weight to both families regardless of how many individual metrics each contains. The shuffled control is always shown in the results table with NaN ranks --- it serves as the adversarial baseline.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{The Shuffled-Control Audit}
+
+\situation{
+You buy a set of playing cards supposedly shuffled randomly. To test the shuffler, you check: (1) are the right cards present (4 of each value)?  (2) is the ordering random? Test (1) passes trivially --- you can count cards without looking at order. Test (2) is the harder test that actually verifies the shuffle.
+}
+
+\workedarith{
+Shuffled control construction:\\
+\texttt{rng = numpy.random.default\_rng(42)}\\
+\texttt{shuffled = rng.permutation(pooled\_real\_array).copy()}
+Scores of shuffled control on Fidelity metrics (pooled test set):
+\begin{tabular}{@{}lr@{}}
+\toprule
+Metric & Shuffled control \\
+\midrule
+wasserstein         & 0.000e+00 (exact zero) \\
+kurtosis\_diff      & $1.78\times10^{-15}$ (floating-point noise) \\
+energy\_distance    & $2.97\times10^{-5}$ \\
+mean\_diff          & $< 10^{-14}$ \\
+quantile\_mse       & $< 10^{-14}$ \\
+\midrule
+acf\_absolute\_mae  & 0.076 (correctly penalised) \\
+hurst\_diff         & 0.052 (correctly penalised) \\
+\bottomrule
+\end{tabular}
+
+Under the old unweighted 19-metric composite: avg\_rank = 1.24 (shuffled) vs 2.47 (real-like generator). The shuffled deck won.
+}
+
+\formaldef{
+A metric $m$ is \textbf{permutation-invariant} if for all $r \in \R^n$ and all permutations $\pi \in S_n$:
+\[
+  m(\pi(r_1, \ldots, r_n)) = m(r_1, \ldots, r_n)
+\]
+Any metric that depends only on the \emph{sorted} values (empirical CDF, moments, quantiles, order statistics) is permutation-invariant. This includes: Wasserstein, energy distance, KS statistic, kurtosis, skewness, mean, variance, tail index, extreme event rate.
+
+A metric $m$ is \textbf{ordering-sensitive} if $\exists\, r, \pi$ such that $m(\pi(r)) \neq m(r)$. ACF, Hurst exponent, GARCH-based metrics, and the discriminative classifier (which uses time-window features) are all ordering-sensitive.
+}
+
+\analogybreak{
+The shuffled control is not a bad generator --- it is the best possible fidelity generator (it \emph{is} the real data). Its failure on temporal metrics is not a bug; it is the point. Any evaluation that does not include the shuffled control as a baseline cannot claim to have tested temporal structure.
+}
+
+\whyhere{
+The shuffled control is a permanent entry in the evaluation table (with NaN composite rank). It plays the same role as a positive control in a biology experiment: it is expected to score well on fidelity and poorly on temporal. A GAN that scores worse than the shuffled control on temporal metrics has learned nothing about market dynamics.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Discriminative AUC: Null Calibration and Direction Bug}
+
+\situation{
+You train a classifier to tell real returns from synthetic returns. If it achieves 50\% accuracy (random guessing), the synthetic data is indistinguishable from real. If it achieves 90\%, the synthetic data is clearly different.
+}
+
+\workedarith{
+\textbf{Direction bug:} under ascending rank (lower is better), AUC = 0.30 ranked above AUC = 0.50. But AUC = 0.50 is \emph{better} (indistinguishable), and AUC = 0.30 is worse (the classifier is \emph{anti-predictive} --- it can tell real from fake by doing the opposite of its prediction). Fix: rank on $|\text{AUC} - 0.5|$.
+
+\textbf{Null calibration:} even with two samples from the same distribution, the classifier achieves AUC $\neq$ 0.5 exactly. Empirical null (15 real-vs-real half-splits): $0.506 \pm 0.084$.
+
+An observed AUC = 0.62: $z = (0.62 - 0.506)/0.084 = 1.36$, $p = 0.17$. Not significant.
+
+\textbf{CV shuffle bug:} 20-day windows overlap by 19 observations. Adding \texttt{shuffle=True} to the K-fold cross-validation puts near-duplicate windows in both train and test, creating look-ahead leakage. Measured null shift: $0.506 \to 0.584$ with shuffled CV. Unshuffled CV is correct.
+}
+
+\formaldef{
+AUC (Area Under the ROC Curve) for a binary classifier: $\Prob(\hat{p}(x_\text{real}) > \hat{p}(x_\text{syn}))$.
+
+The optimal value for a generator is $\text{AUC} = 0.5$ (chance level).
+
+Our two ranking metrics:
+\[
+  \texttt{discriminative\_auc\_dist} = \abs{\text{AUC} - 0.5}
+\]
+\[
+  \texttt{discriminative\_auc\_absz} = \abs{(\text{AUC} - 0.506) / 0.084}
+\]
+Both are minimised at the GAN optimum and entered into the Temporal family.
+}
+
+\whyhere{
+The three bugs found in the discriminative AUC implementation (direction, null calibration, CV shuffling) are documented in ED Table 2 of the paper. They represent common pitfalls in synthetic data evaluation that affect published benchmarks. The corrected implementation is in cell \texttt{aaef7bd2} of \texttt{3\_4\_integrated\_pipeline.ipynb}.
+}

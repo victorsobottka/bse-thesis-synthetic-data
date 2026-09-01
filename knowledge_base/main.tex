@@ -1,0 +1,191 @@
+\documentclass[11pt,openany]{book}
+\usepackage[a4paper,top=2.2cm,bottom=2.2cm,left=2.5cm,right=2.5cm]{geometry}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{xcolor}
+\usepackage[most,breakable]{tcolorbox}
+\usepackage{booktabs,tabularx,array}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage[hidelinks]{hyperref}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,fit,backgrounds}
+
+% ── Colours ──────────────────────────────────────────────────────────────────
+\definecolor{Navy}{HTML}{0D2B6B}
+\definecolor{Teal}{HTML}{00695C}
+\definecolor{Sky}{HTML}{1976D2}
+\definecolor{Amber}{HTML}{E65100}
+\definecolor{DRed}{HTML}{B71C1C}
+\definecolor{FGreen}{HTML}{2E7D32}
+\definecolor{Purple}{HTML}{6A1B9A}
+\definecolor{LBg}{HTML}{F5F7FA}
+\definecolor{BBg}{HTML}{E3F2FD}
+\definecolor{GBg}{HTML}{E8F5E9}
+\definecolor{ABg}{HTML}{FFF8E1}
+\definecolor{RBg}{HTML}{FFEBEE}
+\definecolor{TealBg}{HTML}{E0F2F1}
+
+% ── Feynman box environments ─────────────────────────────────────────────────
+\tcbuselibrary{skins,breakable}
+\tcbset{
+  feynbox/.style 2 args={
+    enhanced, arc=3pt, boxrule=0.8pt,
+    fonttitle=\bfseries\small\color{white},
+    colbacktitle=#1, colframe=#1, colback=#2,
+    lefttitle=5pt, toptitle=3pt, bottomtitle=3pt,
+    top=5pt, bottom=5pt, left=6pt, right=6pt,
+    before skip=6pt, after skip=6pt, breakable
+  }
+}
+\newcommand{\situation}[1]{\begin{tcolorbox}[feynbox={Teal}{TealBg},title={Situation --- the everyday picture}]#1\end{tcolorbox}}
+\newcommand{\problem}[1]{\begin{tcolorbox}[feynbox={DRed}{RBg},title={Problem --- where it breaks or why it matters}]#1\end{tcolorbox}}
+\newcommand{\workedarith}[1]{\begin{tcolorbox}[feynbox={FGreen}{GBg},title={Worked Arithmetic --- concrete numbers}]#1\end{tcolorbox}}
+\newcommand{\formaldef}[1]{\begin{tcolorbox}[feynbox={Navy}{LBg},title={Formal Name --- the mathematics}]#1\end{tcolorbox}}
+\newcommand{\analogybreak}[1]{\begin{tcolorbox}[feynbox={Amber}{ABg},title={Where the Analogy Breaks}]#1\end{tcolorbox}}
+\newcommand{\whyhere}[1]{\begin{tcolorbox}[feynbox={Purple}{LBg},title={Why It Matters Here --- link to the thesis}]#1\end{tcolorbox}}
+
+% ── Math shortcuts ────────────────────────────────────────────────────────────
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Var}{\operatorname{Var}}
+\newcommand{\Cov}{\operatorname{Cov}}
+\newcommand{\Prob}{\mathbb{P}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\N}{\mathcal{N}}
+\newcommand{\abs}[1]{\left|#1\right|}
+\newcommand{\norm}[1]{\left\|#1\right\|}
+
+% ── Theorem environments ──────────────────────────────────────────────────────
+\theoremstyle{definition}
+\newtheorem{defn}{Definition}[section]
+\newtheorem{prop}{Proposition}[section]
+\theoremstyle{remark}
+\newtheorem*{remark}{Remark}
+
+% ── Header / footer ───────────────────────────────────────────────────────────
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[LE,RO]{\small\thepage}
+\fancyhead[LO]{\small\leftmark}
+\fancyhead[RE]{\small Knowledge Base --- Synthetic Financial Time Series}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5pt}
+\setlist[itemize]{noitemsep,topsep=2pt,leftmargin=14pt}
+\setlist[enumerate]{noitemsep,topsep=2pt,leftmargin=16pt}
+
+%% ══════════════════════════════════════════════════════════════════════════════
+\begin{document}
+
+\frontmatter
+\begin{titlepage}
+\pagecolor{Navy}\color{white}
+\vspace*{3cm}
+\begin{center}
+{\fontsize{28}{34}\bfseries Knowledge Base\par}
+\vspace{0.5cm}
+{\Large Synthetic Financial Time Series Generation\par}
+\vspace{0.3cm}
+{\large From Arithmetic to GANs --- Every Step Explained\par}
+\vspace{1.5cm}
+\textcolor{blue!40!white}{\rule{0.5\textwidth}{0.5pt}}
+\vspace{1cm}
+
+{\large\bfseries Feynman Technique Throughout\par}
+\vspace{0.5cm}
+{\normalsize
+  Situation $\to$ Problem $\to$ Worked Arithmetic\\
+  $\to$ Formal Name $\to$ Where the Analogy Breaks $\to$ Why It Matters Here
+\par}
+\vspace{1.5cm}
+{\normalsize BSE Master Thesis 2026 $\cdot$ Victor Sobottka\par}
+\end{center}
+\end{titlepage}
+
+\pagecolor{white}\color{black}
+\tableofcontents
+\clearpage
+
+\mainmatter
+
+\include{ch1_foundations}
+\include{ch2_time_series}
+\include{ch3_heavy_tails}
+\include{ch4_gans}
+\include{ch5_evaluation}
+\include{ch6_downstream}
+
+\backmatter
+
+%% ─── Symbol Glossary ─────────────────────────────────────────────────────────
+\chapter*{Symbol Glossary}
+\addcontentsline{toc}{chapter}{Symbol Glossary}
+
+\begin{tabular}{@{}p{2.5cm}p{10cm}@{}}
+\toprule
+\textbf{Symbol} & \textbf{Meaning} \\
+\midrule
+$r_t$ & Log return on day $t$: $\ln(P_t/P_{t-1})$ \\
+$\sigma_t$ & Time-varying conditional standard deviation at $t$ \\
+$\sigma$ & Unconditional (long-run) daily volatility \\
+$\mu$ & Long-run mean return (close to zero) \\
+$\alpha$ (GARCH) & ARCH coefficient: weight on the squared previous shock \\
+$\beta$ (GARCH) & GARCH coefficient: weight on previous variance \\
+$\omega$ & GARCH intercept: ensures long-run variance is positive \\
+$\hat{\alpha}$ (Hill) & Tail index estimate from Hill estimator \\
+$H$ & Hurst exponent ($H>0.5$ implies long memory) \\
+$W_1$ & Wasserstein-1 (Earth Mover's) distance \\
+$\E$ & Expectation operator \\
+$\Var$ & Variance operator \\
+$\N(\mu,\sigma^2)$ & Normal distribution with mean $\mu$ and variance $\sigma^2$ \\
+$\Prob(\cdot)$ & Probability of an event \\
+$z_\alpha$ & $\alpha$-quantile of standard normal: $z_{0.05}=-1.645$ \\
+AUC & Area under the ROC curve \\
+GAN & Generative Adversarial Network \\
+WGAN-GP & Wasserstein GAN with Gradient Penalty \\
+GRU & Gated Recurrent Unit \\
+TCN & Temporal Convolutional Network \\
+CNN & Convolutional Neural Network \\
+BCE & Binary Cross-Entropy loss \\
+GARCH & Generalised ARCH \\
+VaR & Value at Risk \\
+QLIKE & Quasi-likelihood loss for volatility forecast evaluation \\
+\bottomrule
+\end{tabular}
+
+\vspace{1cm}
+\textbf{Dependency graph.}
+Every chapter in this knowledge base is self-contained, but builds on prior chapters as follows:
+
+\medskip
+\begin{center}
+\begin{tikzpicture}[
+  node/.style={rectangle, rounded corners=4pt, draw=Navy, fill=LBg,
+               text width=3.2cm, align=center, minimum height=1cm, font=\small},
+  arr/.style={-Stealth, semithick, draw=Navy!70}
+]
+\node[node] (c1) at (0,0)    {Ch.1 Foundations\\(arithmetic, log, stats)};
+\node[node] (c2) at (5,0)    {Ch.2 Time Series\\(ACF, GARCH, stationarity)};
+\node[node] (c3) at (5,-2.5) {Ch.3 Heavy Tails\\(power laws, Hill, kurtosis)};
+\node[node] (c4) at (0,-2.5) {Ch.4 GANs\\(GAN, WGAN-GP, TimeGAN, QuantGAN)};
+\node[node] (c5) at (0,-5)   {Ch.5 Evaluation\\(metrics, shuffled control, taxonomy)};
+\node[node] (c6) at (5,-5)   {Ch.6 Downstream\\(VaR, TSTR, Kupiec, QLIKE)};
+\draw[arr] (c1) -- (c2);
+\draw[arr] (c1) -- (c3);
+\draw[arr] (c1) -- (c4);
+\draw[arr] (c2) -- (c3);
+\draw[arr] (c2) -- (c5);
+\draw[arr] (c3) -- (c4);
+\draw[arr] (c3) -- (c5);
+\draw[arr] (c4) -- (c5);
+\draw[arr] (c5) -- (c6);
+\draw[arr] (c2) -- (c6);
+\end{tikzpicture}
+\end{center}
+
+\end{document}
