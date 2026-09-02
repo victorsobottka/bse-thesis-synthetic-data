@@ -72,6 +72,7 @@ REQUIRED = [
      "class Recovery" in ALL and "self.act_out = nn.Tanh()" in ALL),
     ("r15   round-trip assertion present",
      "round trip failed" in ALL),
+    ("r19   shared return bounds", "RETURN_ACF1_MAX" in ALL),
 ]
 
 PENDING = [
