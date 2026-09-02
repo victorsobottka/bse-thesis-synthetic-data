@@ -59,13 +59,14 @@ REQUIRED = [
     ("r11   generation guard",      "mode collapse" in ALL),
 
     (f"code size >= {MIN_CODE_CHARS:,}", len(ALL) >= MIN_CODE_CHARS),
-]
-
-PENDING = [
     ("r11   z-score normalisation", "arctanh" in ALL),
     ("r11   Okabe-Ito palette",     "OKABE_ITO" in ALL),
     ("r11   Set2 removed",          "plt.cm.Set2" not in EXEC),
     ("r11   dynamic n_show",        "n_show" in ALL),
+]
+
+PENDING = [
+
 ]
 
 print("REQUIRED (a failure here is a regression):")
