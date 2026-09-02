@@ -56,7 +56,12 @@ REQUIRED = [
     ("r9    zero-batch guard",      "would be evaluated untrained" in ALL),
     ("r9    no deprecated fillna",  "fillna(method=" not in EXEC),
 
-    ("r11   generation guard",      "mode collapse" in ALL),
+    ("r11   generation guard (all 3 models)",
+     ALL.count("High ACF(1) indicates a smooth") == 3),
+    ("r17   Hill alpha capped",     "alpha > 20" in ALL),
+    ("r17   NaN ranks last",        "na_option='bottom'" in ALL),
+    ("r17   own warnings not silenced",
+     "category=UserWarning" in ALL),
 
     (f"code size >= {MIN_CODE_CHARS:,}", len(ALL) >= MIN_CODE_CHARS),
     ("r11   z-score normalisation", "arctanh" in ALL),
