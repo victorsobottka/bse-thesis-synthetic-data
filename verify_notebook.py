@@ -34,7 +34,7 @@ EXEC = "\n".join(executable_source(s) for s, _ in code_cells)
 
 # Smoked_Test_5 had ~158k chars. A wholesale rollback shrinks the file even
 # when individual string checks happen to pass, so guard the size too.
-MIN_CODE_CHARS = 150_000
+MIN_CODE_CHARS = 160_000
 
 REQUIRED = [
     ("main cell unpacks 2 values",
@@ -63,6 +63,10 @@ REQUIRED = [
     ("r11   Okabe-Ito palette",     "OKABE_ITO" in ALL),
     ("r11   Set2 removed",          "plt.cm.Set2" not in EXEC),
     ("r11   dynamic n_show",        "n_show" in ALL),
+    ("r15   TimeGAN Recovery uses Tanh",
+     "class Recovery" in ALL and "self.act_out = nn.Tanh()" in ALL),
+    ("r15   round-trip assertion present",
+     "round trip failed" in ALL),
 ]
 
 PENDING = [
