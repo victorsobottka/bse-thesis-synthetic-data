@@ -73,6 +73,11 @@ REQUIRED = [
     ("r15   round-trip assertion present",
      "round trip failed" in ALL),
     ("r19   shared return bounds", "RETURN_ACF1_MAX" in ALL),
+    ("r24   no function-local time import",
+     not any(l.strip().startswith(("import time", "from time"))
+             and l != l.lstrip()
+             for l in ALL.split("\n"))),
+    ("r24   timing uses _now()", "_now()" in ALL),
 ]
 
 PENDING = [
