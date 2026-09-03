@@ -1,0 +1,50 @@
+{
+  "timestamp": "2026-09-03T15:19:35",
+  "git_commit": "70d6f7ba0a24af708ea28da92a5a61c2ba95c828",
+  "smoke_test": true,
+  "seeds": [
+    42
+  ],
+  "markets": [
+    "BOVESPA"
+  ],
+  "n_folds": 2,
+  "generator_updates": 1000,
+  "models_config": {
+    "TimeGAN": {
+      "hidden_dim": 24,
+      "noise_dim": 24,
+      "num_layers": 3,
+      "lr": 0.001,
+      "ae_steps": 500,
+      "sup_steps": 500,
+      "joint_steps": 1000,
+      "batch_size": 128
+    },
+    "QuantGAN": {
+      "lr_g": 0.0001,
+      "lr_d": 0.0001,
+      "train_steps": 1000,
+      "noise_dim": 100,
+      "n_critic": 5,
+      "lambda_gp": 10.0,
+      "batch_size": 64,
+      "seq_len": 128
+    },
+    "FinGAN": {
+      "lr_g": 0.0001,
+      "lr_d": 0.0001,
+      "train_steps": 1000,
+      "noise_dim": 100,
+      "n_critic": 5,
+      "lambda_gp": 10.0,
+      "batch_size": 64,
+      "seq_len": 128
+    }
+  },
+  "python": "3.12.3",
+  "torch": "2.13.0+cu130",
+  "cuda": true,
+  "device": "NVIDIA GeForce RTX 3050 Laptop GPU",
+  "platform": "Linux-7.0.0-30-generic-x86_64-with-glibc2.39"
+}
