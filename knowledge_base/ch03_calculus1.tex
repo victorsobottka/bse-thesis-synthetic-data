@@ -1,0 +1,486 @@
+\chapter{Calculus I --- Change}
+\label{ch:calculus1}
+
+\begin{tcolorbox}[feynbox={Sky}{BBg},title={Before and After}]
+\textbf{Before this chapter you need:} functions, domain and range
+(\S\ref{sec:functions}--\S\ref{sec:domain}), slope of a straight line
+(\S\ref{sec:linear}), quadratics and curvature (\S\ref{sec:quadratics}),
+the exponential and the logarithm (\S\ref{sec:compound}--\S\ref{sec:loginverse}).\\
+\textbf{After it you will understand:} what a derivative is and how to compute
+one, what a second derivative says about the shape of a curve, and what an
+integral accumulates. Chapter~\ref{ch:calculus2} lifts all of it to many
+variables, which is where machine learning actually lives.
+\end{tcolorbox}
+
+Calculus is the mathematics of change. Everything in this thesis that
+\emph{learns} does so by measuring how a number responds to a small nudge and
+then nudging in the direction that helps. This chapter builds that measurement
+for functions of one variable.
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Limits, Informally}
+\label{sec:limits}
+
+\situation{
+A runner covers 100 metres in 10 seconds. Her average speed is 10 m/s, but she
+was not travelling at 10 m/s throughout --- she started at zero. To find her speed
+at the exact instant $t = 4$ seconds, you might time her over the interval from
+4 to 5 seconds. That is still an average. So you shrink the window: 4 to 4.1, then
+4 to 4.01, then 4 to 4.001.
+}
+
+\problem{
+You cannot shrink the window to nothing. Over an interval of exactly zero
+duration she covers exactly zero distance, and $0/0$ is not a number. Yet the
+sequence of averages over shrinking windows plainly settles down toward a
+particular value. We need language for ``the value it settles toward'' that does
+not require ever reaching a window of zero width.
+}
+
+\workedarith{
+Take $f(x) = x^2$ and ask for the slope at $x = 3$.
+
+Average slope from $3$ to $3+h$ is
+\[
+  \frac{f(3+h) - f(3)}{h} = \frac{(3+h)^2 - 9}{h}
+  = \frac{9 + 6h + h^2 - 9}{h} = \frac{6h + h^2}{h} = 6 + h ,
+\]
+where the cancellation is legal for every $h \neq 0$.
+
+\medskip
+\begin{tabular}{@{}lll@{}}
+\toprule
+$h$ & Average slope $6+h$ \\
+\midrule
+$1$      & $7$ \\
+$0.1$    & $6.1$ \\
+$0.01$   & $6.01$ \\
+$0.001$  & $6.001$ \\
+$-0.001$ & $5.999$ \\
+$-0.1$   & $5.9$ \\
+\bottomrule
+\end{tabular}
+
+\medskip
+Approaching from either side, the values close in on $6$. At $h = 0$ the
+expression $(6h+h^2)/h$ is $0/0$ and says nothing --- but $6 + h$ at $h = 0$ is
+plainly $6$. The limit is $6$.
+}
+
+\formaldef{
+We write
+\[
+  \lim_{h \to 0} g(h) = L
+\]
+to mean: the values $g(h)$ can be made as close to $L$ as desired by taking $h$
+sufficiently close to (but not equal to) $0$.
+
+The limit describes the value $g$ \emph{approaches}; whether $g(0)$ exists, and
+what it equals if it does, is a separate question. In the example above
+$g(h) = (6h+h^2)/h$ is undefined at $h=0$ yet has limit $6$ there.
+}
+
+\analogybreak{
+Not every function settles. Consider $g(h) = 1/h$ near zero: from the right it
+grows without bound, from the left it falls without bound, and there is no value
+it approaches. Others approach different values from each side and so have no
+limit either. The limit is a claim that must be checked, not a formality --- and
+the same care resurfaces in Chapter~\ref{ch:heavytails}, where the sample
+kurtosis of a heavy-tailed series has no limit at all, drifting upward without
+settling as $n$ grows.
+}
+
+\whyhere{
+Every derivative in this thesis is a limit of this kind. The autograd machinery
+in PyTorch does not compute limits numerically --- it applies the rules of
+\S\ref{sec:rules}, which were themselves derived from limits once and for all.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{The Derivative as Instantaneous Slope}
+\label{sec:derivative}
+
+\situation{
+Your car's speedometer reads 60 km/h. It is not telling you a distance divided by
+a duration over any interval you could name --- it is reporting how fast the
+odometer is changing \emph{right now}. The dashboard shows one number, and it is
+the limit of the previous section made physical.
+}
+
+\problem{
+For a straight line, one slope describes the whole thing (\S\ref{sec:linear}).
+For anything that bends, the slope differs at every point, so ``the slope'' is not
+a number but a new \emph{function} of position. Building that function is the
+central construction of calculus.
+}
+
+\workedarith{
+\textbf{The two-point picture first.} For $f(x) = x^2$, from $x=1$ to $x=4$:
+heights $1$ and $16$, change $15$, run $3$, ratio $5$. That is the average slope
+over the interval --- the slope of the straight line joining the two points, called
+a \emph{secant}.
+
+Shrink the interval toward $x = 1$:
+
+\medskip
+\begin{tabular}{@{}lllll@{}}
+\toprule
+From & To & Rise & Run & Slope \\
+\midrule
+$1$ & $4$    & $15$      & $3$    & $5$ \\
+$1$ & $2$    & $3$       & $1$    & $3$ \\
+$1$ & $1.1$  & $0.21$    & $0.1$  & $2.1$ \\
+$1$ & $1.01$ & $0.0201$  & $0.01$ & $2.01$ \\
+\bottomrule
+\end{tabular}
+
+\medskip
+Settling on $2$. Repeating the algebra of \S\ref{sec:limits} at a general point:
+\[
+  \frac{(x+h)^2 - x^2}{h} = \frac{2xh + h^2}{h} = 2x + h
+  \;\xrightarrow[h \to 0]{}\; 2x .
+\]
+
+So the derivative of $x^2$ is $2x$: at $x=1$ it is $2$, at $x=3$ it is $6$
+(matching \S\ref{sec:limits}), at $x=0$ it is $0$ --- the flat bottom of the bowl.
+
+\medskip
+\textbf{Sanity check against \S\ref{sec:quadratics}.} There the average slopes
+over unit steps were $1, 3, 5, 7$. The derivative at the \emph{midpoints}
+$0.5, 1.5, 2.5, 3.5$ is $2x = 1, 3, 5, 7$. Exactly. \checkmark
+}
+
+\formaldef{
+The \textbf{derivative} of $f$ at $x$ is
+\[
+  f'(x) = \lim_{h \to 0} \frac{f(x+h) - f(x)}{h} ,
+\]
+when the limit exists. Equivalent notations: $f'(x)$, $\dfrac{df}{dx}$,
+$\dfrac{d}{dx}f(x)$.
+
+$f'(x)$ is the slope of the \textbf{tangent} --- the straight line touching the
+curve at $x$ and matching its direction there. A function with a derivative
+everywhere on an interval is \textbf{differentiable} there.
+}
+
+\analogybreak{
+Not every function has a derivative everywhere. The absolute value $|x|$ has slope
+$-1$ to the left of zero and $+1$ to the right, and no single tangent at the
+corner: the limit from each side disagrees. This is not an exotic pathology. The
+ReLU activation used throughout deep learning is exactly this shape, and the
+gradient penalty of Chapter~\ref{ch:gans} involves $\bigl|\,\norm{\nabla D} - 1\bigr|$,
+which has the same kink. Practical systems patch the corner by picking a
+convention; the mathematics genuinely has no answer there.
+}
+
+\whyhere{
+Training any model in this thesis means computing $\partial(\text{loss})/\partial(\text{weight})$
+for every weight and stepping against it. The gradient-clipping threshold of
+$1.0$ applied in all three generators is a bound on the size of exactly these
+derivatives.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{The Rules of Differentiation}
+\label{sec:rules}
+
+\situation{
+Nobody computes limits by hand to differentiate. Once the limit has been
+evaluated for a handful of basic functions, and once a few rules for combining
+them are established, differentiation becomes bookkeeping --- which is precisely
+why a computer can do it automatically.
+}
+
+\problem{
+The functions we actually differentiate are built by adding, multiplying,
+dividing and composing simpler ones. Without combination rules, each new
+combination would require returning to the limit definition from scratch.
+}
+
+\workedarith{
+\textbf{Power rule:} $\dfrac{d}{dx}x^n = n x^{n-1}$.
+
+Check on $x^3$ at $x = 2$. The rule gives $3x^2 = 12$. Numerically, with
+$h = 0.001$:
+\[
+  \frac{(2.001)^3 - 2^3}{0.001} = \frac{8.012006001 - 8}{0.001} = 12.006 ,
+\]
+converging to $12$ as $h$ shrinks. \checkmark
+
+\medskip
+\textbf{Sum rule:} $(f+g)' = f' + g'$. For $f(x) = x^2 + x^3$,
+$f'(x) = 2x + 3x^2$. At $x=2$: $4 + 12 = 16$.
+
+\medskip
+\textbf{Product rule:} $(fg)' = f'g + fg'$.
+
+Take $f = x^2$, $g = x^3$, so $fg = x^5$ and the power rule predicts $5x^4$.
+Via the product rule: $2x \cdot x^3 + x^2 \cdot 3x^2 = 2x^4 + 3x^4 = 5x^4$. \checkmark
+
+Note that $(fg)' \neq f'g'$: here $f'g' = 2x \cdot 3x^2 = 6x^3$, which is wrong.
+
+\medskip
+\textbf{Chain rule:} $\bigl(f(g(x))\bigr)' = f'(g(x)) \cdot g'(x)$.
+
+Take $f(u) = u^2$ and $g(x) = 3x + 1$, so $f(g(x)) = (3x+1)^2$. The rule gives
+$2(3x+1) \cdot 3 = 6(3x+1) = 18x + 6$. Expanding first:
+$(3x+1)^2 = 9x^2 + 6x + 1$, whose derivative is $18x + 6$. \checkmark
+
+\medskip
+\textbf{Exponential and logarithm:}
+\[
+  \frac{d}{dx}e^x = e^x , \qquad \frac{d}{dx}\ln x = \frac{1}{x} \;\; (x>0) .
+\]
+The first is the property promised in \S\ref{sec:compound}: $e^x$ is its own
+derivative, the unique function (up to scaling) that is its own rate of change.
+}
+
+\formaldef{
+For differentiable $f, g$ and constant $c$:
+\[
+\begin{aligned}
+  (cf)' &= cf' &\qquad (f \pm g)' &= f' \pm g' \\
+  (fg)' &= f'g + fg' &\qquad \left(\frac{f}{g}\right)' &= \frac{f'g - fg'}{g^2} \;\; (g \neq 0) \\
+  (f \circ g)'(x) &= f'(g(x))\,g'(x) &\qquad \frac{d}{dx}x^n &= nx^{n-1}
+\end{aligned}
+\]
+The chain rule is the one that matters most: it is the mathematical content of
+backpropagation.
+}
+
+\analogybreak{
+The rules make differentiation look purely mechanical, and symbolically it is.
+But mechanical is not the same as numerically harmless. Applying the chain rule
+through fifty composed layers multiplies fifty derivatives together, and if each
+is around $0.5$ the product is about $10^{-15}$ --- the vanishing-gradient problem.
+The algebra is exact; the arithmetic that implements it is not.
+}
+
+\whyhere{
+The chain rule applied to a deep composition is backpropagation, and it is why
+Chapter~\ref{ch:calculus2}'s multivariable version is the load-bearing piece of
+this whole book. The vanishing-gradient issue above is the direct reason this
+project replaced sigmoid activations with $\tanh$ in the TimeGAN latent path:
+$\tanh'(0) = 1$ against $\sigma'(0) = 0.25$, a fourfold stronger signal per layer.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Second Derivatives and Curvature}
+\label{sec:secondderiv}
+
+\situation{
+You are in a car. The speedometer says how fast you are going; the push you feel
+in your back says how fast \emph{that} is changing. Speed is the first
+derivative of position, acceleration the second. They answer different questions,
+and you can have one without the other: at constant 100 km/h the speed is large
+and the acceleration is zero.
+}
+
+\problem{
+The first derivative alone cannot tell a valley from a peak. At the bottom of a
+bowl and at the top of a hill the slope is zero in both cases. Distinguishing
+them requires knowing which way the curve bends.
+}
+
+\workedarith{
+Take $f(x) = x^2$, so $f'(x) = 2x$ and $f''(x) = 2$.
+
+At $x=0$: $f'(0) = 0$, so it is a turning point. $f''(0) = 2 > 0$, meaning the
+slope is increasing as we pass through --- from negative, to zero, to positive.
+That is a valley.
+
+Check directly: $f(-1) = 1$, $f(0) = 0$, $f(1) = 1$. Lower in the middle. \checkmark
+
+\medskip
+Now $g(x) = -x^2$, so $g'(x) = -2x$ and $g''(x) = -2$.
+
+At $x=0$: $g'(0) = 0$ again, but $g''(0) = -2 < 0$. The slope is decreasing
+through the point --- positive, zero, negative. A peak.
+
+Check: $g(-1) = -1$, $g(0) = 0$, $g(1) = -1$. Higher in the middle. \checkmark
+
+\medskip
+\textbf{The ambiguous case.} $h(x) = x^3$ has $h'(0) = 0$ and $h''(0) = 0$. It is
+neither peak nor valley: $h(-1) = -1$ and $h(1) = 1$, so the function passes
+straight through while momentarily flattening. When the second derivative
+vanishes, the test is silent.
+}
+
+\formaldef{
+The \textbf{second derivative} $f''(x)$ is the derivative of $f'$. It measures
+\textbf{concavity}:
+\begin{itemize}
+  \item $f''(x) > 0$: convex here (curving upward, holds water);
+  \item $f''(x) < 0$: concave here (curving downward, sheds water);
+  \item $f''(x) = 0$: no information from this test.
+\end{itemize}
+\textbf{Second-derivative test.} If $f'(a) = 0$ and $f''(a) > 0$, then $a$ is a
+local minimum; if $f'(a) = 0$ and $f''(a) < 0$, a local maximum.
+}
+
+\analogybreak{
+``Local'' is doing heavy lifting. The test inspects an infinitesimal neighbourhood
+and certifies nothing beyond it: a function may have a local minimum at $a$ and
+still take far lower values somewhere else entirely. Every optimisation result in
+this thesis is local in exactly this sense --- nothing in the training procedure
+certifies a global optimum, and nothing in the reported numbers should be read as
+claiming one.
+}
+
+\whyhere{
+Convexity is what makes an optimisation problem easy, and its absence is what
+makes GAN training hard. A convex loss has one basin and any downhill walk finds
+it. A GAN's objective is not convex, and moreover the two networks are optimising
+against each other, so the surface each is descending shifts as the other learns.
+This is the structural reason for the instability Chapter~\ref{ch:gans}
+documents, and for the mode collapse the post-generation guard in this project is
+built to detect.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Integrals as Accumulated Area}
+\label{sec:integrals}
+
+\situation{
+A tap fills a bucket. The flow rate varies --- fast at first, then slowing. You
+know the rate at every instant and want the total volume after ten minutes. If the
+rate were constant you would multiply rate by time. It is not, so you cannot.
+}
+
+\problem{
+Differentiation goes from total to rate. The reverse trip --- rate to total --- is
+needed just as often, and it is not simply the same operation run backwards in
+any obvious way. It requires its own construction.
+}
+
+\workedarith{
+\textbf{Constant rate first.} A tap running at 2 litres/minute for 3 minutes
+delivers $2 \times 3 = 6$ litres. On a graph of rate against time this is a
+rectangle of height 2 and width 3 --- area 6. Total is area under the rate curve.
+
+\medskip
+\textbf{Varying rate.} Let the rate be $f(t) = 2t$ litres/minute, from $t=0$ to
+$t=3$. Approximate with three rectangles of width 1, using the rate at the right
+edge of each:
+\[
+  f(1) \cdot 1 + f(2) \cdot 1 + f(3) \cdot 1 = 2 + 4 + 6 = 12 .
+\]
+Too big --- the rate is rising, so the right edge overstates each strip. Using
+left edges:
+\[
+  f(0) + f(1) + f(2) = 0 + 2 + 4 = 6 ,
+\]
+too small. The truth is between 6 and 12.
+
+\medskip
+Refine to six strips of width $0.5$, right edges:
+\[
+  0.5\bigl(f(0.5) + f(1) + \cdots + f(3)\bigr)
+  = 0.5(1 + 2 + 3 + 4 + 5 + 6) = 0.5 \times 21 = 10.5 .
+\]
+Left edges give $0.5(0+1+2+3+4+5) = 7.5$. The bracket has narrowed from
+$[6,12]$ to $[7.5, 10.5]$.
+
+\medskip
+\textbf{Exactly.} The region under $f(t) = 2t$ from $0$ to $3$ is a triangle of
+base 3 and height 6, so its area is $\tfrac12 \times 3 \times 6 = 9$ litres --- and
+$9$ sits inside both brackets. \checkmark
+}
+
+\formaldef{
+The \textbf{definite integral} of $f$ from $a$ to $b$,
+\[
+  \int_a^b f(x)\,dx ,
+\]
+is the limit of such rectangle sums as the widths shrink to zero. It equals the
+signed area between the graph and the horizontal axis --- signed because regions
+below the axis count negatively.
+
+The elongated $S$ is a stretched ``sum'', and $dx$ records the vanishing width of
+each strip.
+}
+
+\analogybreak{
+Area is the right picture in one dimension and becomes a misleading one quickly.
+In the probability chapters an integral over a two-dimensional region is a volume,
+and the integrals defining Wasserstein distance are over spaces of \emph{joint
+distributions} --- objects with no spatial interpretation at all. What survives
+from the picture is the accounting: an integral totals up infinitely many
+infinitesimal contributions. That much always holds.
+}
+
+\whyhere{
+A probability density is a rate --- probability per unit of return --- so
+probabilities are integrals of it. The statement that a $5\sigma$ day has
+probability $5.73 \times 10^{-7}$ under a Gaussian is the value of an integral over
+the two tails, and that single number is what yields the once-per-6{,}922-years
+figure that motivates this entire thesis.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{The Fundamental Theorem}
+\label{sec:ftc}
+
+\situation{
+Your car has an odometer and a speedometer. The speedometer reading is the rate
+of change of the odometer. Equally, the odometer reading is the accumulation of
+the speedometer over the journey. Two instruments, one relationship, read in
+opposite directions.
+}
+
+\problem{
+Computing integrals by shrinking rectangles is exhausting and, for most
+functions, impossible by hand. If accumulation really is the inverse of
+differentiation, then every derivative already known becomes an integral known
+for free --- and \S\ref{sec:rules} supplied a whole table of them.
+}
+
+\workedarith{
+Redo the tap by reversing differentiation. We need a function whose derivative is
+$2t$. From the power rule, $\frac{d}{dt}t^2 = 2t$, so $F(t) = t^2$ works.
+
+Then
+\[
+  \int_0^3 2t\,dt = F(3) - F(0) = 9 - 0 = 9 ,
+\]
+matching the triangle exactly, with no rectangles at all. \checkmark
+
+\medskip
+\textbf{Second example.} $\displaystyle\int_1^4 2x\,dx = F(4) - F(1) = 16 - 1 = 15$.
+
+Geometric check: the region is a trapezium with parallel sides $f(1)=2$ and
+$f(4)=8$, width $3$. Area $= \tfrac{1}{2}(2+8) \times 3 = 15$. \checkmark
+
+\medskip
+\textbf{Third.} $\displaystyle\int_1^{e} \frac{1}{x}\,dx = \ln(e) - \ln(1) = 1 - 0 = 1$,
+since $\frac{d}{dx}\ln x = 1/x$. The area under $1/x$ from $1$ to $e$ is exactly
+$1$ --- which is one way of saying what the number $e$ is.
+}
+
+\formaldef{
+\textbf{Fundamental Theorem of Calculus.} If $F' = f$ on $[a,b]$ and $f$ is
+continuous, then
+\[
+  \int_a^b f(x)\,dx = F(b) - F(a) .
+\]
+Conversely, $\displaystyle\frac{d}{dx}\int_a^x f(t)\,dt = f(x)$.
+
+$F$ is an \textbf{antiderivative} of $f$. Antiderivatives are not unique --- any
+constant may be added, since constants differentiate to zero --- but the constant
+cancels in $F(b) - F(a)$, so the definite integral is unaffected.
+}
+
+\analogybreak{
+The theorem guarantees an antiderivative exists for any continuous $f$; it does
+not guarantee you can write one down. The Gaussian density $e^{-x^2/2}$ has no
+antiderivative expressible in elementary functions, which is exactly why the
+normal CDF $\Phi$ must be tabulated or computed numerically. The
+$5.73 \times 10^{-7}$ quoted above is a numerical result, not a closed-form one.
+}
+
+\whyhere{
+The theorem links densities to probabilities throughout this thesis: the CDF is
+the integral of the density, and the density is the derivative of the CDF. Every
+quantile --- and Value at Risk is precisely a quantile --- is found by inverting
+that relationship.
+}

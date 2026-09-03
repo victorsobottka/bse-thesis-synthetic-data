@@ -1,0 +1,407 @@
+\chapter{Exponentials and Logarithms}
+\label{ch:explog}
+
+\begin{tcolorbox}[feynbox={Sky}{BBg},title={Before and After}]
+\textbf{Before this chapter you need:} percentages and gross returns
+(\S\ref{sec:percentages}), functions and their domains
+(\S\ref{sec:functions}--\S\ref{sec:domain}), composition
+(\S\ref{sec:composition}).\\
+\textbf{After it you will understand:} why every quantity in this thesis is a
+\emph{log} return rather than a percentage return, why that choice makes
+multi-day returns add up exactly, and why a log-scaled histogram is the honest
+way to look at the tail of a distribution.
+\end{tcolorbox}
+
+This chapter earns its length. The decision to work in log returns propagates
+into every model, every metric and every figure in the project, and the reasons
+are worth seeing in full rather than accepting on authority.
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Compound Growth}
+\label{sec:compound}
+
+\situation{
+You put \$100 in an account paying 8\% a year, and you leave the interest in.
+After one year you have \$108. The second year's 8\% is charged on \$108, not on
+the original \$100, so you gain \$8.64 rather than \$8. Growth feeds on itself.
+}
+
+\problem{
+Because each year's gain depends on the running total, growth over $n$ years is
+not $n$ separate additions. It is $n$ multiplications, and multiplication is far
+harder to reason about than addition --- especially when you want to compare
+periods of different length, or split a long period into pieces.
+}
+
+\workedarith{
+\$100 at 8\% per year, interest retained.
+
+\medskip
+\begin{tabular}{@{}llll@{}}
+\toprule
+Year & Start & Gain & End \\
+\midrule
+$1$ & $100.00$ & $8.00$ & $108.00$ \\
+$2$ & $108.00$ & $8.64$ & $116.64$ \\
+$3$ & $116.64$ & $9.33$ & $125.97$ \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textbf{As repeated multiplication:}
+$100 \times 1.08 \times 1.08 \times 1.08 = 100 \times 1.08^3 = 125.97$. \checkmark
+
+\medskip
+\textbf{Compare to simple (non-compounding) interest:} $100 + 3 \times 8 = 124$.
+The gap of \$1.97 after only three years is the compounding effect, and it widens
+with time.
+
+\medskip
+\textbf{Now compound more often.} Take 100\% per year, but split it into $n$
+instalments of $1/n$ each:
+\[
+\begin{aligned}
+  n = 1:&\quad (1 + 1/1)^1 = 2.00000 \\
+  n = 2:&\quad (1 + 1/2)^2 = 1.5^2 = 2.25000 \\
+  n = 4:&\quad (1 + 1/4)^4 = 1.25^4 = 2.44141 \\
+  n = 12:&\quad (1 + 1/12)^{12} = 2.61304 \\
+  n = 365:&\quad (1 + 1/365)^{365} = 2.71457
+\end{aligned}
+\]
+The numbers climb, but ever more slowly, and they are converging on something
+just above $2.718$. They do not run away to infinity.
+}
+
+\formaldef{
+An \textbf{exponential function} has the form $f(x) = a^x$ with $a > 0$. Growth
+at rate $R$ per period, compounded over $n$ periods, multiplies the starting
+value by $(1 + R)^n$.
+
+The limit reached by the table above defines \textbf{Euler's number}:
+\[
+  e = \lim_{n \to \infty}\left(1 + \frac{1}{n}\right)^n \approx 2.718281828\ldots
+\]
+It is irrational: its decimal expansion never terminates or repeats. The function
+$f(x) = e^x$ is called \emph{the} exponential function, written $\exp(x)$.
+}
+
+\analogybreak{
+The bank analogy suggests $e$ arises from a peculiar accounting convention, as if
+it were an artefact of how often interest is credited. It is not. The quantity
+$e^x$ is singled out by a property with nothing to do with money: it is the only
+function that is its own rate of change, a fact Chapter~\ref{ch:calculus1} makes
+precise. Continuous compounding is one place $e$ shows up, not the reason it
+exists.
+}
+
+\whyhere{
+Continuous compounding is the natural setting for asset prices, which are quoted
+continuously through the trading day rather than at fixed interest dates. Writing
+$P_1 = P_0 e^{r}$ instead of $P_1 = P_0(1 + R)$ is what makes $r$ additive across
+time, which is the property the rest of this thesis is built on.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{The Logarithm as the Inverse}
+\label{sec:loginverse}
+
+\situation{
+A machine doubles whatever you feed it: put in 3, get 6; put in 5, get 10. Now
+someone hands you a 32 and asks what was fed in. You need the machine run
+backwards. Since $2^5 = 32$, the answer is 5 --- you are asking ``how many
+doublings?''.
+}
+
+\problem{
+Running exponentials backwards is exactly the question ``what power was this?''.
+It cannot be answered by any combination of the four arithmetic operations, so it
+needs a name and a function of its own. Without one, every compound-growth
+calculation is a one-way street.
+}
+
+\workedarith{
+Base 2, so we are counting doublings.
+
+\medskip
+\begin{tabular}{@{}llll@{}}
+\toprule
+$x$ & $2^x$ & & $\log_2$ of it \\
+\midrule
+$0$ & $1$  & & $\log_2 1 = 0$ \\
+$1$ & $2$  & & $\log_2 2 = 1$ \\
+$2$ & $4$  & & $\log_2 4 = 2$ \\
+$3$ & $8$  & & $\log_2 8 = 3$ \\
+$5$ & $32$ & & $\log_2 32 = 5$ \\
+\bottomrule
+\end{tabular}
+
+\medskip
+Read the table left to right for exponentials, right to left for logarithms. The
+two columns hold identical information.
+
+\medskip
+\textbf{The characteristic move.} Note that $4 \times 8 = 32$, and in the log
+column $2 + 3 = 5$. Multiplying the numbers corresponds to adding their
+logarithms. This is not a coincidence of these particular values; it is the
+defining property, and it is the entire reason logarithms are useful.
+
+\medskip
+\textbf{With base $e$.} The natural logarithm $\ln$ undoes $e^x$:
+$\ln(1) = 0$, $\ln(e) = 1$, $\ln(e^2) = 2$. Numerically
+$\ln(2) \approx 0.693$ and $\ln(10) \approx 2.303$.
+}
+
+\formaldef{
+The \textbf{logarithm to base $a$}, written $\log_a$, is the inverse of $x \mapsto a^x$:
+\[
+  \log_a(y) = x \iff a^x = y .
+\]
+The \textbf{natural logarithm} $\ln = \log_e$ satisfies
+\[
+  e^{\ln x} = x \quad\text{and}\quad \ln(e^x) = x .
+\]
+Its domain is the strictly positive reals: $\ln(0)$ and $\ln(-1)$ are undefined,
+because no real power of $e$ produces zero or a negative number. As
+$x \to 0^{+}$, $\ln x \to -\infty$.
+}
+
+\analogybreak{
+Calling $\ln$ ``the inverse'' invites the assumption that it undoes $e^x$ in every
+sense, including numerically. It does not. Computing $e^{-40}$ gives roughly
+$4 \times 10^{-18}$, which in ordinary floating-point arithmetic may round to
+something whose logarithm is no longer $-40$. The mathematical inverse is exact;
+the computational one is not, which is why numerical code so often carries
+quantities in log form from the start rather than converting back and forth.
+}
+
+\whyhere{
+The strictly-positive domain is the reason we take logarithms of \emph{prices}
+and never of returns. A price is always positive; a return is negative on roughly
+half of all days, and $\ln$ has nothing to say about those.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{The Log Rules}
+\label{sec:logrules}
+
+\situation{
+Before electronic calculators, engineers multiplied large numbers by looking up
+two logarithms in a printed table, adding them by hand, and looking the result
+back up. A hard operation was traded for an easy one at the cost of two lookups.
+}
+
+\problem{
+The same trade is worth making today, for a different reason. Products of many
+terms overflow or underflow the range a computer can represent, and they resist
+algebraic manipulation. Sums do neither. Anything that converts products to sums
+buys both numerical stability and analytical tractability.
+}
+
+\workedarith{
+Verify each rule on numbers small enough to check mentally, using base 2.
+
+\medskip
+\textbf{Product rule.} $\log_2(4 \times 8) = \log_2 32 = 5$, and
+$\log_2 4 + \log_2 8 = 2 + 3 = 5$. \checkmark
+
+\medskip
+\textbf{Quotient rule.} $\log_2(32 / 4) = \log_2 8 = 3$, and
+$\log_2 32 - \log_2 4 = 5 - 2 = 3$. \checkmark
+
+\medskip
+\textbf{Power rule.} $\log_2(4^3) = \log_2 64 = 6$, and
+$3 \times \log_2 4 = 3 \times 2 = 6$. \checkmark
+
+\medskip
+\textbf{Log of 1.} $\log_2 1 = 0$, because $2^0 = 1$. This holds in every base,
+and it is the fact that makes ``no change'' correspond to a log return of exactly
+zero.
+}
+
+\formaldef{
+For $x, y > 0$ and any real $k$:
+\[
+  \ln(xy) = \ln x + \ln y, \qquad
+  \ln\!\left(\frac{x}{y}\right) = \ln x - \ln y, \qquad
+  \ln(x^k) = k \ln x, \qquad
+  \ln 1 = 0 .
+\]
+To change base: $\log_a x = \ln x / \ln a$.
+}
+
+\analogybreak{
+There is no rule for $\ln(x + y)$. The logarithm converts multiplication into
+addition, not addition into anything simpler --- and beginners routinely invent
+$\ln(x+y) = \ln x + \ln y$, which is false. Check it: $\ln(2 + 2) = \ln 4 \approx 1.386$,
+while $\ln 2 + \ln 2 \approx 1.386$. Those agree, which is exactly the sort of
+accident that entrenches the error. Try $\ln(1 + 3) = \ln 4 \approx 1.386$ against
+$\ln 1 + \ln 3 = 0 + 1.099 = 1.099$. They differ.
+}
+
+\whyhere{
+The product rule is the engine of the next section. It is also why the
+log-likelihood, rather than the likelihood, is what gets maximised whenever a
+GARCH model is fitted to a return series in this project: a product of thousands
+of small probabilities underflows to zero, while the corresponding sum of
+logarithms is perfectly well behaved.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Why Log Returns Are Additive}
+\label{sec:logreturns}
+
+\situation{
+You invest \$100. It rises 10\%, then falls 10\%. You are back where you started
+--- or so the symmetry of the two numbers suggests. You are not. You have \$99.
+}
+
+\problem{
+Percentage returns do not add across time. Over two days the errors are small
+enough to ignore; over 5{,}000 trading days --- the span of this project's data
+--- they compound into nonsense. Any quantity that is to be summed, averaged, or
+modelled as a sequence of increments must be additive by construction.
+}
+
+\workedarith{
+\textbf{The asymmetry, in full.} Start at 100.
+\[
+  100 \times 1.10 = 110, \qquad 110 \times 0.90 = 99 .
+\]
+Net change $-1\%$, not $0\%$. In gross terms $1.10 \times 0.90 = 0.99$.
+
+\medskip
+Now in logs:
+\[
+  \ln(1.10) = +0.09531, \qquad \ln(0.90) = -0.10536 .
+\]
+Sum: $+0.09531 - 0.10536 = -0.01005$. And directly,
+$\ln(99/100) = \ln(0.99) = -0.01005$. \checkmark
+
+The log returns sum to exactly the right answer. The percentages do not.
+
+\medskip
+\textbf{The genuinely symmetric case.} Take a rise and fall that really do cancel:
+up by a factor $1.10$, then down by a factor $1/1.10 = 0.909091$.
+\[
+  \ln(1.10) = +0.09531, \qquad \ln(0.909091) = -0.09531 .
+\]
+They sum to exactly zero, and indeed $100 \times 1.10 \times 0.909091 = 100$.
+In log space, ``up then back down'' is $+a$ then $-a$ --- perfectly symmetric.
+In percentage space it is $+10\%$ then $-9.09\%$, which looks lopsided but is not.
+
+\medskip
+\textbf{Three days from the data-shaped example.}
+Prices 4{,}000, 4{,}080, 4{,}050.
+\[
+  r_1 = \ln(4080/4000) = \ln(1.02) = +0.019803
+\]
+\[
+  r_2 = \ln(4050/4080) = \ln(0.992647) = -0.007380
+\]
+Sum: $+0.012423$. Direct: $\ln(4050/4000) = \ln(1.0125) = +0.012423$. \checkmark
+
+By percentages: $+2.000\% - 0.735\% = +1.265\%$, whereas the true change is
+$+1.250\%$. An error of $1.5$ basis points over two days --- and it accumulates.
+}
+
+\formaldef{
+The \textbf{log return} on day $t$ is
+\[
+  r_t = \ln\!\left(\frac{P_t}{P_{t-1}}\right) = \ln P_t - \ln P_{t-1} .
+\]
+Summing over $T$ days telescopes:
+\[
+  \sum_{t=1}^{T} r_t = (\ln P_1 - \ln P_0) + (\ln P_2 - \ln P_1) + \cdots + (\ln P_T - \ln P_{T-1})
+  = \ln P_T - \ln P_0 = \ln\!\left(\frac{P_T}{P_0}\right) ,
+\]
+every interior term cancelling with its neighbour. The relationship to the simple
+return $R_t$ is $r_t = \ln(1 + R_t)$, and for small moves $r_t \approx R_t$: at
+$R = 0.02$ we get $r = 0.019803$, agreeing to three decimal places.
+}
+
+\analogybreak{
+Log returns are additive across \emph{time} but not across \emph{assets}. The log
+return of a portfolio is not the weighted sum of its constituents' log returns,
+because a sum of prices does not decompose under a logarithm --- there is no rule
+for $\ln(x+y)$, as \S\ref{sec:logrules} insisted. Portfolio work therefore often
+returns to simple returns, which \emph{are} additive across assets and not across
+time. Each convention buys one form of additivity and forfeits the other.
+}
+
+\whyhere{
+Every model, metric and figure in this thesis consumes $r_t$. Prices are never
+used directly: they trend, they live on incomparable scales across the five BRICS
+markets, and they violate the stationarity that Chapter~\ref{ch:timeseries}
+requires. Converting to log returns fixes all three problems in one step.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Reading Tails on a Log Scale}
+\label{sec:logscale}
+
+\situation{
+A histogram of daily returns is a spike at zero with two barely visible smears at
+the edges. The bar at zero is thousands of days tall; the bar at $-8\%$ holds
+three days. Drawn on ordinary axes, the three-day bar is invisible --- less than
+one pixel --- and the picture says only ``returns are usually small'', which
+everybody knew.
+}
+
+\problem{
+The rare days are the ones that matter. A risk model is judged almost entirely on
+how it handles the far edges of the distribution, and those edges are exactly what
+a linear axis erases. We need a way of drawing the picture in which a count of 3
+and a count of 3{,}000 are both legible.
+}
+
+\workedarith{
+Suppose four bins hold counts $3{,}000$, $300$, $30$, $3$.
+
+\medskip
+\textbf{On a linear axis}, with the tallest bar 10\,cm high, the others are
+$1$\,cm, $1$\,mm and $0.1$\,mm. The last is thinner than the ink.
+
+\medskip
+\textbf{On a log axis}, we plot $\log_{10}$ of each count:
+\[
+  \log_{10} 3000 = 3.477, \quad
+  \log_{10} 300 = 2.477, \quad
+  \log_{10} 30 = 1.477, \quad
+  \log_{10} 3 = 0.477 .
+\]
+The heights are now $3.477, 2.477, 1.477, 0.477$ --- equally spaced, one unit
+apart. Every bar is visible, and the constant gap of exactly $1$ reveals that each
+bin holds one tenth of the previous, a tenfold decay that the linear plot
+concealed completely.
+}
+
+\formaldef{
+A \textbf{logarithmic axis} places a value $v$ at position $\log v$. Equal
+distances then represent equal \emph{ratios} rather than equal differences: the
+gap from 1 to 10 is the same length as from 10 to 100.
+
+A distribution whose tail decays as a power law, $\Prob(|X| > x) \sim x^{-\alpha}$,
+becomes a straight line of slope $-\alpha$ when both axes are logarithmic, since
+\[
+  \ln \Prob(|X| > x) = -\alpha \ln x + \text{constant} .
+\]
+Straightness on a log--log plot is the visual signature of a power law, and the
+slope reads off the tail index directly.
+}
+
+\analogybreak{
+A log axis cannot display a count of zero, since $\ln 0$ is undefined --- empty
+bins simply vanish rather than sitting on the axis. It also flatters the eye:
+differences that are genuinely enormous are compressed into a modest vertical
+gap, so a model that is off by a factor of ten can look close. The log axis makes
+the tail \emph{visible}; it does not make disagreements there \emph{small}.
+}
+
+\whyhere{
+The stylised-facts figure produced for every market in this project includes a
+log-scale distribution panel for exactly this reason, with values outside the
+plotted range clipped rather than dropped so that no observation silently
+disappears. The panel is where a generator that has matched the centre of the
+distribution but missed its tails is caught --- and Chapter~\ref{ch:heavytails}
+shows that missing the tails is the characteristic failure of these models.
+}

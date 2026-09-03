@@ -1,68 +1,20 @@
-\chapter{Arithmetic Foundations}
-\label{ch:foundations}
+\chapter{Probability}
+\label{ch:probability}
 
-Everything in this thesis rests on three operations: logarithms, percentages, and the normal distribution.
-This chapter builds each one from first principles using the Feynman technique.
+\begin{tcolorbox}[feynbox={Sky}{BBg},title={Before and After}]
+\textbf{Before this chapter you need:} percentages (\S\ref{sec:percentages}),
+functions (\S\ref{sec:functions}), the exponential and logarithm
+(Chapter~\ref{ch:explog}), integrals as accumulated area
+(\S\ref{sec:integrals}).\\
+\textbf{After it you will understand:} how spread is summarised, why the
+normal distribution fails so badly for market returns, and what conditional
+probability measures --- the three ideas every evaluation metric in this thesis
+rests on.
+\end{tcolorbox}
 
-%% ─────────────────────────────────────────────────────────────────────────────
-\section{The Logarithm}
-
-\situation{
-You invest \$100. After one year your account shows \$108. After two years, \$116.64.
-If someone asks ``how fast did your money grow?'', you could say ``8\%/year'', or you could say ``0.0770/year in log units''. Both answers are correct. The second is more useful for calculations.
-}
-
-\problem{
-Percentages do not add up correctly across time periods.
-A 10\% gain followed by a 10\% loss gives $1.10 \times 0.90 = 0.99$ --- a 1\% net loss, not 0.
-Logarithms turn multiplication into addition, making multi-period returns additive.
-}
-
-\workedarith{
-Day 1 price: 4{,}000. Day 2 price: 4{,}080. Day 3 price: 4{,}050.
-
-\medskip
-\textbf{Log return, day 1$\to$2:}
-\[
-  r_1 = \ln\!\left(\frac{4080}{4000}\right) = \ln(1.02) \approx 0.0198 \approx 1.98\%
-\]
-
-\textbf{Log return, day 2$\to$3:}
-\[
-  r_2 = \ln\!\left(\frac{4050}{4080}\right) \approx -0.0074 \approx -0.74\%
-\]
-
-\textbf{Two-day total by addition:} $r_1 + r_2 = 0.0198 - 0.0074 = 0.0124$
-
-\textbf{Direct calculation:} $\ln(4050/4000) \approx 0.0124$ \checkmark
-
-The sum of daily log returns equals the log return over the whole period.
-For percentage returns: $(+2\%) + (-0.74\%) = +1.26\%$, but the real answer is $+1.24\%$.
-The error is small for small moves, large for large moves.
-}
-
-\formaldef{
-The natural logarithm $\ln(x)$ is the unique function satisfying:
-\[
-  e^{\ln(x)} = x, \quad \ln(e^x) = x, \quad \ln(xy) = \ln(x) + \ln(y)
-\]
-where $e \approx 2.71828$. The log return is defined as:
-\[
-  r_t = \ln\!\left(\frac{P_t}{P_{t-1}}\right)
-\]
-The key property: $\sum_{t=1}^T r_t = \ln(P_T/P_0)$ exactly.
-}
-
-\analogybreak{
-Logs work perfectly for prices, but they require strictly positive inputs.
-A price can never be exactly zero (a market would cease trading), so this is rarely binding.
-However, log returns of $-100\%$ correspond to $P_t = 0$, which $\ln$ maps to $-\infty$.
-In practice, we never observe this.
-}
-
-\whyhere{
-Every number in this thesis --- every metric, every model input, every evaluation --- is computed from daily log returns $r_t$. We never use raw prices because they are non-stationary (trending over time) and incomparable across markets.
-}
+The logarithm that opened the previous version of this chapter now has a
+chapter of its own (Chapter~\ref{ch:explog}), where it is treated at the depth
+its role in this thesis warrants.
 
 %% ─────────────────────────────────────────────────────────────────────────────
 \section{Mean and Standard Deviation}

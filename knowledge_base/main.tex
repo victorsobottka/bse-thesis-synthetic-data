@@ -113,12 +113,29 @@
 
 \mainmatter
 
-\include{ch1_foundations}
-\include{ch2_time_series}
-\include{ch3_heavy_tails}
-\include{ch4_gans}
-\include{ch5_evaluation}
-\include{ch6_downstream}
+%% ── Part I: Mathematical foundations ─────────────────────────────────────
+\include{ch01_numbers}
+\include{ch02_exp_log}
+\include{ch03_calculus1}
+\include{ch04_calculus2}
+\include{ch05_linear_algebra}
+\include{ch06_probability}
+
+%% ── Part II: Modelling financial data ────────────────────────────────────
+%% Chapter 7 (Statistics) is planned. Its number is reserved by advancing the
+%% counter, so every cross-reference stays valid once it is written.
+\setcounter{chapter}{7}
+\include{ch08_time_series}
+\include{ch09_heavy_tails}
+
+%% ── Part III: Generative modelling and evaluation ────────────────────────
+%% Chapters 10-12 reserved (Optimisation, Neural Networks, Generative Models).
+\setcounter{chapter}{12}
+\include{ch13_gans}
+%% Chapter 14 reserved (Financial Generative Modelling).
+\setcounter{chapter}{14}
+\include{ch15_evaluation}
+\include{ch16_downstream}
 
 \backmatter
 
@@ -159,33 +176,69 @@ QLIKE & Quasi-likelihood loss for volatility forecast evaluation \\
 \end{tabular}
 
 \vspace{1cm}
-\textbf{Dependency graph.}
-Every chapter in this knowledge base is self-contained, but builds on prior chapters as follows:
+\textbf{Dependency graph and roadmap.}
+Chapters are strictly ordered: nothing depends on a concept introduced later.
+The foundations (Part~I) are prerequisites for everything that follows.
 
 \medskip
 \begin{center}
 \begin{tikzpicture}[
   node/.style={rectangle, rounded corners=4pt, draw=Navy, fill=LBg,
-               text width=3.2cm, align=center, minimum height=1cm, font=\small},
+               text width=3.0cm, align=center, minimum height=0.9cm, font=\scriptsize},
+  todo/.style={rectangle, rounded corners=4pt, draw=Navy!35, fill=white,
+               text width=3.0cm, align=center, minimum height=0.9cm,
+               font=\scriptsize\itshape, dashed},
   arr/.style={-Stealth, semithick, draw=Navy!70}
 ]
-\node[node] (c1) at (0,0)    {Ch.1 Foundations\\(arithmetic, log, stats)};
-\node[node] (c2) at (5,0)    {Ch.2 Time Series\\(ACF, GARCH, stationarity)};
-\node[node] (c3) at (5,-2.5) {Ch.3 Heavy Tails\\(power laws, Hill, kurtosis)};
-\node[node] (c4) at (0,-2.5) {Ch.4 GANs\\(GAN, WGAN-GP, TimeGAN, QuantGAN)};
-\node[node] (c5) at (0,-5)   {Ch.5 Evaluation\\(metrics, shuffled control, taxonomy)};
-\node[node] (c6) at (5,-5)   {Ch.6 Downstream\\(VaR, TSTR, Kupiec, QLIKE)};
+\node[node] (c1) at (0,0)      {1. Numbers,\\Algebra, Functions};
+\node[node] (c2) at (4,0)      {2. Exponentials\\and Logarithms};
+\node[node] (c3) at (8,0)      {3. Calculus I\\Change};
+\node[node] (c4) at (8,-1.8)   {4. Calculus II\\Many Variables};
+\node[node] (c5) at (4,-1.8)   {5. Linear Algebra\\(norms)};
+\node[node] (c6) at (0,-1.8)   {6. Probability};
+\node[todo] (c7) at (0,-3.6)   {7. Statistics};
+\node[node] (c8) at (4,-3.6)   {8. Time Series};
+\node[node] (c9) at (8,-3.6)   {9. Heavy Tails};
+\node[todo] (c10) at (8,-5.4)  {10. Optimisation};
+\node[todo] (c11) at (4,-5.4)  {11. Neural Networks};
+\node[todo] (c12) at (0,-5.4)  {12. Generative Models};
+\node[node] (c13) at (0,-7.2)  {13. GANs and\\Variants};
+\node[todo] (c14) at (4,-7.2)  {14. Financial\\Generative Modelling};
+\node[node] (c15) at (8,-7.2)  {15. Evaluating\\Synthetic Data};
+\node[node] (c16) at (8,-9.0)  {16. Downstream\\Utility};
+
 \draw[arr] (c1) -- (c2);
-\draw[arr] (c1) -- (c3);
-\draw[arr] (c1) -- (c4);
 \draw[arr] (c2) -- (c3);
-\draw[arr] (c2) -- (c5);
 \draw[arr] (c3) -- (c4);
-\draw[arr] (c3) -- (c5);
 \draw[arr] (c4) -- (c5);
 \draw[arr] (c5) -- (c6);
-\draw[arr] (c2) -- (c6);
+\draw[arr] (c6) -- (c7);
+\draw[arr] (c7) -- (c8);
+\draw[arr] (c8) -- (c9);
+\draw[arr] (c9) -- (c10);
+\draw[arr] (c10) -- (c11);
+\draw[arr] (c11) -- (c12);
+\draw[arr] (c12) -- (c13);
+\draw[arr] (c13) -- (c14);
+\draw[arr] (c14) -- (c15);
+\draw[arr] (c15) -- (c16);
 \end{tikzpicture}
 \end{center}
+
+\medskip
+Solid boxes are written. Dashed italic boxes are planned and not yet drafted;
+their numbers are reserved so that cross-references remain stable as the book is
+completed. The critical path this book exists to support runs
+
+\medskip
+\begin{center}
+derivative $\to$ partial derivative $\to$ gradient $\to$ norm $\to$
+Lipschitz continuity $\to$ Wasserstein distance $\to$ WGAN $\to$ critic $\to$
+gradient penalty,
+\end{center}
+
+\medskip
+and Chapters~\ref{ch:calculus1}--\ref{ch:linalg} supply every link in it up to
+and including the norm.
 
 \end{document}

@@ -1,7 +1,9 @@
 PDF = knowledge_base.pdf
 MAIN = main.tex
-CHAPTERS = ch1_foundations.tex ch2_time_series.tex ch3_heavy_tails.tex \
-           ch4_gans.tex ch5_evaluation.tex ch6_downstream.tex
+CHAPTERS = ch01_numbers.tex ch02_exp_log.tex ch03_calculus1.tex \
+           ch04_calculus2.tex ch05_linear_algebra.tex ch06_probability.tex \
+           ch08_time_series.tex ch09_heavy_tails.tex ch13_gans.tex \
+           ch15_evaluation.tex ch16_downstream.tex
 
 .PHONY: all clean
 

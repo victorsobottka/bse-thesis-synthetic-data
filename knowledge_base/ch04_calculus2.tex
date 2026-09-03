@@ -1,0 +1,519 @@
+\chapter{Calculus II --- Many Variables}
+\label{ch:calculus2}
+
+\begin{tcolorbox}[feynbox={Sky}{BBg},title={Before and After}]
+\textbf{Before this chapter you need:} derivatives and the rules for computing
+them (\S\ref{sec:derivative}--\S\ref{sec:rules}), second derivatives and
+concavity (\S\ref{sec:secondderiv}), composition of functions
+(\S\ref{sec:composition}).\\
+\textbf{After it you will understand:} what a partial derivative is, why the
+gradient points uphill, how the chain rule propagates through a deep composition
+--- which is backpropagation --- and what $\norm{\nabla D}_2 = 1$ is asking for
+in the WGAN gradient penalty.
+\end{tcolorbox}
+
+This is the load-bearing chapter of the book. Gradient descent, backpropagation
+and the gradient penalty are all direct applications of what follows. Everything
+here is the one-variable calculus of Chapter~\ref{ch:calculus1} applied one
+variable at a time, and then assembled.
+
+A note on ordering: this chapter needs to collect several numbers into a single
+object and occasionally measure its length. It does so using only school
+geometry --- Pythagoras --- and defers the general theory of such objects to
+Chapter~\ref{ch:linalg}, which gives them their proper treatment.
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Functions of Several Variables}
+\label{sec:multivar}
+
+\situation{
+The temperature in a room depends on where you stand. Move toward the radiator
+and it rises; move toward the window and it falls. To state the temperature you
+must give two numbers --- how far along, how far across --- and you get back one
+number.
+}
+
+\problem{
+A curve drawn on a page cannot represent this. Two inputs and one output need
+three dimensions, and the objects we actually optimise in this thesis have
+hundreds of thousands of inputs. Any intuition tied to pictures will fail; what
+survives is the arithmetic.
+}
+
+\workedarith{
+Take $f(x,y) = x^2 + y^2$ --- squared distance from the origin. Evaluate on a grid:
+
+\medskip
+\begin{tabular}{@{}lllll@{}}
+\toprule
+& $y=0$ & $y=1$ & $y=2$ & $y=3$ \\
+\midrule
+$x=0$ & $0$ & $1$ & $4$  & $9$  \\
+$x=1$ & $1$ & $2$ & $5$  & $10$ \\
+$x=2$ & $4$ & $5$ & $8$  & $13$ \\
+$x=3$ & $9$ & $10$& $13$ & $18$ \\
+\bottomrule
+\end{tabular}
+
+\medskip
+Read across row $x=2$: values $4, 5, 8, 13$, rising as $y$ grows. Read down
+column $y=1$: values $1, 2, 5, 10$, rising as $x$ grows. The single lowest entry
+is $0$ at the corner $(0,0)$ --- the bottom of a bowl, now in two input
+directions rather than one.
+
+\medskip
+Notice the entries equal to $5$: at $(1,2)$ and at $(2,1)$. Different points, same
+height. Joining all points of equal height gives a \textbf{contour}, exactly as on
+a map. Here the contours are circles about the origin.
+}
+
+\formaldef{
+A function of several variables assigns one output number to each combination of
+inputs, written $f : \R^n \to \R$. The notation $\R^n$ means ordered lists of $n$
+real numbers; $\R^2$ is pairs $(x,y)$, $\R^3$ is triples, and so on.
+
+A \textbf{level set} or \textbf{contour} is the collection of inputs sharing one
+output value: $\{(x,y) : f(x,y) = c\}$.
+}
+
+\analogybreak{
+Two inputs can be pictured as a landscape; three already cannot, and the loss
+function of the TimeGAN generator in this project has $11{,}400$ inputs --- one per
+weight. Nothing visual survives. What does survive is that each input can be
+varied on its own while the rest are held fixed, and that is the entire content of
+the next section.
+}
+
+\whyhere{
+A neural network's loss is exactly such a function: inputs are the weights,
+output is a single number measuring how badly the network is doing. Training
+searches that space for a low point.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Partial Derivatives}
+\label{sec:partials}
+
+\situation{
+You are on a hillside at a crossroads. One road runs due east, another due north.
+Standing still, you can ask two separate questions: if I step east, do I go up or
+down, and how steeply? And the same for north. Two roads, two answers, one place.
+}
+
+\problem{
+``The slope'' of a surface is not a single number, because the answer depends on
+which way you face. But if we agree to ask only about the coordinate directions
+--- one at a time, everything else frozen --- each question reduces to the
+one-variable derivative already available.
+}
+
+\workedarith{
+Take $f(x,y) = x^2 + y^2$ at the point $(3, 4)$, where $f = 9 + 16 = 25$.
+
+\medskip
+\textbf{Step east ($x$ changes, $y$ frozen at 4).} The function becomes
+$g(x) = x^2 + 16$, a one-variable function. Its derivative is $2x$, which at
+$x=3$ is $6$.
+
+Check numerically: $f(3.001, 4) = 9.006001 + 16 = 25.006001$, so
+$(25.006001 - 25)/0.001 = 6.001$, tending to $6$. \checkmark
+
+\medskip
+\textbf{Step north ($y$ changes, $x$ frozen at 3).} Now
+$h(y) = 9 + y^2$, derivative $2y$, which at $y=4$ is $8$.
+
+Check: $f(3, 4.001) = 9 + 16.008001 = 25.008001$, giving
+$(25.008001-25)/0.001 = 8.001 \to 8$. \checkmark
+
+\medskip
+\textbf{The recipe.} To differentiate with respect to one variable, treat every
+other variable as a constant. For $f(x,y) = x^2 y^3$:
+\[
+  \frac{\partial f}{\partial x} = 2x y^3 \quad(\text{$y^3$ is just a number}),
+  \qquad
+  \frac{\partial f}{\partial y} = 3 x^2 y^2 \quad(\text{$x^2$ is just a number}).
+\]
+At $(2,1)$: $\partial f/\partial x = 2 \cdot 2 \cdot 1 = 4$ and
+$\partial f/\partial y = 3 \cdot 4 \cdot 1 = 12$.
+}
+
+\formaldef{
+The \textbf{partial derivative} of $f$ with respect to $x_i$ is
+\[
+  \frac{\partial f}{\partial x_i}
+  = \lim_{h \to 0} \frac{f(x_1,\ldots,x_i + h,\ldots,x_n) - f(x_1,\ldots,x_n)}{h} ,
+\]
+the ordinary derivative in the $i$-th coordinate with all others held fixed. The
+curved $\partial$ distinguishes it from the $d$ of one-variable calculus and is a
+reminder that other variables exist and are being held still.
+}
+
+\analogybreak{
+Partial derivatives only ever look along the coordinate axes. A ridge running
+diagonally can have zero slope due east and zero due north while dropping steeply
+to the southwest --- both partials vanish and the point is still not a minimum.
+The coordinate directions are a convenient basis, not a complete description, and
+\S\ref{sec:gradient} is what repairs the gap.
+}
+
+\whyhere{
+$\partial(\text{loss})/\partial w$ for a single weight $w$ is what an optimiser
+consumes. PyTorch's \texttt{backward()} computes exactly this for every weight in
+the network in one sweep.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{The Gradient}
+\label{sec:gradient}
+
+\situation{
+Back at the crossroads. You know the eastward slope is $6$ and the northward
+slope is $8$. You are not obliged to walk along a road --- you may set off in any
+direction. Which one climbs fastest, and how steep is it?
+}
+
+\problem{
+The partials give two numbers; the question asks for a direction and a
+steepness. Something must convert the pair into that, and the conversion had
+better be the one that actually identifies the steepest route, since gradient
+descent depends on going exactly opposite to it.
+}
+
+\workedarith{
+Collect the partials into an ordered pair, written in brackets:
+\[
+  \nabla f(3,4) = \bigl[\,6,\; 8\,\bigr] .
+\]
+
+\textbf{Claim: this pair points in the steepest uphill direction, and its length
+is the steepest slope.}
+
+\medskip
+\textbf{Its length,} by Pythagoras:
+\[
+  \sqrt{6^2 + 8^2} = \sqrt{36 + 64} = \sqrt{100} = 10 .
+\]
+
+\medskip
+\textbf{Check that no direction beats 10.} Moving a small distance $h$ in a
+direction that is a fraction $a$ east and $b$ north (with $a^2 + b^2 = 1$)
+changes $f$ by approximately $h(6a + 8b)$. Try several:
+
+\medskip
+\begin{tabular}{@{}llll@{}}
+\toprule
+Direction $(a,b)$ & $6a + 8b$ \\
+\midrule
+Due east $(1,0)$              & $6$ \\
+Due north $(0,1)$             & $8$ \\
+Diagonal $(0.707, 0.707)$     & $4.24 + 5.66 = 9.90$ \\
+$(0.6, 0.8)$                  & $3.6 + 6.4 = 10.0$ \\
+$(0.5, 0.866)$                & $3.0 + 6.93 = 9.93$ \\
+\bottomrule
+\end{tabular}
+
+\medskip
+The winner is $(0.6, 0.8)$, giving exactly $10$ --- and $(0.6, 0.8)$ is
+$[6,8]$ divided by its length $10$. The gradient direction wins, and the best
+achievable rate equals the gradient's length. \checkmark
+
+\medskip
+\textbf{Downhill} is the exact reverse, $[-6,-8]$, dropping at rate $10$. That is
+the direction gradient descent steps in.
+}
+
+\formaldef{
+The \textbf{gradient} of $f : \R^n \to \R$ is the ordered list of its partial
+derivatives:
+\[
+  \nabla f = \left[\frac{\partial f}{\partial x_1},\;
+                   \frac{\partial f}{\partial x_2},\; \ldots,\;
+                   \frac{\partial f}{\partial x_n}\right] .
+\]
+Its \textbf{length} (Chapter~\ref{ch:linalg} calls this the Euclidean or
+$2$-norm) is
+\[
+  \norm{\nabla f}_2 = \sqrt{\left(\frac{\partial f}{\partial x_1}\right)^2 + \cdots
+                            + \left(\frac{\partial f}{\partial x_n}\right)^2} .
+\]
+Two facts, both verified numerically above: $\nabla f$ points in the direction of
+steepest increase, and $\norm{\nabla f}_2$ is the rate of increase in that
+direction. Where $f$ has a local maximum or minimum in the interior of its domain,
+$\nabla f = \mathbf{0}$ --- every partial vanishes at once.
+}
+
+\analogybreak{
+Steepest \emph{here} is not fastest \emph{overall}. The gradient is purely local:
+it describes an infinitesimal neighbourhood and knows nothing of the terrain
+beyond. Repeatedly following it can zig-zag down a narrow valley, taking many
+small steps where one well-chosen direction would have done. It is greedy, and
+greedy is not optimal --- which is why Chapter~10 (Optimisation)'s momentum
+and adaptive methods exist at all.
+}
+
+\whyhere{
+Two direct uses. First, gradient descent: every model here is trained by
+repeatedly stepping along $-\nabla(\text{loss})$. Second, and more specifically,
+the WGAN-GP gradient penalty is a statement about $\norm{\nabla D}_2$ --- it adds a
+cost whenever the length of the critic's gradient departs from $1$. With that
+definition in hand, $\norm{\nabla D}_2 = 1$ now reads concretely: whichever
+direction you perturb the input, the critic's output should change at a rate of
+exactly one unit per unit of perturbation. Chapter~\ref{ch:gans} explains why
+that is the right thing to ask for.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{The Chain Rule and Backpropagation}
+\label{sec:chainmulti}
+
+\situation{
+The factory line of \S\ref{sec:composition}, now with a quality inspector at the
+end who scores each finished item. A dial on station one is nudged. The painted
+part changes a little; the boxed part changes as a result; the score changes as a
+result of that. How much did the score move per unit of dial?
+}
+
+\problem{
+The dial and the score are separated by every station in between. Measuring the
+effect by physically turning the dial and re-running the line is possible for one
+dial, but a network has hundreds of thousands, and re-running once per dial is
+hopelessly expensive. We need the whole answer from one pass.
+}
+
+\workedarith{
+\textbf{A chain of three.} Let
+\[
+  u = g(x) = x + 3, \qquad v = f(u) = u^2, \qquad L = k(v) = 2v .
+\]
+At $x = 1$: $u = 4$, $v = 16$, $L = 32$.
+
+Local rates: $du/dx = 1$, $dv/du = 2u = 8$, $dL/dv = 2$.
+
+Chain them by multiplying:
+\[
+  \frac{dL}{dx} = \frac{dL}{dv}\cdot\frac{dv}{du}\cdot\frac{du}{dx}
+  = 2 \times 8 \times 1 = 16 .
+\]
+
+\textbf{Verify by substitution.} $L = 2(x+3)^2$, so $dL/dx = 4(x+3)$, which at
+$x=1$ is $16$. \checkmark
+
+\textbf{Verify numerically.} At $x = 1.001$: $u = 4.001$, $v = 16.008001$,
+$L = 32.016002$. Then $(32.016002 - 32)/0.001 = 16.002 \to 16$. \checkmark
+
+\medskip
+\textbf{Two paths.} Now let one quantity feed two others which recombine:
+\[
+  u = 2x, \qquad v = x^2, \qquad L = u + v .
+\]
+At $x = 3$: $u = 6$, $v = 9$, $L = 15$.
+
+$\partial L/\partial u = 1$ and $\partial L/\partial v = 1$; $du/dx = 2$ and
+$dv/dx = 2x = 6$. Influence arrives along both routes and the contributions
+\emph{add}:
+\[
+  \frac{dL}{dx} = 1 \times 2 + 1 \times 6 = 8 .
+\]
+Check: $L = 2x + x^2$, so $dL/dx = 2 + 2x = 8$ at $x=3$. \checkmark
+
+\medskip
+\textbf{The two operations are the whole algorithm}: multiply along a path, add
+across paths.
+}
+
+\formaldef{
+If $L$ depends on $x$ through intermediate quantities $u_1, \ldots, u_m$, then
+\[
+  \frac{\partial L}{\partial x} = \sum_{j=1}^{m}
+    \frac{\partial L}{\partial u_j}\,\frac{\partial u_j}{\partial x} .
+\]
+\textbf{Backpropagation} evaluates this from the output backwards. A
+\emph{forward pass} computes and stores every intermediate value; a
+\emph{backward pass} starts with $\partial L/\partial L = 1$ and walks toward the
+inputs, multiplying by each local derivative and summing where paths meet.
+
+Its efficiency is the point: one backward pass yields $\partial L/\partial w$ for
+\emph{every} weight simultaneously, at roughly the cost of one forward pass ---
+not one pass per weight.
+}
+
+\analogybreak{
+The multiplication along a path is also the algorithm's weakness. Through $n$
+layers the result is a product of $n$ local derivatives; if these are
+systematically below 1 the product collapses toward zero, and if above 1 it
+explodes. Neither is a flaw in the chain rule --- the algebra is exact --- but both
+are real obstacles in floating-point arithmetic, and both are why activation
+functions, initialisation schemes and gradient clipping receive so much
+attention.
+}
+
+\whyhere{
+This is how every model in this thesis is trained. It is also why the activation
+choice in TimeGAN mattered so much: with sigmoid in the latent path, the local
+derivative is at most $0.25$, so three layers multiply to at most $0.0156$ and the
+learning signal reaching the early layers is negligible. Switching to $\tanh$,
+whose derivative reaches $1$ at the origin, is what moved the autoencoder's $R^2$
+from roughly zero to $+0.995$. The gradient-norm clip of $1.0$ used everywhere in
+this project is a direct guard against the exploding case.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{The Jacobian}
+\label{sec:jacobian}
+
+\situation{
+A machine takes two dials and drives three gauges. Turning either dial moves
+potentially all three gauges. To describe the machine's responsiveness you need
+one number for each dial--gauge pairing: two dials times three gauges is six
+numbers, naturally laid out in a grid.
+}
+
+\problem{
+The gradient of \S\ref{sec:gradient} was defined for functions returning a single
+number. A neural network layer returns many numbers at once, so its
+responsiveness is not one list but a whole table of them --- and the notation must
+keep track of which entry means what.
+}
+
+\workedarith{
+Take $F(x,y) = \bigl(x + y,\; xy,\; x^2\bigr)$: two inputs, three outputs.
+
+Write the outputs as $F_1 = x+y$, $F_2 = xy$, $F_3 = x^2$ and differentiate each
+with respect to each input:
+\[
+\begin{aligned}
+  \partial F_1/\partial x &= 1, &\qquad \partial F_1/\partial y &= 1, \\
+  \partial F_2/\partial x &= y, &\qquad \partial F_2/\partial y &= x, \\
+  \partial F_3/\partial x &= 2x, &\qquad \partial F_3/\partial y &= 0 .
+\end{aligned}
+\]
+Arrange as a grid, rows indexed by output and columns by input, evaluated at
+$(x,y) = (2,3)$:
+\[
+  J = \begin{bmatrix} 1 & 1 \\ 3 & 2 \\ 4 & 0 \end{bmatrix} .
+\]
+
+\textbf{Reading it.} Row 2, column 1 is $3$: nudging $x$ moves $F_2$ at rate $3$.
+Check: $F_2 = xy$, and at $(2.001, 3)$ it is $6.003$, up from $6$, so the rate is
+$3$. \checkmark
+
+Row 3, column 2 is $0$: $y$ has no effect on $F_3 = x^2$ at all. \checkmark
+}
+
+\formaldef{
+For $F : \R^n \to \R^m$ with components $F_1, \ldots, F_m$, the
+\textbf{Jacobian} is the $m \times n$ grid
+\[
+  J = \begin{bmatrix}
+    \partial F_1/\partial x_1 & \cdots & \partial F_1/\partial x_n \\
+    \vdots & \ddots & \vdots \\
+    \partial F_m/\partial x_1 & \cdots & \partial F_m/\partial x_n
+  \end{bmatrix} ,
+  \qquad J_{ij} = \frac{\partial F_i}{\partial x_j} .
+\]
+When $m = 1$ the Jacobian has a single row and is the gradient. The chain rule for
+composed multi-output functions is the product of their Jacobians, in the
+grid-multiplication sense defined in \S\ref{sec:matmul}.
+}
+
+\analogybreak{
+Jacobians are rarely built explicitly in practice. For a layer with $1{,}000$
+inputs and $1{,}000$ outputs the grid holds a million entries, and a network has
+many such layers. Automatic differentiation instead computes the \emph{product} of
+a Jacobian with a given list of numbers, which needs far less memory and is all
+backpropagation ever actually requires.
+}
+
+\whyhere{
+Every layer of every network here has a Jacobian, and backpropagation is the
+chained product of them. The critic's gradient in WGAN-GP is a one-row Jacobian ---
+the critic outputs a single score --- which is why $\nabla D$ is a gradient and its
+Euclidean length is the quantity the penalty constrains.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{The Hessian}
+\label{sec:hessian}
+
+\situation{
+A valley may be a narrow gorge or a broad shallow bowl. Both have a flat floor,
+so the gradient is zero in each. They demand completely different step sizes: the
+gorge punishes a long stride by throwing you up the opposite wall, while the bowl
+makes short strides a waste of time.
+}
+
+\problem{
+The second-derivative test of \S\ref{sec:secondderiv} distinguished peaks from
+valleys with one number. With many inputs there is curvature in every direction
+and, worse, cross-terms describing how the slope in one direction changes as you
+move in another. One number cannot carry that.
+}
+
+\workedarith{
+Take $f(x,y) = x^2 + 3y^2$. First partials:
+\[
+  \frac{\partial f}{\partial x} = 2x , \qquad \frac{\partial f}{\partial y} = 6y .
+\]
+Both vanish only at $(0,0)$, so that is the sole candidate turning point.
+
+Now differentiate each partial with respect to each variable:
+\[
+  \frac{\partial^2 f}{\partial x^2} = 2, \quad
+  \frac{\partial^2 f}{\partial y^2} = 6, \quad
+  \frac{\partial^2 f}{\partial x \partial y} = 0, \quad
+  \frac{\partial^2 f}{\partial y \partial x} = 0 .
+\]
+As a grid:
+\[
+  H = \begin{bmatrix} 2 & 0 \\ 0 & 6 \end{bmatrix} .
+\]
+
+\textbf{Reading it.} Both diagonal entries are positive, so the surface curves
+upward in both coordinate directions: $(0,0)$ is a minimum. The $y$ direction
+curves three times as sharply as $x$, so the bowl is an elongated ellipse, steep
+across and shallow along.
+
+\textbf{Verify.} $f(1,0) = 1$ while $f(0,1) = 3$. The same unit step costs three
+times as much in $y$. \checkmark
+
+\medskip
+\textbf{A saddle.} For $g(x,y) = x^2 - y^2$ the gradient $[2x, -2y]$ also vanishes
+only at the origin, and
+\[
+  H = \begin{bmatrix} 2 & 0 \\ 0 & -2 \end{bmatrix} .
+\]
+One positive, one negative: a minimum along $x$, a maximum along $y$. Neither peak
+nor valley but a saddle, and $g(1,0) = 1$ against $g(0,1) = -1$ confirms it. Such
+points are everywhere in high dimensions --- with many directions available, it is
+far more likely that some curve up and others down than that all agree.
+}
+
+\formaldef{
+The \textbf{Hessian} of $f : \R^n \to \R$ is the $n \times n$ grid of second
+partial derivatives,
+\[
+  H_{ij} = \frac{\partial^2 f}{\partial x_i \partial x_j} .
+\]
+For twice-continuously-differentiable $f$ the order of differentiation does not
+matter, so $H_{ij} = H_{ji}$ and the grid is symmetric.
+
+At a point where $\nabla f = \mathbf{0}$: if every direction curves upward the
+point is a local minimum; if every direction curves downward, a local maximum; if
+directions disagree, a saddle. Chapter~\ref{ch:linalg} makes ``every direction''
+precise via eigenvalues (\S\ref{sec:eigen}).
+}
+
+\analogybreak{
+The Hessian is the right diagnostic and the wrong computation. For a network with
+$100{,}000$ weights it holds $10^{10}$ entries --- tens of gigabytes --- and must be
+recomputed at every step. No training procedure in this thesis forms one.
+Optimisers instead approximate curvature cheaply, which is exactly what Adam's
+per-parameter scaling amounts to (Chapter~10 (Optimisation)).
+}
+
+\whyhere{
+Curvature explains why a single global learning rate struggles: in a valley shaped
+like the $[2,0;0,6]$ example, the step that suits one direction is wrong for the
+other. Adam --- the optimiser used for every model in this project --- addresses
+precisely this by maintaining a separate effective step size per parameter.
+}

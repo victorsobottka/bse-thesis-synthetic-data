@@ -8,6 +8,7 @@ When a PENDING item is applied and verified, move its line up into REQUIRED.
 Run before every commit:  python verify_notebook.py
 """
 import ast
+import re
 import json
 import sys
 
@@ -85,7 +86,11 @@ REQUIRED = [
     ("r26   manifest written",        "manifest.json" in ALL),
     ("r26   no epochs keys in config",
      not any(k in ALL for k in ('"ae_epochs":', '"joint_epochs":', '"sup_epochs":'))),
-    ("r26   SMOKE_TEST is False",     "SMOKE_TEST = False" in ALL),
+    # Line-anchored: a substring match is satisfied by the surrounding comment
+    # ("Never commit with SMOKE_TEST = True"), so match the assignment itself.
+    ("r26   SMOKE_TEST is False",
+     bool(re.search(r"(?m)^SMOKE_TEST\s*=\s*False\s*$", ALL))
+     and not re.search(r"(?m)^SMOKE_TEST\s*=\s*True\s*$", ALL)),
 ]
 
 PENDING = [

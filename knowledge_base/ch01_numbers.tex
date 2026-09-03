@@ -1,0 +1,504 @@
+\chapter{Numbers, Algebra and Functions}
+\label{ch:numbers}
+
+\begin{tcolorbox}[feynbox={Sky}{BBg},title={Before and After}]
+\textbf{Before this chapter you need:} arithmetic with whole numbers ---
+adding, subtracting, multiplying and dividing. Nothing else.\\
+\textbf{After it you will understand:} what a variable is, how to rearrange an
+equation without breaking it, and what people mean when they call something a
+\emph{function}. Every later chapter is written in the language of functions,
+so this is the vocabulary the rest of the book assumes.
+\end{tcolorbox}
+
+This chapter contains no finance and almost no notation. Its job is to make sure
+that when Chapter~\ref{ch:calculus1} writes $f(x)$ and asks how fast it changes,
+the symbols are already familiar rather than a second obstacle stacked on top of
+the idea.
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Fractions, Ratios and Percentages}
+\label{sec:percentages}
+
+\situation{
+A share costs \$40 on Monday. On Tuesday it costs \$46. You want to describe the
+change to someone who does not know the starting price. Saying ``it went up \$6''
+is useless to them --- \$6 on a \$40 share is a large move, \$6 on a \$4{,}000
+share is a rounding error. What they want is the change \emph{relative to where
+it started}.
+}
+
+\problem{
+Absolute differences cannot be compared across things of different size. A
+\$6 move in Brazil and a \$6 move in China tell you nothing about which market
+had the bigger day. To compare, every quantity must first be put on a common
+scale, and the natural common scale is ``fraction of the starting value''.
+}
+
+\workedarith{
+Start 40, end 46.
+
+\medskip
+\textbf{Change:} $46 - 40 = 6$.
+
+\textbf{As a fraction of the start:} $\dfrac{6}{40} = \dfrac{3}{20} = 0.15$.
+
+\textbf{As a percentage:} $0.15 \times 100 = 15\%$.
+
+\medskip
+Check it the other way round. If 40 grows by 15\%, the new value is
+$40 \times (1 + 0.15) = 40 \times 1.15 = 46$. \checkmark
+
+\medskip
+Now the same move on a bigger share. Start 4{,}000, end 4{,}006:
+$\dfrac{6}{4000} = 0.0015 = 0.15\%$. Same \$6, one hundredth of the move.
+}
+
+\formaldef{
+For a quantity that starts at $P_0$ and ends at $P_1$, the \textbf{simple return}
+is
+\[
+  R = \frac{P_1 - P_0}{P_0} = \frac{P_1}{P_0} - 1 .
+\]
+A \textbf{percentage} is a fraction multiplied by 100; the symbol \% means
+``divide by 100''. The quantity $P_1/P_0$ is called the \textbf{gross return} or
+\textbf{price relative}: a gross return of $1.15$ and a simple return of $0.15$
+say the same thing.
+}
+
+\analogybreak{
+``15\% up'' and ``15\% down'' are not opposite moves. Going up 15\% from 40 gives
+46; coming back down 15\% from 46 gives $46 \times 0.85 = 39.1$, not 40. The
+percentage is always taken relative to \emph{wherever you currently are}, and
+after the first move that is a different place. This asymmetry is not a curiosity
+--- it is the reason Chapter~\ref{ch:explog} replaces percentages with logarithms
+for everything in this thesis.
+}
+
+\whyhere{
+Every number in this thesis is a return, not a price. The five BRICS markets
+trade at wildly different index levels, and only by converting to returns can
+BOVESPA and SHANGHAI be placed on the same axis, fed to the same model, and
+scored by the same metric.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Variables and Rearranging Equations}
+\label{sec:variables}
+
+\situation{
+A recipe says: to find the cost of a taxi, take \$3 for the pickup and add \$2
+for every kilometre. You could write this out in words every time, or you could
+write $C = 3 + 2k$ and let $k$ stand for however many kilometres you happen to
+travel. The letter is shorthand for ``a number I have not decided yet''.
+}
+
+\problem{
+Once the relationship is written down, you often need to run it backwards. The
+formula gives cost from distance, but the question you actually have is ``I have
+\$15 --- how far can I go?''. That means solving for $k$ instead of $C$, and doing
+that safely requires a rule for what you are allowed to do to an equation.
+}
+
+\workedarith{
+The rule is: \emph{whatever you do to one side, do to the other}. An equation is
+a claim that two things are equal, and equals stay equal if treated identically.
+
+\medskip
+Start with $C = 3 + 2k$ and set $C = 15$:
+\[
+  15 = 3 + 2k
+\]
+Subtract 3 from both sides:
+\[
+  15 - 3 = 3 + 2k - 3 \quad\Longrightarrow\quad 12 = 2k
+\]
+Divide both sides by 2:
+\[
+  \frac{12}{2} = \frac{2k}{2} \quad\Longrightarrow\quad 6 = k
+\]
+
+\medskip
+\textbf{Check by substitution:} $C = 3 + 2 \times 6 = 3 + 12 = 15$. \checkmark
+
+\medskip
+Substituting the answer back into the original equation is the only check you
+ever need, and it costs ten seconds.
+}
+
+\formaldef{
+A \textbf{variable} is a symbol standing for a number that may take different
+values. A \textbf{constant} is a fixed number. An \textbf{equation} asserts that
+two expressions are equal; to \textbf{solve} it for a variable is to produce an
+equivalent equation with that variable alone on one side.
+
+The operations that preserve equality are: adding or subtracting the same
+quantity from both sides, and multiplying or dividing both sides by the same
+\emph{non-zero} quantity.
+}
+
+\analogybreak{
+The ``do the same to both sides'' rule has one trap: multiplying both sides by
+zero. From $5 = 5$ we may multiply both sides by 0 and get $0 = 0$, which is
+true but has lost all information --- and the step cannot be undone. This is why
+division by zero is forbidden: it is the reverse of a step that destroys
+information. The same caution reappears in Chapter~\ref{ch:linalg}, where a
+matrix with determinant zero cannot be inverted for exactly this reason.
+}
+
+\whyhere{
+Rearranging is how the definition of a log return, $r = \ln(P_1/P_0)$, is turned
+into the reconstruction $P_1 = P_0 e^{r}$ used whenever a synthetic return series
+must be turned back into a synthetic price path.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{What a Function Is}
+\label{sec:functions}
+
+\situation{
+A vending machine has a keypad. You press A4 and a specific bar of chocolate
+comes out. You press A4 again tomorrow and the \emph{same} kind of bar comes out.
+Press B2 and something else comes out. The machine is a rule that turns each
+input into exactly one output, reliably, every time.
+}
+
+\problem{
+The reliability is the whole point. A machine that sometimes gave chocolate and
+sometimes gave crisps for the same button would be useless --- you could not
+reason about it or plan around it. Mathematics needs the same guarantee before
+it can say anything about how outputs change when inputs change.
+}
+
+\workedarith{
+Take the rule ``double it, then add one'', written $f(x) = 2x + 1$.
+
+\medskip
+\begin{tabular}{@{}llll@{}}
+\toprule
+Input $x$ & Working & Output $f(x)$ \\
+\midrule
+$0$ & $2 \times 0 + 1$ & $1$ \\
+$1$ & $2 \times 1 + 1$ & $3$ \\
+$2$ & $2 \times 2 + 1$ & $5$ \\
+$3$ & $2 \times 3 + 1$ & $7$ \\
+$-1$ & $2 \times (-1) + 1$ & $-1$ \\
+\bottomrule
+\end{tabular}
+
+\medskip
+Each input appears once and produces one output. Note that outputs \emph{may}
+repeat for different inputs without breaking anything: for $g(x) = x^2$ we get
+$g(2) = 4$ and $g(-2) = 4$. Two doors, same room. That is allowed. What is not
+allowed is one door opening onto two rooms.
+}
+
+\formaldef{
+A \textbf{function} $f$ from a set $A$ to a set $B$ assigns to each element
+$x \in A$ exactly one element $f(x) \in B$. We write $f : A \to B$, read
+``$f$ maps $A$ to $B$''. The symbol $\in$ means ``is an element of''.
+
+The value $f(x)$ is the \textbf{image} of $x$. The notation is deliberately
+mechanical: $f$ is the machine, $x$ is what goes in, $f(x)$ is what comes out.
+}
+
+\analogybreak{
+The vending-machine picture suggests the machine is simple and you could open it
+up and see the mechanism. Many functions in this thesis are not like that. A
+trained neural network is a function --- one input gives one output, reliably ---
+but it has hundreds of thousands of internal numbers and no human-readable
+mechanism. ``Function'' guarantees only the input--output discipline, never
+simplicity or interpretability.
+}
+
+\whyhere{
+A generator in a GAN is a function: it takes a vector of random noise and returns
+a synthetic return series. A discriminator is a function: it takes a series and
+returns a score. Training changes \emph{which} function these are, but they are
+functions at every moment, which is what makes it meaningful to ask how their
+outputs respond to their inputs.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Domain and Range}
+\label{sec:domain}
+
+\situation{
+The vending machine has buttons A1 to D5 and nothing else. Pressing a letter that
+is not on the keypad does nothing --- the question ``what does the machine give
+for Z9?'' has no answer, because Z9 was never a legal input.
+}
+
+\problem{
+Ignoring which inputs are legal produces confident nonsense. A formula that
+divides by $x$ is silent about what happens at $x = 0$ until someone asks; a
+formula involving $\sqrt{x}$ has nothing to say about $x = -1$ if we are working
+with ordinary numbers. Stating the legal inputs up front prevents the error.
+}
+
+\workedarith{
+\textbf{Example 1:} $f(x) = 1/x$.
+
+Legal inputs: every number except $0$. At $x = 2$, $f = 0.5$; at $x = 0.1$,
+$f = 10$; at $x = 0.001$, $f = 1000$. As $x$ shrinks toward zero the output grows
+without bound, and at $x = 0$ there is no output at all.
+
+\medskip
+\textbf{Example 2:} $f(x) = \sqrt{x}$ over ordinary (real) numbers.
+
+Legal inputs: $x \geq 0$. Outputs: $\sqrt{0} = 0$, $\sqrt{9} = 3$,
+$\sqrt{2} \approx 1.414$. Every output is $\geq 0$, so although the legal inputs
+run from $0$ upwards, so do the outputs.
+
+\medskip
+\textbf{Example 3:} $f(x) = x^2$.
+
+Legal inputs: all numbers. Outputs: never negative, because a number times itself
+is never negative. So the outputs occupy only half the number line even though
+the inputs occupy all of it.
+}
+
+\formaldef{
+The \textbf{domain} of $f$ is the set of inputs on which $f$ is defined. The
+\textbf{codomain} is the set the outputs are declared to live in. The
+\textbf{range} (or image) is the set of values $f$ actually attains.
+
+For $f(x) = x^2$ with domain $\R$ (all real numbers), the codomain may be
+declared as $\R$, but the range is only $[0, \infty)$ --- the non-negative
+numbers. Range is a subset of codomain, sometimes a strict one.
+}
+
+\analogybreak{
+Domain is often presented as a technicality to be recited and forgotten. It is
+not. In Chapter~\ref{ch:explog} the domain of $\ln$ is exactly the strictly
+positive numbers, and that single restriction is what forces prices --- never
+returns --- to be the thing we take logarithms of. The restriction carries real
+content about what the mathematics is willing to model.
+}
+
+\whyhere{
+The generators in this thesis end with a $\tanh$ activation, whose range is
+$(-1, 1)$. That is a deliberate choice of range: it guarantees the network cannot
+emit an arbitrarily large value, and it is why the training data must first be
+squashed into the same interval before the two can be compared.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Linear Functions and Slope}
+\label{sec:linear}
+
+\situation{
+You are walking up a straight ramp. For every 4 metres you move forward, you rise
+1 metre. The ramp does not get steeper or shallower --- the trade-off between
+forward and upward is the same everywhere on it. One number, $1/4$, describes the
+entire ramp.
+}
+
+\problem{
+Most relationships are not ramps. But a great deal of mathematics consists of
+finding the ramp that best matches a curve near a point of interest, because
+ramps are the only shape we can reason about effortlessly. Before that programme
+can start, ``steepness'' has to be pinned to a number.
+}
+
+\workedarith{
+Take $f(x) = 3x + 2$.
+
+\medskip
+\begin{tabular}{@{}llll@{}}
+\toprule
+$x$ & $f(x)$ & Change in $x$ & Change in $f$ \\
+\midrule
+$1$ & $5$  & --- & --- \\
+$2$ & $8$  & $1$ & $3$ \\
+$4$ & $14$ & $2$ & $6$ \\
+$7$ & $23$ & $3$ & $9$ \\
+\bottomrule
+\end{tabular}
+
+\medskip
+From $x = 1$ to $x = 4$: heights 5 and 14, change $9$, horizontal distance $3$,
+ratio $9/3 = 3$.
+
+From $x = 4$ to $x = 7$: heights 14 and 23, change $9$, distance $3$,
+ratio $3$.
+
+\medskip
+The ratio is 3 no matter which two points we pick. That constancy is precisely
+what makes the function linear, and the 3 is exactly the number multiplying $x$
+in the formula. The $+2$ shifts the whole line up without tilting it: at $x = 0$
+the value is 2.
+}
+
+\formaldef{
+A \textbf{linear function} (strictly, an \emph{affine} one) has the form
+\[
+  f(x) = mx + c ,
+\]
+where $m$ is the \textbf{slope} or \textbf{gradient} and $c$ is the
+\textbf{intercept}, the value at $x = 0$. For any two distinct points
+$(x_1, y_1)$ and $(x_2, y_2)$ on the line,
+\[
+  m = \frac{y_2 - y_1}{x_2 - x_1} ,
+\]
+often read ``rise over run''. Positive $m$ tilts upward, negative $m$ downward,
+and $m = 0$ is flat.
+}
+
+\analogybreak{
+Slope as ``rise over run'' silently assumes the line is not vertical. A vertical
+line has zero run, and the ratio would require dividing by zero --- so vertical
+lines simply have no slope, rather than an infinite one. Refusing to write
+$m = \infty$ here is the same discipline that will matter in
+Chapter~\ref{ch:heavytails}, where a distribution with an undefined fourth
+moment is genuinely undefined rather than merely large.
+}
+
+\whyhere{
+The derivative in Chapter~\ref{ch:calculus1} is nothing more than this slope,
+computed over a vanishingly small run. Gradient descent --- the algorithm that
+trains every model in this thesis --- reads that slope and steps downhill.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Quadratics and Curvature}
+\label{sec:quadratics}
+
+\situation{
+Throw a ball straight up. It rises, slows, stops, and falls. Its height against
+time is not a ramp: the steepness changes continuously, from strongly positive at
+the throw to zero at the top to strongly negative on the way down.
+}
+
+\problem{
+A single slope cannot describe this path, because the path has a different slope
+at every instant. We need a shape with built-in bend, and the simplest such shape
+is the one produced by squaring.
+}
+
+\workedarith{
+Take $f(x) = x^2$.
+
+\medskip
+\begin{tabular}{@{}lllll@{}}
+\toprule
+$x$ & $f(x)$ & Interval & Change in $f$ & Average slope \\
+\midrule
+$0$ & $0$  & --- & --- & --- \\
+$1$ & $1$  & $0 \to 1$ & $1$ & $1$ \\
+$2$ & $4$  & $1 \to 2$ & $3$ & $3$ \\
+$3$ & $9$  & $2 \to 3$ & $5$ & $5$ \\
+$4$ & $16$ & $3 \to 4$ & $7$ & $7$ \\
+\bottomrule
+\end{tabular}
+
+\medskip
+The average slope over each unit step is $1, 3, 5, 7$ --- rising by 2 every time.
+The function is not merely increasing; the \emph{rate} at which it increases is
+itself increasing at a steady rate. That steady second-level change is what
+``curvature'' means, and here it equals 2.
+
+\medskip
+Note also the symmetry: $f(-3) = 9 = f(3)$. The curve is a mirror image about the
+vertical line $x = 0$, which sits at the bottom of the bowl.
+}
+
+\formaldef{
+A \textbf{quadratic function} has the form
+\[
+  f(x) = ax^2 + bx + c , \qquad a \neq 0 .
+\]
+Its graph is a \textbf{parabola}. If $a > 0$ it opens upward and has a single
+lowest point; if $a < 0$ it opens downward and has a single highest point. That
+turning point sits at $x = -b/(2a)$.
+
+For $f(x) = x^2$ we have $a = 1$, $b = 0$, $c = 0$, so the turning point is at
+$x = 0$, matching the table above.
+}
+
+\analogybreak{
+A parabola has exactly one turning point, which makes ``find the lowest value''
+easy: there is nowhere else it could be. Almost none of the functions minimised
+in this thesis are like that. A neural network's loss surface has enormous
+numbers of local dips, and an algorithm that walks downhill will stop at whichever
+one it happens to reach. The single-minimum picture is the exception, not the rule
+--- Chapter~\ref{ch:calculus2} returns to this.
+}
+
+\whyhere{
+Squared error --- the quantity minimised when the TimeGAN autoencoder learns to
+reconstruct its input --- is a quadratic in the reconstruction error. Its bowl
+shape is why the reconstruction loss has a well-defined best answer, and why a
+reported $R^2$ of $+0.995$ means the bottom of that bowl was very nearly reached.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Composition of Functions}
+\label{sec:composition}
+
+\situation{
+A factory line has two stations. The first paints the part; the second boxes it.
+A raw part enters, a painted part passes between them, a boxed painted part comes
+out. Nobody inspects the middle stage --- from outside, the line is one machine
+turning raw parts into finished goods.
+}
+
+\problem{
+Deep networks are precisely this: dozens of simple stations in a row. To train
+them we must answer ``if I adjust station one slightly, how much does the final
+output move?'' --- a question about the whole line, asked at a single station.
+Answering it requires first being clear about what stacking functions even means.
+}
+
+\workedarith{
+Let $g(x) = x + 3$ (the painter) and $f(u) = 2u$ (the boxer). Apply $g$ first,
+then $f$.
+
+\medskip
+\begin{tabular}{@{}llll@{}}
+\toprule
+Input $x$ & After $g$: $x+3$ & After $f$: $2(x+3)$ \\
+\midrule
+$1$ & $4$ & $8$ \\
+$2$ & $5$ & $10$ \\
+$5$ & $8$ & $16$ \\
+\bottomrule
+\end{tabular}
+
+\medskip
+The combined rule is $f(g(x)) = 2(x + 3) = 2x + 6$. Check at $x = 5$:
+$2 \times 5 + 6 = 16$. \checkmark
+
+\medskip
+\textbf{Order matters.} Reverse the stations --- box first, then paint:
+$g(f(x)) = 2x + 3$. At $x = 5$ that gives $13$, not $16$. Painting a boxed part
+is not the same as boxing a painted one.
+}
+
+\formaldef{
+Given $g : A \to B$ and $f : B \to C$, the \textbf{composition} $f \circ g$ is the
+function $A \to C$ defined by
+\[
+  (f \circ g)(x) = f\bigl(g(x)\bigr) .
+\]
+It is read ``$f$ after $g$'': the function written on the \emph{left} is applied
+\emph{last}. Composition requires the range of $g$ to lie inside the domain of
+$f$ --- the parts leaving the first station must be things the second station can
+accept.
+}
+
+\analogybreak{
+The factory picture suggests each station is independent, so you could swap or
+remove one freely. In a trained network that is false. Each layer's weights have
+been fitted assuming exactly what the previous layer sends it; extract a middle
+layer and it produces nothing meaningful on raw input. The stations are separable
+in notation only.
+}
+
+\whyhere{
+A neural network is one long composition, and the chain rule of
+Chapter~\ref{ch:calculus2} is the tool that differentiates it. Everything called
+``backpropagation'' is the chain rule applied to a composition of this kind. The
+TimeGAN recovery function composed with its embedder is a composition whose
+round-trip fidelity we measure directly --- and require to be accurate to within
+$10^{-3}$ before training is allowed to proceed.
+}
