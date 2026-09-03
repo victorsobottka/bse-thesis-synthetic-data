@@ -1,137 +1,700 @@
-\chapter{Heavy Tails and Power Laws}
+\chapter{Heavy Tails and Extreme Values}
 \label{ch:heavytails}
 
+\begin{tcolorbox}[feynbox={Sky}{BBg},title={Before and After}]
+\textbf{Before this chapter you need:} logarithms and log--log plots
+(\S\ref{sec:logrules}, \S\ref{sec:logscale}), integrals
+(\S\ref{sec:integrals}), moments and their existence
+(\S\ref{sec:variance}), the law of large numbers and the CLT
+(\S\ref{sec:lln}--\S\ref{sec:clt}), estimators and consistency
+(\S\ref{sec:estimators}), joint distributions (\S\ref{sec:joint}).\\
+\textbf{After it you will understand:} the single rule
+$\E|X|^k < \infty \iff k < \alpha$ that organises this entire chapter, how the
+Hill estimator is derived and why it survives where kurtosis does not, why one
+degenerate series in this project produced $\hat\alpha = 31{,}581$, and what
+copulas add for the multivariate case.
+\end{tcolorbox}
+
+Almost everything in this chapter follows from one rule about which moments
+exist. Section~\ref{sec:moments} states it; the remaining sections are
+consequences.
+
 %% ─────────────────────────────────────────────────────────────────────────────
-\section{Power Laws}
+\section{Moment Existence: The Organising Principle}
+\label{sec:moments}
 
 \situation{
-City sizes: New York has 8 million people. The next three cities have 4M, 3M, 2M. Cut the population threshold in half, and twice as many cities qualify. This doubling relationship is a \emph{power law}: the number of cities with population $> x$ scales like $x^{-\alpha}$ for some exponent $\alpha$.
+You are averaging the wealth of people in a room. Add a hundred ordinary people
+and the average barely moves. Add one billionaire and it leaps. Add a second and
+it leaps again. The average never settles, because the next arrival can always
+outweigh everyone already counted.
 }
 
 \problem{
-The normal distribution has \emph{exponential} tails: the probability of a 10$\sigma$ event is not just much smaller than a 5$\sigma$ event --- it is impossibly smaller (ratio $\approx 10^{17}$). Power-law tails decay much more slowly, making extreme events genuinely probable on financial timescales.
+Standard statistics assumes averages settle. When the underlying distribution has
+a heavy enough tail they do not --- not slowly, but never --- and every downstream
+quantity built on that average inherits the failure. Knowing exactly which
+averages are safe is therefore the first question, not a technicality.
 }
 
 \workedarith{
-NIFTY50 daily returns (20-year, $n=4{,}954$):
-
-The top 5\% of $|r_t|$ values: 248 observations, smallest $= 1.97\%$, largest $= 15.91\%$.
-
-\textbf{Hill estimate:} $\hat{\alpha} = k / \sum_{i=1}^k \ln(|r|_{(n-i+1)} / |r|_{(n-k)})$
-
-With $k = \lfloor 0.05n \rfloor = 248$: $\hat{\alpha} \approx 2.8$.
-
-\textbf{Implication:} $\Prob(|r| > x) \approx C \cdot x^{-2.8}$.
-
-At $x = 5\sigma$: normal predicts $5.7 \times 10^{-7}$; power-law predicts $\approx (5)^{-2.8} \times C$.
-
-If $C = 0.05 \times 5^{2.8} \approx 3.3$: $\Prob \approx 3.3 \times 5^{-2.8} \approx 0.022 = 2.2\%$ vs Gaussian's $0.00006\%$.
-}
-
-\formaldef{
-A random variable $X$ has a \textbf{power-law tail} with index $\alpha > 0$ if:
+Suppose $\Prob(|X| > x) = x^{-\alpha}$ for $x \geq 1$. The density is
+$f(x) = \alpha x^{-\alpha-1}$, and the $k$-th moment is
 \[
-  \Prob(|X| > x) \sim L(x) \cdot x^{-\alpha} \quad \text{as } x \to \infty
+  \E[|X|^k] = \int_1^{\infty} x^k \cdot \alpha x^{-\alpha-1}\,dx
+            = \alpha\int_1^{\infty} x^{k-\alpha-1}\,dx .
 \]
-where $L(x)$ is a slowly varying function (converges to a constant). The \textbf{tail index} $\alpha$ determines which moments exist:
+
+The integral $\int_1^\infty x^{p}\,dx$ converges only when $p < -1$. Here
+$p = k - \alpha - 1$, so convergence requires
 \[
-  \E[|X|^k] < \infty \iff k < \alpha
+  k - \alpha - 1 < -1 \iff k < \alpha .
 \]
-With BRICS $\hat{\alpha} = 2.54$--$3.21$: variance exists ($k=2 < \alpha$), skewness is borderline ($k=3$: exists only for $\hat{\alpha}>3$, i.e., only BOVESPA marginally), kurtosis does not exist anywhere ($k=4 > \hat{\alpha}$ everywhere).
-}
 
-\analogybreak{
-``Tail index'' is an asymptotic property --- it describes what happens in the extreme tail, not the bulk of the distribution. In finite samples (even 20-year daily data), the Hill estimator averages over both the power-law region and the Gaussian-like body of the distribution. The estimate is sensitive to the choice of $k$ (number of order statistics used).
-}
+\medskip
+\textbf{Concretely, at $\alpha = 3$:}
+\[
+  \E[|X|^2] = 3\int_1^\infty x^{-2}\,dx = 3\Bigl[-x^{-1}\Bigr]_1^\infty = 3 \quad\text{(finite)},
+\]
+\[
+  \E[|X|^4] = 3\int_1^\infty x^{0}\,dx = 3\Bigl[x\Bigr]_1^\infty = \infty \quad\text{(divergent)}.
+\]
 
-\whyhere{
-\texttt{tail\_index\_diff} $= |\hat{\alpha}_\text{real} - \hat{\alpha}_\text{syn}|$ is the primary heavy-tail metric in the \textbf{Fidelity} family. This replaces \texttt{kurtosis\_diff}, which is undefined for $\hat{\alpha} < 4$. The Hill estimator has sd $\approx 0.035$ at $n=4{,}960$ --- precise enough to distinguish generators that reproduce the tail index from those that do not.
-}
+\medskip
+\textbf{Applied to this project.} BRICS tail indices run
+$\hat\alpha \in [2.54, 3.21]$:
 
-%% ─────────────────────────────────────────────────────────────────────────────
-\section{Why Kurtosis Is Unreliable for BRICS Markets}
-
-\situation{
-You want to measure how ``extreme'' a dataset is. The obvious measure is kurtosis: the fourth standardised moment. A larger kurtosis means more extreme events. You measure kurtosis on 250 days of BOVESPA data. Then on 2{,}000 days. The number changes dramatically.
-}
-
-\workedarith{
-BOVESPA kurtosis at different sample sizes (demonstrated in the session):
-
-\begin{tabular}{@{}rrc@{}}
+\medskip
+\begin{tabular}{@{}llll@{}}
 \toprule
-Sample $n$ & Sample kurtosis & Hill $\hat{\alpha}$ \\
+$k$ & Quantity & Needs $\alpha >$ & Status across BRICS \\
 \midrule
-250  & 2.53  & 4.83 (sd 1.253) \\
-2000 & 11.84 & 3.11 (sd 0.316) \\
+1 & mean       & 1 & finite everywhere \\
+2 & variance   & 2 & finite everywhere \\
+3 & skewness   & 3 & finite in 1 of 5 markets \\
+4 & kurtosis   & 4 & \textbf{infinite everywhere} \\
 \bottomrule
 \end{tabular}
 
-Sample kurtosis \emph{increases} as $n$ grows --- diverging rather than converging.
-Hill $\hat{\alpha}$ \emph{converges} as $n$ grows.
-
-\textbf{Mathematical reason:} if $\E[X^4] = \infty$ (which occurs when $\hat{\alpha} < 4$), the sample kurtosis $\hat{\kappa}_n = \frac{n^{-1}\sum x_i^4}{(n^{-1}\sum x_i^2)^2}$ diverges almost surely as $n \to \infty$.
+\medskip
+Every remaining section of this chapter is a consequence of the last row.
 }
 
 \formaldef{
-For a distribution with tail index $\alpha$:
+A random variable has a \textbf{power-law} (regularly varying) tail with
+\textbf{tail index} $\alpha > 0$ if
 \[
-  \E[|X|^k] < \infty \iff k < \alpha
+  \Prob(|X| > x) \sim L(x)\,x^{-\alpha} \quad \text{as } x \to \infty ,
 \]
-When $\alpha < 4$ (as in all BRICS markets): $\E[X^4] = \infty$, so the population kurtosis is undefined.
-The \textbf{Law of Large Numbers} requires finite expectation; without it, the sample mean of $X^4$ does not converge.
-The sample kurtosis $\hat{\kappa}_n$ grows without bound, following a stable distribution with index $\alpha/4 < 1$.
-
-\textbf{Contrast with Hill:} the Hill estimator uses log spacings of order statistics, which are $\Gamma(1,1)$ distributed under the power-law model. These have finite moments of all orders, making the Hill estimator consistent and asymptotically normal regardless of $\alpha$.
+where $L$ is slowly varying. The governing rule is
+\[
+  \boxed{\;\E\bigl[|X|^k\bigr] < \infty \iff k < \alpha\;}
+\]
+Smaller $\alpha$ means a heavier tail and fewer finite moments.
 }
 
 \analogybreak{
-``Sample kurtosis = 65.70 for MOEX'' is not a measurement of the population kurtosis --- the population kurtosis is infinite. It is an artifact of sample size, driven by the handful of extreme observations (especially 2022-02-24: $-33.3\%$). If we took a different 20-year window, the sample kurtosis might be 30 or 150. The Hill estimate $\hat{\alpha} \approx 2.7$ for MOEX is comparatively stable.
+``Infinite'' here is not a large number. It is the statement that the defining
+integral diverges, so the quantity does not exist. A sample kurtosis can always
+be computed --- the arithmetic never fails --- but with $\alpha < 4$ it is not an
+estimate of anything, because there is nothing for it to converge to. This
+distinction is the whole of \S\ref{sec:kurtosis}.
 }
 
 \whyhere{
-\textbf{This is the core motivation for TASK 17 in the pipeline.} Kurtosis\_diff and skewness\_diff are demoted from FIDELITY\_COLS (7 metrics, ranked) to DESCRIPTIVE\_COLS (7 metrics, displayed but not ranked). tail\_index\_diff takes their role as the primary heavy-tail fidelity metric. The length guard in \texttt{FinancialMetrics.\_\_init\_\_} warns when comparing series of different lengths, because kurtosis differences between unequal-length series are biased by length alone.
+This rule is why \texttt{tail\_index\_diff} is a ranked fidelity metric while
+\texttt{kurtosis\_diff} and \texttt{skewness\_diff} were demoted to
+descriptive-only. Ranking generators on an estimate of an infinite quantity is not
+a strict test; it is noise wearing a decimal point.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Power Laws}
+\label{sec:powerlaws}
+
+\situation{
+City sizes. New York has 8 million people; the next few have 4M, 3M, 2M. Halve
+the population threshold and roughly twice as many cities qualify. The same
+doubling holds whether you start at a million or ten thousand --- the rule has no
+characteristic scale.
+}
+
+\problem{
+The normal distribution has exponentially decaying tails, which makes extreme
+events not merely unlikely but effectively impossible. Power-law tails decay
+polynomially, which is slow enough to make extremes a routine feature of a few
+thousand observations rather than a once-per-civilisation event.
+}
+
+\workedarith{
+NIFTY50, 20-year, $n = 4{,}954$.
+
+The top 5\% of $|r_t|$: 248 observations, from $1.97\%$ up to $15.91\%$. The Hill
+estimate on that tail is $\hat\alpha \approx 2.8$, so
+$\Prob(|r| > x) \approx C x^{-2.8}$.
+
+\medskip
+\textbf{Scale-free, checked.} Doubling the threshold multiplies the exceedance
+probability by $2^{-2.8} = 0.144$ --- the same factor whether you double from 2\%
+to 4\% or from 4\% to 8\%. Under a Gaussian the analogous factor collapses:
+\[
+  \frac{\Prob(|Z|>4)}{\Prob(|Z|>2)} = \frac{6.3\times10^{-5}}{4.6\times10^{-2}} = 0.0014 ,
+  \qquad
+  \frac{\Prob(|Z|>8)}{\Prob(|Z|>4)} = \frac{1.2\times10^{-15}}{6.3\times10^{-5}} = 2\times10^{-11} .
+\]
+The Gaussian ratio falls by eight orders of magnitude between the two doublings;
+the power-law ratio does not move at all. That is the difference between
+exponential and polynomial decay.
+
+\medskip
+\textbf{Straight lines.} Taking logarithms of
+$\Prob(|X|>x) \approx Cx^{-\alpha}$:
+\[
+  \ln\Prob(|X|>x) = \ln C - \alpha\ln x ,
+\]
+a straight line of slope $-\alpha$ on log--log axes (\S\ref{sec:logscale}).
+Straightness there is the visual signature of a power law and the slope reads off
+$\alpha$ directly.
+}
+
+\formaldef{
+For a power-law tail with index $\alpha$, the \textbf{survival function} is
+\[
+  \bar{F}(x) = \Prob(|X| > x) \sim L(x)x^{-\alpha} ,
+\]
+and $L$ slowly varying means $L(cx)/L(x) \to 1$ for every $c > 0$ --- so $L$
+contributes no scaling of its own.
+
+Typical values: financial returns $\alpha \approx 2$--$4$; city sizes and word
+frequencies $\alpha \approx 1$ (Zipf); a Gaussian has no finite $\alpha$, its tail
+decaying faster than any power.
+}
+
+\analogybreak{
+The tail index is an \emph{asymptotic} property, describing behaviour as
+$x \to \infty$. Any finite sample --- even 20 years of daily data --- contains only
+a few hundred genuinely extreme observations, and the estimator must draw a line
+between the power-law tail and the ordinary body of the distribution. Where that
+line falls is a judgement call, and \S\ref{sec:hill} shows how much the answer
+depends on it.
+}
+
+\whyhere{
+\texttt{tail\_index\_diff} $= |\hat\alpha_{\text{real}} - \hat\alpha_{\text{syn}}|$
+is the primary heavy-tail metric in the fidelity family, replacing
+\texttt{kurtosis\_diff}. At $n \approx 4{,}960$ the Hill estimator has a standard
+deviation near $0.035$ --- precise enough to separate generators that reproduce the
+tail from those that do not.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Why Kurtosis Is Unreliable Here}
+\label{sec:kurtosis}
+
+\situation{
+You want a single number for how extreme a dataset is, and kurtosis is the
+obvious candidate. You compute it on 250 days of BOVESPA and get $2.53$. You
+compute it on 2{,}000 days and get $11.84$. Neither is wrong, and that is the
+problem.
+}
+
+\problem{
+An estimator is supposed to settle as data accumulates. This one moves further
+with every additional observation, so there is no sample size at which the answer
+becomes trustworthy --- and \S\ref{sec:moments} already said why.
+}
+
+\workedarith{
+BOVESPA, two sample sizes:
+
+\medskip
+\begin{tabular}{@{}rrl@{}}
+\toprule
+Sample $n$ & Sample kurtosis & Hill $\hat\alpha$ \\
+\midrule
+$250$    & $2.53$  & $4.83$ (sd $1.253$) \\
+$2{,}000$ & $11.84$ & $3.11$ (sd $0.316$) \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textbf{Kurtosis multiplied by 4.7} as $n$ grew eightfold. It is diverging.
+
+\textbf{Hill fell from $4.83$ to $3.11$ and its standard deviation shrank by a
+factor of four.} It is converging, and the movement is bias disappearing
+(\S\ref{sec:estimators}).
+
+\medskip
+\textbf{Why kurtosis diverges.} The estimator is
+\[
+  \hat\kappa_n = \frac{n^{-1}\sum_i (x_i - \bar{x})^4}{\bigl(n^{-1}\sum_i (x_i-\bar{x})^2\bigr)^2} .
+\]
+The numerator is a sample mean of $X^4$. The law of large numbers
+(\S\ref{sec:lln}) requires $\E[X^4]$ to be finite, and at $\alpha < 4$ it is not.
+So the numerator has nothing to converge to and grows with $n$; each new record
+extreme raises it again.
+
+\medskip
+\textbf{Why Hill does not.} Hill averages \emph{log spacings} of order
+statistics. Under a power law these are exponentially distributed
+(\S\ref{sec:hill}), and the exponential distribution has finite moments of every
+order. The law of large numbers applies to them regardless of $\alpha$.
+}
+
+\formaldef{
+When $\alpha < 4$, the population kurtosis $\E[(X-\mu)^4]/\sigma^4$ is undefined.
+The sample kurtosis $\hat\kappa_n$ does not converge; it grows without bound, its
+numerator behaving like a sum in the domain of attraction of a stable law with
+index $\alpha/4 < 1$.
+
+The Hill estimator, by contrast, is consistent and asymptotically normal for any
+$\alpha > 0$, provided the number of order statistics $k$ satisfies
+$k \to \infty$ and $k/n \to 0$.
+}
+
+\analogybreak{
+``MOEX sample kurtosis $= 65.70$'' is not a measurement of the population
+kurtosis, which is infinite. It is an artefact of this particular sample, driven
+by a handful of observations --- above all 24 February 2022 at $-33.3\%$. A
+different 20-year window could give 30 or 150 with equal legitimacy. The Hill
+estimate of $\hat\alpha \approx 2.7$ for the same series is stable across windows.
+}
+
+\whyhere{
+This is why \texttt{kurtosis\_diff} and \texttt{skewness\_diff} moved from the
+seven ranked fidelity metrics to the seven descriptive ones. It is also why the
+length guard in \texttt{FinancialMetrics.\_\_init\_\_} warns when the compared
+series differ in length: a diverging statistic makes any kurtosis comparison
+between unequal-length series biased by length alone, independently of the data.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{The Hill Estimator, Derived}
+\label{sec:hill}
+
+\situation{
+You want the slope of a straight line but only trust the right-hand portion of
+your data. So you discard the left, keep the largest few hundred points, and fit
+using those alone.
+}
+
+\problem{
+The tail index is defined by behaviour as $x \to \infty$, and any real sample
+stops well short. We need an estimator that uses only the largest observations,
+where the power law plausibly holds, and ignores the body where it does not.
+}
+
+\workedarith{
+\textbf{Step 1: the key transformation.} Suppose
+$\Prob(X > x) = (x/u)^{-\alpha}$ for $x \geq u$. Let $Y = \ln(X/u)$. Then for
+$y > 0$,
+\[
+  \Prob(Y > y) = \Prob\bigl(X > ue^{y}\bigr) = \bigl(e^{y}\bigr)^{-\alpha} = e^{-\alpha y} .
+\]
+So $Y$ is \textbf{exponential} with rate $\alpha$. The logarithm has converted a
+power law into an exponential --- and exponentials are easy.
+
+\medskip
+\textbf{Step 2: estimate the rate.} An exponential with rate $\alpha$ has mean
+$1/\alpha$. By the law of large numbers, averaging the $Y$ values estimates
+$1/\alpha$, so
+\[
+  \hat\alpha = \frac{1}{\bar{Y}} = \frac{k}{\sum_{i=1}^{k}\ln(X_{(n-i+1)}/X_{(n-k)})} .
+\]
+That is the Hill estimator. It is maximum likelihood (\S\ref{sec:mle}) for the
+exponential rate.
+
+\medskip
+\textbf{Step 3: a numerical check.} Take five tail observations with threshold
+$u = 2$: values $2.2, 2.7, 3.3, 4.5, 8.1$.
+\[
+  \ln(2.2/2) = 0.0953, \quad \ln(2.7/2) = 0.3001, \quad \ln(3.3/2) = 0.5008,
+\]
+\[
+  \ln(4.5/2) = 0.8109, \quad \ln(8.1/2) = 1.3971 .
+\]
+Sum $= 3.1042$, mean $= 0.6208$, so
+\[
+  \hat\alpha = 1/0.6208 = 1.61 .
+\]
+
+\medskip
+\textbf{Why moments do not matter.} Each $\ln(X_{(i)}/u)$ is exponential, which
+has finite moments of every order. Whatever $\alpha$ is --- even below 1, where
+$X$ has no mean at all --- the log spacings are perfectly well behaved. This is
+exactly the property kurtosis lacks.
+
+\medskip
+\textbf{The bias--variance trade-off in $k$.} Small $k$ uses only the most extreme
+points, where the power law holds best: low bias, high variance. Large $k$ reaches
+into the body where the power law fails: low variance, high bias. This project
+uses $k = \lfloor 0.05n\rfloor$, so $248$ points at $n = 4{,}954$.
+}
+
+\formaldef{
+Order the sample $X_{(1)} \leq \cdots \leq X_{(n)}$. Using the top $k$, the
+\textbf{Hill estimator} is
+\[
+  \hat\alpha_{\text{Hill}} = \left[\frac{1}{k}\sum_{i=1}^{k}
+    \ln\frac{X_{(n-i+1)}}{X_{(n-k)}}\right]^{-1} .
+\]
+It is consistent and asymptotically normal, with
+$\sqrt{k}(\hat\alpha - \alpha) \to \N(0, \alpha^2)$, provided $k \to \infty$ and
+$k/n \to 0$. The standard error is therefore approximately
+$\hat\alpha/\sqrt{k}$.
+
+At $\hat\alpha = 3.11$ and $k = 248$: $3.11/\sqrt{248} = 0.197$.
+}
+
+\analogybreak{
+Hill assumes a power-law tail. Applied to data without one --- a Gaussian, say ---
+it returns a number regardless, and that number is meaningless rather than
+merely large. It is also sensitive to $k$: a Hill plot of $\hat\alpha$ against $k$
+should show a stable plateau, and if it does not, the power-law assumption is
+suspect. Reporting a single $\hat\alpha$ without inspecting that stability is
+reporting one point from a curve.
+}
+
+\whyhere{
+Hill supplies \texttt{tail\_index\_diff}, the primary heavy-tail fidelity metric.
+Its independence from moment existence is exactly why it replaced kurtosis: it
+remains a genuine estimator on data where the fourth moment does not exist. The
+next section shows what happens when its assumption is violated outright.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{When Hill Fails: the 31{,}581 Case}
+\label{sec:hillfail}
+
+\situation{
+A tape measure works well until you try to measure something with no length. The
+instrument does not announce the mistake --- it returns a number, and the number
+looks like a measurement.
+}
+
+\problem{
+A collapsed generator produces a nearly constant series. It has no tail at all.
+The Hill estimator, asked for the index of a tail that does not exist, returns a
+finite number, and that number then enters a ranking table alongside genuine
+estimates as though it were comparable.
+}
+
+\workedarith{
+\textbf{What happened in this project.} During a BOVESPA smoke test, TimeGAN
+collapsed and produced a series with standard deviation $0.0006$ against a real
+$0.0103$. Hill returned
+\[
+  \hat\alpha = 31{,}581 .
+\]
+
+\medskip
+\textbf{Why.} The estimator divides by the mean log spacing
+\[
+  \bar{Y} = \frac{1}{k}\sum_i \ln\frac{X_{(n-i+1)}}{X_{(n-k)}} .
+\]
+On a near-constant series every order statistic is nearly equal, so each ratio is
+nearly 1 and each logarithm nearly 0.
+
+Concretely, if the largest values are all within $0.003\%$ of the threshold, then
+$\ln(1.00003) = 3\times10^{-5}$, and
+\[
+  \hat\alpha = \frac{1}{3\times10^{-5}} = 33{,}000 .
+\]
+Same order of magnitude as observed. The estimator is dividing by very nearly
+zero, and small denominators produce enormous quotients.
+
+\medskip
+\textbf{Why this is dangerous rather than merely wrong.} The metric is
+$|\hat\alpha_{\text{real}} - \hat\alpha_{\text{syn}}|$. With
+$\hat\alpha_{\text{real}} \approx 3$, the collapsed model scores
+$|3 - 31581| = 31578$ --- catastrophically bad, which is correct. But had the
+collapse been milder, giving $\hat\alpha = 3.0$ on a series with no tail
+whatsoever, it would have scored a \emph{perfect} $0$ on this metric while being
+degenerate. A number with no information content had entered a ranking.
+
+\medskip
+\textbf{The guard.} Real equity indices sit between $2.4$ and $4.2$. The pipeline
+therefore returns \texttt{NaN} whenever
+\[
+  \hat\alpha > 20 ,
+\]
+and \texttt{NaN} ranks last by \texttt{na\_option='bottom'} --- so a failed
+estimate is scored as the worst outcome rather than silently excluded. It also
+returns \texttt{NaN} when the threshold order statistic is non-positive or the
+mean log spacing is non-positive, both of which signal the same degeneracy.
+}
+
+\formaldef{
+The Hill estimator is undefined in the limit of a degenerate distribution. If
+$X$ is constant, every log spacing is $0$, $\bar{Y} = 0$, and
+$\hat\alpha = 1/0$ is undefined rather than infinite.
+
+In floating-point arithmetic the spacings are small but non-zero, so the division
+succeeds and returns a large finite value carrying no information. Guarding
+requires an explicit range check, because no arithmetic error occurs.
+}
+
+\analogybreak{
+The guard is a heuristic, not a theorem. A genuine distribution with
+$\alpha = 25$ --- extremely thin-tailed but legitimate --- would be rejected. That
+trade is deliberate: no equity index has such a tail, so within this domain the
+false-rejection rate is effectively zero, while the false-acceptance rate without
+the guard was demonstrably not.
+}
+
+\whyhere{
+This is one of three degeneracy guards protecting the evaluation. The other two
+are the post-generation check on mean, standard deviation and ACF(1), and the
+autoencoder $R^2$ threshold. Each exists because a collapsed model can otherwise
+score \emph{well} on some metric by accident, and a benchmark that can be won by
+producing nothing is not a benchmark.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Extreme Value Theory}
+\label{sec:evt}
+
+\situation{
+A dam must survive the worst flood in a century, but you have only forty years of
+records. The largest flood you have seen is not the largest that can happen, and
+you must say something about a level you have never observed.
+}
+
+\problem{
+The CLT (\S\ref{sec:clt}) describes averages, and averages are exactly what a risk
+manager does not care about. There is a parallel theory for maxima, and it says
+something surprisingly strong: whatever the underlying distribution, the maximum
+has only three possible limiting shapes.
+}
+
+\workedarith{
+\textbf{Maxima of uniform draws.} Take $n$ values uniform on $[0,1]$. The maximum
+is below $x$ only if all $n$ are, so
+\[
+  \Prob(M_n \leq x) = x^{n} .
+\]
+At $n = 100$: $\Prob(M_{100} \leq 0.95) = 0.95^{100} = 0.0059$. The maximum is
+almost certainly above $0.95$, and as $n$ grows it is pushed toward 1 --- a
+\emph{bounded} limit.
+
+\medskip
+\textbf{Maxima of exponential draws.} With $\Prob(X > x) = e^{-x}$,
+\[
+  \Prob(M_n \leq x) = \bigl(1 - e^{-x}\bigr)^{n} .
+\]
+Here the maximum grows like $\ln n$ without bound, but only logarithmically ---
+slowly.
+
+\medskip
+\textbf{Maxima of power-law draws.} With $\Prob(X > x) = x^{-\alpha}$, the maximum
+grows like $n^{1/\alpha}$. At $\alpha = 3$ and $n$ multiplied by 1{,}000, the
+typical maximum multiplies by $1000^{1/3} = 10$.
+
+\medskip
+Three regimes --- bounded, logarithmic, polynomial. The Fisher--Tippett theorem
+says these exhaust the possibilities.
+
+\medskip
+\textbf{Peaks over threshold.} Rather than block maxima, fix a high threshold $u$
+and model the exceedances $X - u$. As $u$ rises, that distribution approaches the
+generalised Pareto, and its shape parameter is $\xi = 1/\alpha$. At
+$\hat\alpha = 3.11$, $\xi = 0.32$ --- firmly in the heavy-tailed regime, since
+$\xi > 0$.
+}
+
+\formaldef{
+\textbf{Fisher--Tippett--Gnedenko.} If suitably normalised maxima converge, the
+limit is a \textbf{generalised extreme value} distribution
+\[
+  G(x) = \exp\left\{-\left[1 + \xi\left(\frac{x-\mu}{\sigma}\right)\right]^{-1/\xi}\right\} ,
+\]
+with three cases: $\xi = 0$ Gumbel (exponential-like tails), $\xi > 0$ Fréchet
+(power-law tails), $\xi < 0$ Weibull (bounded).
+
+\textbf{Pickands--Balkema--de Haan.} For a high threshold $u$, exceedances follow
+approximately a \textbf{generalised Pareto} distribution
+\[
+  H(y) = 1 - \left(1 + \frac{\xi y}{\beta}\right)^{-1/\xi} , \qquad y > 0 ,
+\]
+with $\xi = 1/\alpha$ for power-law tails. Financial returns sit in the Fréchet
+domain.
+}
+
+\analogybreak{
+EVT describes the limit as the threshold rises, and raising the threshold discards
+data. There is no escaping the trade: a higher threshold gives a better
+approximation on fewer points. EVT also assumes independent observations in its
+basic form, which volatility clustering violates --- extremes arrive in bursts, so
+the effective sample of independent extremes is smaller than the count suggests.
+}
+
+\whyhere{
+The Hill estimator is the EVT tool this project actually uses, and it is the
+peaks-over-threshold approach with $k = \lfloor 0.05n\rfloor$ setting the
+threshold. The connection $\xi = 1/\alpha$ means that reporting $\hat\alpha$
+between $2.54$ and $3.21$ is reporting $\xi$ between $0.31$ and $0.39$: the same
+measurement in the vocabulary a risk manager would use.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Copulas and Tail Dependence}
+\label{sec:copulas}
+
+\situation{
+Two swimmers, each an excellent swimmer on their own. Whether they can rescue each
+other depends on something their individual abilities do not capture: whether they
+get into trouble at the same time.
+}
+
+\problem{
+Section~\ref{sec:joint} established that marginals do not determine the joint
+distribution, and \S\ref{sec:multivariate} showed the portfolio consequences. What
+was missing is a device that separates the two questions cleanly --- and,
+critically, one that can express dependence concentrated in the tails, which
+correlation cannot.
+}
+
+\workedarith{
+\textbf{Correlation misses the thing that matters.} Consider two return series,
+each standard normal, in two scenarios:
+\begin{itemize}
+  \item \emph{Gaussian dependence} with correlation $0.5$;
+  \item \emph{$t$-copula dependence}, also correlation $0.5$, with 3 degrees of
+        freedom.
+\end{itemize}
+Identical marginals, identical correlation. But the probability that both fall
+below their 1\% quantile simultaneously differs sharply: for the Gaussian case it
+tends to zero as the quantile becomes more extreme, while for the $t$-copula it
+tends to a positive constant. Joint crashes are asymptotically impossible under
+one and routine under the other, with every number a correlation matrix records
+being identical.
+
+\medskip
+\textbf{The transformation.} Apply each variable's own CDF:
+$U = F_X(X)$ and $V = F_Y(Y)$. Whatever the original distributions, $U$ and $V$
+are uniform on $[0,1]$ --- so all marginal information has been stripped out and
+what remains in the joint distribution of $(U,V)$ is pure dependence. That joint
+distribution is the copula.
+
+\medskip
+\textbf{Tail dependence, defined by a limit.} The lower tail dependence
+coefficient is
+\[
+  \lambda_L = \lim_{q \to 0^{+}} \Prob\bigl(V \leq q \mid U \leq q\bigr) .
+\]
+The Gaussian copula has $\lambda_L = 0$ for every correlation below 1. The
+$t$-copula has $\lambda_L > 0$. This single number is what the 2008 credit crisis
+literature identified as missing from Gaussian-copula pricing models.
+}
+
+\formaldef{
+\textbf{Sklar's theorem.} Any joint CDF $F$ with continuous marginals
+$F_1,\ldots,F_d$ can be written uniquely as
+\[
+  F(x_1,\ldots,x_d) = C\bigl(F_1(x_1),\ldots,F_d(x_d)\bigr) ,
+\]
+where the \textbf{copula} $C$ is a joint CDF on $[0,1]^d$ with uniform marginals.
+Marginals and dependence are thus fully separable: choose each independently.
+
+\textbf{Tail dependence:}
+\[
+  \lambda_U = \lim_{q\to1^{-}}\Prob\bigl(V > q \mid U > q\bigr) ,
+  \qquad
+  \lambda_L = \lim_{q\to0^{+}}\Prob\bigl(V \leq q \mid U \leq q\bigr) .
+\]
+}
+
+\analogybreak{
+Copulas separate marginals from dependence, which is their strength and their
+trap. The separation is a mathematical fact, not a licence to pick the two
+independently and assume the result is realistic --- and estimating tail
+dependence requires observations in the joint tail, which are by definition the
+scarcest data available. A copula fitted mostly on the body of the distribution
+tells you very little about $\lambda_L$.
+}
+
+\whyhere{
+This section is scope-setting rather than method. This thesis is univariate: one
+model per market, evaluated per market, with no cross-market dependence modelled
+or measured. Copulas are the natural device for the multivariate extension, and
+tail dependence would be the metric that matters --- since the question a portfolio
+owner asks is whether the markets crash together, which nothing in the current
+evaluation addresses.
 }
 
 %% ─────────────────────────────────────────────────────────────────────────────
 \section{Wasserstein Distance}
+\label{sec:wasserstein}
 
 \situation{
-Imagine two piles of sand on a table. One pile represents the distribution of real returns; the other represents synthetic returns. You want to measure how different they are. The Wasserstein distance asks: what is the minimum amount of ``work'' (mass times distance) needed to move one pile into the shape of the other?
+Two piles of sand on a table. One is the distribution of real returns, the other
+of synthetic returns. How different are they? The Wasserstein distance asks for
+the minimum work --- mass times distance --- needed to reshape one pile into the
+other.
 }
 
 \problem{
-The Kolmogorov-Smirnov (KS) test measures the maximum gap between two CDFs. It was designed for independent data. Market returns are not independent (ACF of $|r_t| > 0$ for 100+ lags). For correlated data, the effective sample size is $n_\text{eff} = n/(1+2\sum_k \rho_k) \ll n$. KS uses the nominal $n$, making its $p$-values severely anti-conservative.
+The Kolmogorov--Smirnov statistic measures the largest gap between two CDFs and
+was designed for independent data. Market returns are not independent: the ACF of
+$|r_t|$ is positive out to a hundred lags. For correlated data the effective
+sample size is far below the nominal $n$, so KS $p$-values are severely
+anti-conservative.
 }
 
 \workedarith{
-For one-dimensional distributions, the Wasserstein-1 distance is the $L_1$ distance between quantile functions:
+In one dimension, $W_1$ is the average gap between sorted samples. Sort both, pair
+by rank, and average the absolute differences.
+
+\medskip
+\textbf{A small example.} Real $\{1, 3, 5\}$, synthetic $\{2, 3, 4\}$:
 \[
-  W_1(P, Q) = \int_0^1 \abs{F_P^{-1}(u) - F_Q^{-1}(u)} \, du
+  W_1 = \tfrac13\bigl(|1-2| + |3-3| + |5-4|\bigr) = \tfrac13(1 + 0 + 1) = 0.667 .
 \]
-\textbf{Practical computation:} sort both series in ascending order. Pair each real return with its rank-matched synthetic return. Average absolute difference.
 
-For the shuffled control: $W_1 = 0.000e{+}00$ (exact zero). The shuffled series is a permutation of the real data; sorted, they are identical.
+\medskip
+\textbf{The shuffled control.} $W_1 = 0.000\text{e}{+}00$, exactly. The shuffled
+series is a permutation of the real one, so sorting produces identical sequences
+and every paired difference is zero.
 
-For a well-trained generator: $W_1 \approx 0.001$--$0.005$ (residual fitting error).
+\medskip
+\textbf{A trained generator.} $W_1 \approx 0.001$--$0.005$.
+
+\medskip
+\textbf{A floor worth knowing about.} Suppose a generator collapses to emitting
+the constant $\mu$, the real mean. Then $W_1$ is the mean absolute deviation of
+the real data --- for BOVESPA, $0.00770$. That is the \emph{worst} a
+constant-output model can score. A model producing genuine but imperfect returns
+can easily exceed $0.00770$, so on this metric alone a collapsed model can beat a
+working one. Chapter~\ref{ch:evaluation} returns to this.
 }
 
 \formaldef{
-The \textbf{Wasserstein-$p$ distance} between distributions $P$ and $Q$:
+The \textbf{Wasserstein-$p$ distance} is
 \[
-  W_p(P,Q) = \left(\inf_\gamma \E_{(X,Y)\sim\gamma} \norm{X-Y}^p\right)^{1/p}
+  W_p(P,Q) = \left(\inf_{\gamma \in \Gamma(P,Q)}
+    \E_{(X,Y)\sim\gamma}\norm{X-Y}^{p}\right)^{1/p} ,
 \]
-where the infimum is over joint distributions (couplings) with marginals $P$ and $Q$.
-For $p=1$ in 1D: reduces to the integral of the absolute difference of CDFs:
+the infimum over couplings $\gamma$ whose marginals are $P$ and $Q$. In one
+dimension with $p = 1$ this reduces to
 \[
-  W_1(P,Q) = \int_{-\infty}^{\infty} |F_P(x) - F_Q(x)| \, dx
+  W_1(P,Q) = \int_{-\infty}^{\infty}\bigl|F_P(x) - F_Q(x)\bigr|\,dx
+           = \int_0^1 \bigl|F_P^{-1}(u) - F_Q^{-1}(u)\bigr|\,du .
 \]
 }
 
 \analogybreak{
-Wasserstein is permutation-invariant: $W_1(\text{real}, \text{shuffled}) = 0$ because sorting both produces the same sequence. This is a feature (it correctly measures distributional proximity) and a limitation (it does not measure temporal proximity). This is precisely why it sits in FIDELITY rather than TEMPORAL.
+$W_1$ is permutation-invariant: $W_1(\text{real}, \text{shuffled}) = 0$ because
+sorting erases order. That is simultaneously correct --- it genuinely measures
+distributional proximity --- and a hard limitation, since it is blind to temporal
+structure by construction. It belongs in the fidelity family for exactly that
+reason, and no amount of care in computing it will make it detect a shuffle.
 }
 
 \whyhere{
-\texttt{wasserstein} is one of the 7 Fidelity metrics. The shuffled-control audit revealed that Wasserstein, like all Fidelity metrics, gives a perfect score to the shuffled control. This motivated the three-score composite design: Fidelity metrics measure ``do the individual values look right?''; Temporal metrics measure ``does the ordering look right?''.
+\texttt{wasserstein} is one of the seven fidelity metrics. The shuffled-control
+audit found it giving a perfect score to a series with no temporal structure at
+all, which is what motivated splitting the composite into fidelity and temporal
+families. The full optimal-transport treatment --- Kantorovich--Rubinstein duality,
+and why $W_1$ is the right objective for a GAN --- belongs with the generative
+models and is developed there.
 }
