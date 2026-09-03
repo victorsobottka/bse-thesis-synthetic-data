@@ -1,166 +1,961 @@
 \chapter{Generative Adversarial Networks}
 \label{ch:gans}
 
+\begin{tcolorbox}[feynbox={Sky}{BBg},title={Before and After}]
+\textbf{Before this chapter you need:} norms (\S\ref{sec:norms}), minimax and
+penalties (\S\ref{sec:lagrange}--\S\ref{sec:minimax}), neural networks
+(Chapter~\ref{ch:neuralnets}), cross-entropy, JS divergence, Wasserstein distance
+and Kantorovich--Rubinstein duality
+(\S\ref{sec:crossentropy}--\S\ref{sec:duality}).\\
+\textbf{After it you will understand:} what the two networks optimise, why the
+game oscillates rather than converging, what mode collapse looks like in this
+project's own measurements, what Lipschitz continuity asks for, and why equal
+generator updates across models is emphatically not equal compute.
+\end{tcolorbox}
+
+Everything needed to read a GAN objective as a sentence is now in place. This
+chapter assembles it and describes the three architectures benchmarked here.
+
 %% ─────────────────────────────────────────────────────────────────────────────
 \section{The GAN Idea}
+\label{sec:ganidea}
 
 \situation{
-A counterfeiter tries to make fake currency. A bank teller learns to detect fakes. Each tries to fool or catch the other. Over time, both get better --- the counterfeiter produces more convincing fakes, the teller develops sharper detection skills. Eventually, the fakes may be indistinguishable from real currency.
+A counterfeiter makes fake notes; a teller learns to spot them. Each improvement
+on one side forces an improvement on the other. Neither needs a written
+definition of ``convincing'' --- the definition is whatever the opponent can
+currently detect.
 }
 
 \problem{
-We want a machine that generates realistic market return sequences. A single neural network trained directly is hard to evaluate: how do you define a loss function that measures ``realism'' for a complex, high-dimensional sequence?
-The GAN answer: train a second network to play the role of the expert bank teller. It provides the loss signal automatically.
+We want to generate realistic return sequences, and realism has no closed-form
+loss. Writing one by hand would mean enumerating the properties that matter,
+which is exactly the thing we do not know how to do completely.
+}
+
+\workedarith{
+\textbf{The insight.} Replace the hand-written loss with a second network trained
+to tell real from fake. Its output becomes the generator's training signal.
+
+\medskip
+\textbf{What the discriminator says.} Given a sample $x$, it returns
+$D(x) \in (0,1)$, read as the probability that $x$ is real.
+
+\medskip
+\begin{tabular}{@{}lll@{}}
+\toprule
+$D(x)$ & Reading & Generator's position \\
+\midrule
+$0.99$ & confident real & fake was caught easily \\
+$0.50$ & cannot tell    & fake is indistinguishable \\
+$0.01$ & confident fake & fake was caught easily \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textbf{The generator's target is $0.5$.} Not 1 --- it is not trying to convince
+the discriminator its output is \emph{more} real than real data, only to reach the
+point where the discriminator has no information. That is what
+$p_G = p_{\text{data}}$ looks like from the discriminator's side.
 }
 
 \formaldef{
-A \textbf{GAN} (Goodfellow et al., 2014) consists of two neural networks:
+A \textbf{GAN} (Goodfellow et al.\ 2014) pairs two networks:
 \begin{itemize}
-  \item \textbf{Generator} $G: \mathcal{Z} \to \mathcal{X}$: maps random noise $z \sim p_z$ to a synthetic sample $\tilde{x} = G(z)$
-  \item \textbf{Discriminator} $D: \mathcal{X} \to [0,1]$: classifies inputs as real ($D(x)=1$) or synthetic ($D(\tilde{x})=0$)
+  \item \textbf{Generator} $G:\mathcal{Z}\to\mathcal{X}$, mapping noise
+        $z \sim p_z$ to a sample $\tilde{x} = G(z)$;
+  \item \textbf{Discriminator} $D:\mathcal{X}\to(0,1)$, estimating the probability
+        that its input is real.
 \end{itemize}
-Training is a minimax game:
+Training is the minimax problem
 \[
-  \min_G \max_D \; \E_{x\sim p_\text{data}}[\log D(x)] + \E_{z\sim p_z}[\log(1-D(G(z)))]
+  \min_G\max_D\; \E_{x\sim p_{\text{data}}}\bigl[\log D(x)\bigr]
+  + \E_{z\sim p_z}\bigl[\log\bigl(1 - D(G(z))\bigr)\bigr] .
 \]
-At the Nash equilibrium: $p_G = p_\text{data}$ and $D(x) = 1/2$ everywhere.
+At the ideal equilibrium $p_G = p_{\text{data}}$ and $D \equiv 1/2$.
 }
 
 \analogybreak{
-The Nash equilibrium is a theoretical ideal. In practice, GAN training is unstable: mode collapse (generator produces only a few outputs), discriminator dominance (generator gradients vanish), and oscillation without convergence are common. WGAN-GP addresses the most severe of these issues.
+The counterfeiter story implies a winner. There is none: the target state is one
+where the discriminator is reduced to guessing. It also implies steady mutual
+improvement, and \S\ref{sec:nash} shows the dynamics need not improve
+monotonically --- or at all.
 }
 
 \whyhere{
-All three generators in this thesis (TimeGAN, QuantGAN, FinGAN) are GANs. The GAN framework is chosen because it implicitly defines the target distribution through adversarial training rather than requiring an explicit density. This is essential for market returns, whose true density is unknown and non-Gaussian.
+All three models here are GANs, chosen because the framework defines the target
+distribution implicitly through the adversary rather than requiring an explicit
+density (\S\ref{sec:mletraining}). For market returns, whose true density is
+unknown and certainly not Gaussian, that is the decisive advantage --- and the
+cost is that none of these models can report a likelihood, so evaluation must be
+entirely sample-based.
 }
 
 %% ─────────────────────────────────────────────────────────────────────────────
-\section{WGAN and the Wasserstein Distance}
+\section{The Adversarial Objective and Binary Cross-Entropy}
+\label{sec:adversarial}
 
 \situation{
-The original GAN discriminator outputs a probability $\in [0,1]$. When the generator's distribution is far from the real one, the discriminator saturates: it assigns near-zero probability to fake samples, and the gradient of $\log(1-D(G(z)))$ vanishes. The generator cannot learn which direction to improve.
+The teller is graded on a simple rule: confident and right earns a good mark,
+confident and wrong earns a terrible one, and hedging at $50/50$ earns a mediocre
+one whatever the truth.
 }
 
 \problem{
-Vanishing gradients in early training. Mode collapse (generator produces a single realistic example to fool the fixed discriminator). Training instability. These problems worsen when the real and generated distributions do not overlap --- which is always the case early in training.
+The minimax expression of the previous section needs unpacking. Both terms are
+instances of one loss --- binary cross-entropy (\S\ref{sec:crossentropy}) --- and
+seeing that makes the generator's gradient problem visible.
+}
+
+\workedarith{
+\textbf{The discriminator's job.} Maximise $\log D(x)$ on real data and
+$\log(1-D(\tilde{x}))$ on fakes --- the two halves of binary cross-entropy with
+labels 1 and 0.
+
+\medskip
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+$D(\tilde{x})$ on a fake & $\log(1-D)$ & $D$'s score & $G$'s position \\
+\midrule
+$0.9$  & $\log 0.1 = -2.303$ & poor  & fooling it \\
+$0.5$  & $\log 0.5 = -0.693$ & fair  & indistinguishable \\
+$0.1$  & $\log 0.9 = -0.105$ & good  & caught \\
+$0.01$ & $\log 0.99 = -0.010$ & excellent & caught easily \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textbf{Now the generator's gradient.} $G$ minimises $\log(1-D(G(z)))$. Its
+derivative with respect to $D$ is
+\[
+  \frac{d}{dD}\log(1-D) = \frac{-1}{1-D} .
+\]
+
+\medskip
+\begin{tabular}{@{}lrr@{}}
+\toprule
+$D(\tilde{x})$ & $-1/(1-D)$ & signal strength \\
+\midrule
+$0.5$  & $-2.00$   & strong \\
+$0.1$  & $-1.11$   & moderate \\
+$0.01$ & $-1.010$  & weak \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textbf{The problem.} When the generator is bad --- which is exactly at the start
+--- the discriminator confidently returns $D \approx 0$, and the gradient shrinks
+toward $-1$ while the \emph{loss} is near zero. The generator learns most slowly
+precisely when it has most to learn.
+
+\medskip
+\textbf{The standard patch.} Have $G$ maximise $\log D(G(z))$ instead of
+minimising $\log(1-D(G(z)))$. Same fixed point, but the derivative $1/D$ is
+\emph{large} when $D$ is small: at $D = 0.01$ it is $100$. This is the
+``non-saturating'' loss used in practice.
 }
 
 \formaldef{
-\textbf{Wasserstein GAN} (Arjovsky et al., 2017) replaces the discriminator with a \textbf{critic} $f: \mathcal{X} \to \R$ (no sigmoid) and minimises the Wasserstein-1 distance:
+The value function is
 \[
-  W_1(p_\text{data}, p_G) = \sup_{\norm{f}_L \leq 1} \E_{x\sim p_\text{data}}[f(x)] - \E_{z\sim p_z}[f(G(z))]
+  V(D,G) = \E_{x\sim p_{\text{data}}}[\log D(x)] + \E_{z}\bigl[\log(1-D(G(z)))\bigr] .
 \]
-by the Kantorovich-Rubinstein duality, where the supremum is over 1-Lipschitz functions.
-
-\textbf{WGAN-GP} (Gulrajani et al., 2017) enforces the Lipschitz constraint via a gradient penalty:
+For a fixed $G$ the optimal discriminator is
 \[
-  \mathcal{L}_{GP} = \lambda \cdot \E_{\hat{x}\sim p_{\hat{x}}} \left[(\norm{\nabla_{\hat{x}} f(\hat{x})}_2 - 1)^2\right]
+  D^{*}(x) = \frac{p_{\text{data}}(x)}{p_{\text{data}}(x) + p_G(x)} ,
 \]
-where $\hat{x} = \varepsilon x_\text{real} + (1-\varepsilon)x_\text{fake}$, $\varepsilon \sim U[0,1]$.
-Standard values: $\lambda=10$, $n_\text{critic}=5$.
-
-\textbf{Why $n_\text{critic}=5$:} the critic must accurately estimate $W_1$ before providing a useful gradient to the generator. Fewer updates underfit the critic, giving a biased gradient signal. 5 is the empirically validated minimum (Gulrajani et al., 2017).
-
-\textbf{Why $\beta_1=0$ in Adam:} in adversarial training, the correct gradient direction for the generator reverses each time the critic is updated. Momentum ($\beta_1 > 0$) accumulates the previous direction and corrupts the current gradient. $\beta_1=0$ uses only the current gradient.
+and substituting it back gives
+\[
+  V(D^{*},G) = 2\,\mathrm{JSD}\bigl(p_{\text{data}} \parallel p_G\bigr) - 2\log 2 .
+\]
+So the original GAN minimises the Jensen--Shannon divergence.
 }
 
 \analogybreak{
-The gradient penalty is computed at interpolated points, not directly on training data. This means the Lipschitz constraint is only approximately enforced (not everywhere). In practice, WGAN-GP is far more stable than weight clipping (Arjovsky 2017) or spectral normalisation, and remains the standard.
+That last identity is the whole trouble. Section~\ref{sec:jsd} showed JSD is
+constant at $\log 2$ whenever the two distributions have disjoint support ---
+which is the normal situation for a generator mapping $\R^{100}$ into $\R^{128}$.
+A constant objective has zero gradient, so the theoretical target provides no
+direction. The non-saturating patch above helps in practice without repairing the
+underlying geometry.
 }
 
 \whyhere{
-Both QuantGAN and FinGAN use WGAN-GP with $n_\text{critic}=5$, $\lambda_{gp}=10$, Adam $\beta_1=0$, $\beta_2=0.9$. These hyperparameters are floors, not arbitrary choices --- using $n_\text{critic}=1$ or $\lambda_{gp}=1$ would invalidate the Wasserstein approximation. This is documented in ED Table 3 of the paper.
+This is the theoretical case for replacing JSD with Wasserstein distance, taken up
+in \S\ref{sec:wgan}. It is also why TimeGAN, which retains a
+cross-entropy-style adversarial term, is more sensitive to its pre-training
+phases than the two WGAN-GP models are: its Phase 3 inherits exactly this
+gradient behaviour.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Nash Equilibrium and Why Training Oscillates}
+\label{sec:nash}
+
+\situation{
+Two people adjusting a shared thermostat, one preferring cold and one warm. Each
+responds sensibly to the current setting. The temperature never settles.
+}
+
+\problem{
+Ordinary training has a target: minimise the loss, and a falling loss means
+progress. In a two-player game there is no single quantity that should fall, so
+the usual reading of a training curve does not apply.
+}
+
+\workedarith{
+\textbf{The equilibrium.} A Nash equilibrium is a pair where neither player
+improves by moving alone. For a GAN the ideal is $p_G = p_{\text{data}}$ with
+$D \equiv 1/2$, giving
+\[
+  V = \log\tfrac12 + \log\tfrac12 = -1.386 = -2\log 2 ,
+\]
+consistent with $\mathrm{JSD} = 0$ in the identity above. \checkmark
+
+\medskip
+\textbf{Why it need not be reached.} Section~\ref{sec:minimax} showed the
+canonical failure on $L = xy$: simultaneous gradient steps multiply the distance
+from equilibrium by $\sqrt{1+\eta^2} > 1$ at every step, for any positive learning
+rate. The players spiral outward. Nothing about that argument depends on the
+objective being $xy$ specifically --- it is a property of opposed gradients.
+
+\medskip
+\textbf{What this means for loss curves.} Consider three scenarios and what the
+losses look like:
+
+\medskip
+\begin{tabular}{@{}lll@{}}
+\toprule
+Situation & $D$ loss & $G$ loss \\
+\midrule
+Healthy training      & oscillating & oscillating \\
+Discriminator wins    & near 0      & large \\
+Mode collapse         & near 0      & \emph{stable} \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textbf{Read the last row.} A collapsed generator produces one output, which the
+discriminator learns to reject perfectly, so both losses go flat. Flat losses ---
+the thing that signals success in ordinary training --- here signal the worst
+outcome.
+}
+
+\formaldef{
+A \textbf{Nash equilibrium} of $\min_G\max_D V(D,G)$ is a pair $(G^{*},D^{*})$
+with
+\[
+  V(D^{*},G^{*}) \leq V(D^{*},G) \ \forall G ,
+  \qquad
+  V(D^{*},G^{*}) \geq V(D,G^{*}) \ \forall D .
+\]
+Existence is guaranteed for convex--concave $V$ over compact convex strategy sets.
+A GAN's $V$ is neither convex in $G$'s parameters nor concave in $D$'s, so neither
+existence nor convergence of simultaneous gradient descent is guaranteed.
+}
+
+\analogybreak{
+``The GAN converged'' is not a claim these losses can support. Practitioners
+routinely stop on sample quality or an external metric instead, and that is not
+laziness --- it is the only defensible criterion available when the objective
+itself is uninformative.
+}
+
+\whyhere{
+This is why the pipeline trains for a \emph{fixed gradient-step budget} rather
+than to convergence, and why it carries explicit degeneracy guards: a check on the
+generated series' mean, standard deviation and ACF(1), and an autoencoder $R^2$
+threshold for TimeGAN. All model comparison happens in the external evaluation
+framework, never on training loss.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Mode Collapse}
+\label{sec:modecollapse}
+
+\situation{
+A student who has learned one answer that usually earns a pass writes it for every
+question. Marks are mediocre but never terrible, and the strategy is stable ---
+which is precisely why they never learn anything else.
+}
+
+\problem{
+The generator is rewarded for fooling the discriminator, not for variety. Nothing
+in the objective requires it to cover the data distribution, so collapsing onto a
+narrow region can be a locally optimal strategy.
+}
+
+\workedarith{
+\textbf{This project's case.} During a BOVESPA run, TimeGAN produced a series
+with:
+
+\medskip
+\begin{tabular}{@{}lrrl@{}}
+\toprule
+Statistic & Generated & Real & Verdict \\
+\midrule
+standard deviation & $0.0002$ & $0.0103$ & $51\times$ too small \\
+$\mathrm{ACF}(1)$  & $0.831$  & $\approx 0.03$ & wildly autocorrelated \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textbf{Reading the two numbers together.} A standard deviation $51\times$ too
+small means almost no variation --- the generator emits nearly the same value
+every day. An $\mathrm{ACF}(1)$ of $0.831$ against a real $0.03$ means consecutive
+values are strongly related, so what is being produced is a smooth drifting
+\emph{path}, not a return series.
+
+\medskip
+\textbf{Why each alone would be ambiguous.} A small standard deviation could in
+principle be a calm regime. A high ACF could be a modelling choice. Together they
+are unmistakable: a nearly constant, slowly wandering output.
+
+\medskip
+\textbf{The guard.} The pipeline checks every generated series against
+\[
+  |\text{mean}| < 0.01 , \qquad
+  0.001 < \text{sd} < 0.15 , \qquad
+  |\mathrm{ACF}(1)| < 0.3 ,
+\]
+and prints a warning on failure. The collapsed run above fails two of the three.
+In the later smoke test, TimeGAN produced $\mathrm{ACF}(1) = 0.429$ and $0.443$ ---
+still above the $0.3$ threshold, still flagged, but far from the $0.831$ of the
+full collapse.
+
+\medskip
+\textbf{And the reason metrics alone are insufficient.} Section~\ref{sec:duality}
+noted the Wasserstein floor. A constant-output generator scores $W_1$ equal to the
+real data's mean absolute deviation --- $0.00770$ for BOVESPA --- which a genuine
+but imperfect generator can easily exceed. Without the guards, collapse can win on
+individual metrics.
+}
+
+\formaldef{
+\textbf{Mode collapse} is the failure in which $G$ maps many distinct $z$ to few
+distinct outputs, so $p_G$ covers only part of $p_{\text{data}}$'s support. In
+the extreme, $G$ is nearly constant.
+
+Contributing causes: the objective rewards fooling $D$ rather than coverage;
+$\min_G\max_D$ solved in the wrong order favours a point mass at the discriminator's
+current weak spot; and reverse-KL-like objectives are mode-seeking
+(\S\ref{sec:kl}).
+}
+
+\analogybreak{
+Not every low-diversity output is mode collapse. A generator trained on a genuinely
+calm period should produce low-variance output, and calling that collapse would be
+wrong. What distinguishes the two is the comparison against the real data's own
+statistics on the \emph{same} period --- which is why the guard thresholds are
+anchored to measured BRICS values, $|{\rm mean}| < 0.001$ and daily volatility
+$0.9$--$2.0\%$, rather than chosen abstractly.
+}
+
+\whyhere{
+Mode collapse is the single most consequential failure mode in this benchmark,
+because a collapsed model can score well on several fidelity metrics by accident.
+Three independent safeguards address it: the post-generation guard above, the
+Hill $\alpha > 20$ rejection of \S\ref{sec:hillfail}, and the composite ranking
+design of Chapter~\ref{ch:evaluation}.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Lipschitz Continuity}
+\label{sec:lipschitz}
+
+\situation{
+A hiking trail with a posted maximum gradient. Whatever route you take between two
+points, the trail never climbs faster than the posted limit --- so knowing the
+horizontal distance between two points bounds how far apart they can be
+vertically.
+}
+
+\problem{
+Kantorovich--Rubinstein duality (\S\ref{sec:duality}) required the supremum to be
+taken over $1$-Lipschitz functions, and without that restriction the supremum is
+infinite and measures nothing. Making the constraint precise is the last step
+before WGAN.
+}
+
+\workedarith{
+\textbf{A Lipschitz function.} $f(x) = 3x$. For any $a, b$:
+\[
+  |f(a) - f(b)| = |3a - 3b| = 3|a-b| .
+\]
+So the ratio $|f(a)-f(b)|/|a-b|$ is exactly $3$ everywhere: $f$ is
+$3$-Lipschitz, and $3$ is the smallest such constant.
+
+\medskip
+\textbf{Check it on numbers.} $a = 1$, $b = 4$: $|3 - 12| = 9$ and
+$3|1-4| = 9$. \checkmark
+
+\medskip
+\textbf{A function that is not Lipschitz on $\R$.} $f(x) = x^2$. Take
+$b = a + 1$:
+\[
+  |f(a+1) - f(a)| = |a^2 + 2a + 1 - a^2| = |2a + 1| ,
+\]
+while $|b - a| = 1$. The ratio is $|2a+1|$, which grows without bound as $a$ does:
+
+\medskip
+\begin{tabular}{@{}lrr@{}}
+\toprule
+$a$ & ratio $|2a+1|$ & \\
+\midrule
+$1$    & $3$    & \\
+$10$   & $21$   & \\
+$1000$ & $2001$ & no constant works \\
+\bottomrule
+\end{tabular}
+
+\medskip
+No single $K$ bounds it, so $x^2$ is not Lipschitz on $\R$. It \emph{is} Lipschitz
+on any bounded interval --- on $[-5,5]$ the derivative $2x$ is capped at $10$, so
+it is $10$-Lipschitz there. Lipschitz continuity is a property of a function
+\emph{together with} its domain.
+
+\medskip
+\textbf{The derivative connection.} For differentiable $f$, the smallest valid $K$
+is $\sup_x |f'(x)|$. For $3x$ that is $3$; for $x^2$ on $\R$ it is unbounded.
+In several variables, $|f'|$ becomes $\norm{\nabla f}_2$ --- which is where the
+gradient norm enters.
+}
+
+\formaldef{
+$f$ is \textbf{$K$-Lipschitz} on a domain if
+\[
+  |f(a) - f(b)| \leq K\,\norm{a - b} \quad\text{for all } a,b
+\]
+in that domain. The smallest such $K$ is the \textbf{Lipschitz constant}. For
+differentiable $f$,
+\[
+  K = \sup_{x}\norm{\nabla f(x)}_2 .
+\]
+A $1$-Lipschitz function is one whose gradient norm never exceeds $1$ --- it
+cannot amplify distances.
+}
+
+\analogybreak{
+Lipschitz continuity bounds the \emph{rate} of change, not the size of the
+function. A $1$-Lipschitz function can take arbitrarily large values; it just
+cannot get there quickly. And the constraint is global: satisfying it on the
+training data says nothing about points in between, which is exactly the gap the
+gradient penalty's interpolation strategy is designed to cover.
+}
+
+\whyhere{
+This is the constraint that makes the critic's output a valid Wasserstein
+estimate. Because the smallest $K$ equals $\sup\norm{\nabla f}_2$, enforcing
+$1$-Lipschitz continuity means controlling the gradient norm --- and that is
+exactly what $\norm{\nabla D}_2 = 1$ asks for.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{WGAN and the Critic}
+\label{sec:wgan}
+
+\situation{
+Replace the teller who answers ``real or fake'' with an appraiser who assigns a
+score on an open scale. The appraiser never says ``certainly fake'', so there is
+no confident verdict at which the conversation stops being informative.
+}
+
+\problem{
+The discriminator's saturation (\S\ref{sec:adversarial}) and JSD's flatness on
+disjoint supports (\S\ref{sec:jsd}) are the same defect seen twice. Replacing the
+objective with $W_1$ fixes both, and duality makes it computable.
+}
+
+\workedarith{
+\textbf{What changes.}
+
+\medskip
+\begin{tabular}{@{}lll@{}}
+\toprule
+& Original GAN & WGAN \\
+\midrule
+Final layer   & sigmoid, output in $(0,1)$ & none, output in $\R$ \\
+Name          & discriminator & critic \\
+Loss          & binary cross-entropy & $\E[D(x_{\text{real}})] - \E[D(x_{\text{fake}})]$ \\
+Constraint    & none & $1$-Lipschitz \\
+Divergence    & JSD & $W_1$ \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textbf{The critic loss, read plainly.} The critic maximises the gap between its
+average score on real data and on fake data. By duality (\S\ref{sec:duality}),
+that maximised gap \emph{is} $W_1$ --- provided the critic stays $1$-Lipschitz.
+
+\medskip
+\textbf{Why the gradient does not vanish.} Recall the two point masses of
+\S\ref{sec:jsd}: $p$ at $0$, $q$ at $\theta$. JSD is $\log 2$ for every
+$\theta \neq 0$, giving zero gradient. $W_1 = |\theta|$, giving gradient $\pm 1$
+--- constant, non-zero, and pointing the right way, no matter how far apart the
+distributions start.
+
+\medskip
+\textbf{The generator's loss.} $G$ minimises $-\E[D(G(z))]$: push the critic's
+score on fakes upward. Unlike the original formulation, this gradient does not
+degrade when the critic is confident, because the critic has no saturating output
+to be confident with.
+}
+
+\formaldef{
+\textbf{WGAN} (Arjovsky et al.\ 2017) replaces the discriminator with a
+\textbf{critic} $D:\mathcal{X}\to\R$ and optimises
+\[
+  \min_G\max_{\norm{D}_L\leq 1}\;
+  \E_{x\sim p_{\text{data}}}[D(x)] - \E_{z\sim p_z}\bigl[D(G(z))\bigr] .
+\]
+When the critic is exactly $1$-Lipschitz and fully optimised, the inner maximum
+equals $W_1(p_{\text{data}}, p_G)$ by Kantorovich--Rubinstein duality.
+
+The original WGAN enforced the constraint by \textbf{weight clipping}, restricting
+every weight to $[-c,c]$. This works but is crude: it biases the critic toward
+simple functions and is sensitive to $c$.
+}
+
+\analogybreak{
+The critic's loss is a genuine $W_1$ estimate only when the critic is both exactly
+$1$-Lipschitz and fully optimised. Neither holds in practice: a finite network is a
+restricted function class, and the critic is trained for a handful of steps per
+generator update. The reported critic loss is therefore a lower bound on an
+approximation, and it is not comparable across architectures --- which is one more
+reason this project judges models externally rather than on training loss.
+}
+
+\whyhere{
+QuantGAN and FinGAN both use WGAN-GP. TimeGAN does not: it retains a
+cross-entropy-style adversarial term inside its Phase 3, which is one reason its
+behaviour differs and why its pre-training phases matter so much more.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{The Gradient Penalty}
+\label{sec:gp}
+
+\situation{
+Enforcing the trail's maximum gradient by inspecting every metre is impossible.
+Instead, inspect a random sample of points and fine any violation. Enforcement
+becomes statistical rather than absolute.
+}
+
+\problem{
+The Lipschitz constraint must hold everywhere, and there is no way to impose it
+exactly on a neural network. Weight clipping over-restricts. What is needed is a
+soft constraint (\S\ref{sec:lagrange}) that pushes the gradient norm toward 1
+where it matters.
+}
+
+\workedarith{
+\textbf{The penalty.}
+\[
+  \mathcal{L}_{\text{GP}} = \lambda\,\E_{\hat{x}}\Bigl[\bigl(\norm{\nabla_{\hat{x}}D(\hat{x})}_2 - 1\bigr)^2\Bigr] ,
+  \qquad \lambda = 10 .
+\]
+
+\medskip
+\textbf{What it costs.} Suppose at some point the gradient norm is:
+
+\medskip
+\begin{tabular}{@{}lrr@{}}
+\toprule
+$\norm{\nabla D}_2$ & $(\norm{\nabla D}_2 - 1)^2$ & penalty at $\lambda = 10$ \\
+\midrule
+$1.0$ & $0.00$ & $0.0$ \\
+$1.5$ & $0.25$ & $2.5$ \\
+$0.5$ & $0.25$ & $2.5$ \\
+$3.0$ & $4.00$ & $40.0$ \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textbf{Note it is two-sided.} A norm of $0.5$ is penalised as much as $1.5$. This
+is deliberate: the optimal critic under duality \emph{saturates} the constraint,
+achieving slope exactly 1 along the transport direction --- as $f(x) = -x$ did in
+\S\ref{sec:duality}. A critic with a systematically small gradient is
+under-using its budget and gives a weaker signal.
+
+\medskip
+\textbf{Where it is evaluated.} Not on real data, and not on fakes, but on random
+interpolations:
+\[
+  \hat{x} = \varepsilon x_{\text{real}} + (1-\varepsilon)x_{\text{fake}} ,
+  \qquad \varepsilon \sim U[0,1] .
+\]
+The straight line between a real and a fake sample is where the transport plan
+moves mass, so it is where the Lipschitz constraint actually binds. Enforcing it
+on the data alone would leave the space between unconstrained.
+
+\medskip
+\textbf{A concrete interpolation.} With $x_{\text{real}} = 0.02$,
+$x_{\text{fake}} = -0.01$ and $\varepsilon = 0.3$:
+\[
+  \hat{x} = 0.3(0.02) + 0.7(-0.01) = 0.006 - 0.007 = -0.001 .
+\]
+}
+
+\formaldef{
+\textbf{WGAN-GP} (Gulrajani et al.\ 2017) trains the critic on
+\[
+  \E_{\tilde{x}}[D(\tilde{x})] - \E_{x}[D(x)]
+  + \lambda\,\E_{\hat{x}}\Bigl[\bigl(\norm{\nabla_{\hat{x}}D(\hat{x})}_2 - 1\bigr)^2\Bigr] ,
+\]
+with $\hat{x}$ interpolated between real and generated samples and
+$\lambda = 10$ standard.
+
+The critic must not use \textbf{batch normalisation}: the penalty is a statement
+about the gradient at a single point, and batch normalisation makes each output
+depend on the rest of the batch, so the per-point gradient norm is no longer
+well defined. Layer normalisation is the usual substitute.
+}
+
+\analogybreak{
+The penalty enforces the constraint only on the sampled interpolation lines and
+only in expectation. Nothing guarantees $1$-Lipschitz behaviour elsewhere, so the
+critic is not genuinely $1$-Lipschitz and its output is not exactly $W_1$. This is
+a heuristic that works well, not a theorem being applied --- and the distinction
+matters when reading a critic loss as though it were a distance.
+}
+
+\whyhere{
+Both QuantGAN and FinGAN use $\lambda = 10$. FinGAN's critic uses layer
+normalisation rather than batch normalisation for exactly the reason above, and
+that is a correctness requirement rather than a tuning preference.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{$n_{\text{critic}}$ and the Compute Asymmetry}
+\label{sec:ncritic}
+
+\situation{
+Two athletes are to be compared fairly, so each is given the same number of
+training sessions. One trains alone; the other brings five sparring partners to
+every session. The session counts match. The effort does not.
+}
+
+\problem{
+Section~\ref{sec:sgd} established that budgets must be specified in gradient
+steps. But WGAN-GP takes several critic steps per generator step, so equal
+generator budgets do not imply equal work --- and the benchmark must state which
+quantity it is holding fixed.
+}
+
+\workedarith{
+\textbf{Why $n_{\text{critic}} > 1$.} Duality gives $W_1$ only when the critic is
+\emph{optimised}. An under-trained critic supplies a biased estimate and therefore
+a misleading gradient. Gulrajani et al.\ recommend $n_{\text{critic}} = 5$ as a
+practical floor, and this project uses it.
+
+\medskip
+\textbf{The arithmetic of the budget.} At $9{,}000$ generator updates:
+
+\medskip
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Model & Generator steps & $n_{\text{critic}}$ & Critic steps \\
+\midrule
+TimeGAN  & $9{,}000$ & --- & $9{,}000$ (one per generator step) \\
+QuantGAN & $9{,}000$ & $5$ & $45{,}000$ \\
+FinGAN   & $9{,}000$ & $5$ & $45{,}000$ \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textbf{And the wall-clock.} Measured on this project's hardware at $1{,}000$
+generator steps:
+
+\medskip
+\begin{tabular}{@{}lrr@{}}
+\toprule
+Model & Seconds & Relative \\
+\midrule
+TimeGAN  & $19.7$  & $1.0\times$ \\
+FinGAN   & $39.3$  & $2.0\times$ \\
+QuantGAN & $180.1$ & $9.1\times$ \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textbf{A $9\times$ spread at identical generator budgets.} The critic ratio
+explains part of it and architecture the rest --- QuantGAN's dilated convolutions
+over 128 steps are simply more expensive per step than TimeGAN's 24-unit GRU.
+
+\medskip
+\textbf{Which is the fair comparison?} Neither, on its own. Equalising generator
+updates controls the quantity that defines how much the generator learns, and it
+is the choice made here. Equalising wall-clock would answer a different and also
+legitimate question --- which model is best per unit of compute --- and would give
+TimeGAN roughly nine times as many steps as QuantGAN. The honest course is to fix
+one, report the other, and say which was fixed.
+}
+
+\formaldef{
+WGAN-GP performs $n_{\text{critic}}$ critic updates per generator update. Both
+critic and generator use Adam, conventionally with $\beta_1 = 0$ and
+$\beta_2 = 0.9$.
+
+$\beta_1 = 0$ disables momentum deliberately. In an adversarial game the useful
+gradient direction changes whenever the opponent updates, so accumulated momentum
+from previous steps points along a direction that is no longer relevant.
+}
+
+\analogybreak{
+$n_{\text{critic}} = 5$ is an empirical floor, not a derived optimum. Too few
+critic steps and the Wasserstein estimate is biased; too many and compute is
+wasted while the generator sees a critic that has over-fitted the current batch of
+fakes. No value makes the estimate exact, because the critic is a finite network
+trained for finitely many steps (\S\ref{sec:wgan}).
+}
+
+\whyhere{
+The pipeline asserts that all three models receive equal \emph{generator updates}
+and refuses to run otherwise, printing the critic-step counts and TimeGAN's
+pre-training steps alongside so the asymmetry is visible rather than hidden.
+Wall-clock is recorded per run and reported next to the step budget, because
+budget and cost are different claims and the Methods table needs both.
 }
 
 %% ─────────────────────────────────────────────────────────────────────────────
 \section{TimeGAN}
+\label{sec:timegan}
 
 \situation{
-You want to teach a machine to write convincing diary entries. First, you teach it to encode each entry into a compressed representation and decode back (autoencoder). Then you teach it to predict the next entry from the previous ones (supervisor). Only after these skills are established do you introduce the adversarial game.
+Teaching someone to write convincing diary entries. First they learn to summarise
+an entry and reconstruct it from the summary. Then they learn to predict tomorrow's
+summary from today's. Only once both skills exist do you introduce a critic.
+}
+
+\problem{
+A GAN operating directly on raw sequences must learn representation and temporal
+structure simultaneously through an adversarial signal alone. TimeGAN's answer is
+to learn both first, supervised, and let the adversary refine what is already
+there.
+}
+
+\workedarith{
+\textbf{The four components.}
+
+\medskip
+\begin{tabular}{@{}lll@{}}
+\toprule
+Component & Map & Role \\
+\midrule
+Embedder $e$   & $\mathcal{X}\to\mathcal{H}$ & compress a sequence to latent \\
+Recovery $r$   & $\mathcal{H}\to\mathcal{X}$ & decode latent back to data \\
+Supervisor $s$ & $\mathcal{H}\to\mathcal{H}$ & predict the next latent step \\
+Generator $G$  & $\mathcal{Z}\to\mathcal{H}$ & noise to latent sequence \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textbf{The phases.} Phase 1 trains the autoencoder to minimise
+$\norm{X - r(e(X))}^2$. Phase 2 trains the supervisor on
+$\norm{H_{t+1} - s(H_t)}^2$. Phase 3 trains everything jointly against a
+discriminator.
+
+\medskip
+\textbf{Why Phase 1 must succeed first.} If the autoencoder cannot reconstruct,
+the latent space carries no information about the data, and Phase 3's adversarial
+game is played entirely in a meaningless space.
+
+The pipeline therefore measures reconstruction $R^2$ and warns below $0.8$. The
+history of this measurement in the project is instructive:
+
+\medskip
+\begin{tabular}{@{}lrl@{}}
+\toprule
+Configuration & $R^2$ & \\
+\midrule
+Sigmoid latent, one batch per epoch & $\approx 0$ & latent stuck near $0.5069$ \\
+Tanh latent, full batch loop        & $+0.995$    & healthy \\
+\bottomrule
+\end{tabular}
+
+\medskip
+Both fixes were required: the activation change of \S\ref{sec:activations} and
+the batching fix of \S\ref{sec:sgd}.
+
+\medskip
+\textbf{Architecture.} GRU backbone, hidden dimension 24, 3 layers, learning rate
+$10^{-3}$, batch size 128. Parameter counts: embedder $9{,}744$, recovery
+$10{,}825$, generator $11{,}400$, supervisor $7{,}800$, discriminator $10{,}825$.
 }
 
 \formaldef{
-\textbf{TimeGAN} (Yoon et al., 2019) has four components:
-\begin{itemize}
-  \item \textbf{Embedder} $e: \mathcal{X} \to \mathcal{H}$: encodes real sequences to latent space
-  \item \textbf{Recovery} $\hat{r}: \mathcal{H} \to \mathcal{X}$: decodes latent back to sequence
-  \item \textbf{Supervisor} $s: \mathcal{H} \to \hat{\mathcal{H}}$: predicts next latent step from current
-  \item \textbf{Generator} $G: \mathcal{Z} \to \mathcal{H}$: maps noise to latent sequences
-\end{itemize}
+\textbf{TimeGAN} (Yoon et al.\ 2019) trains in phases, with the joint generator
+loss
+\[
+  \mathcal{L}_G = \mathcal{L}_U + 100\sqrt{\mathcal{L}_S} + 100\,\mathcal{L}_V ,
+\]
+where $\mathcal{L}_U$ is the unsupervised adversarial term, $\mathcal{L}_S$ the
+supervised latent-prediction term, and $\mathcal{L}_V$ a moment-matching term on
+mean and standard deviation.
 
-Four training phases:
-\begin{enumerate}
-  \item \textbf{Phase 1 --- Autoencoder:} $\min \|X - \hat{r}(e(X))\|^2$
-  \item \textbf{Phase 2 --- Supervisor:} $\min \|H_{t+1} - s(H_t)\|^2$ (temporal causality in latent space)
-  \item \textbf{Phase 3 --- Joint adversarial:}
-    \[
-      \mathcal{L}_G = \mathcal{L}_U + 100\sqrt{\mathcal{L}_S} + 100\,\mathcal{L}_V
-    \]
-    where $\mathcal{L}_U$ = unsupervised GAN loss, $\mathcal{L}_S$ = supervised latent loss, $\mathcal{L}_V$ = moment-matching on mean/std
-  \item \textbf{Phase 4 --- Fine-tuning:} refine recovery with generated sequences
-\end{enumerate}
-Backbone: GRU (Gated Recurrent Unit). Hidden dim = 24, 3 layers, lr = $10^{-3}$.
+Phases 1 and 2 are \textbf{pre-training} required by the algorithm. This project
+budgets them separately --- $3{,}000$ steps each --- and excludes them from the
+generator-update parity check of \S\ref{sec:ncritic}, reporting them alongside.
 }
 
 \analogybreak{
-The latent-space supervisor is the key innovation: by training the supervisor to predict the next latent state, TimeGAN forces the latent space to encode temporal causality. However, this requires many gradient steps per phase to work. With \texttt{epochs=5} (as in the current smoke-test pipeline), each phase gets approximately 2 gradient steps --- far too few for the GRU to form any useful representation. TimeGAN results in the current draft should be interpreted as lower bounds.
+The latent supervisor is TimeGAN's central idea and its main fragility. It only
+helps if the latent space is informative, so the model is unusually sensitive to
+the quality of its pre-training --- more so than the two WGAN-GP models, which have
+no separate representation stage to get wrong. The $R^2$ guard exists because
+failure here is silent: Phase 3 runs perfectly happily on a useless embedding and
+reports plausible-looking losses.
 }
 
 \whyhere{
-TimeGAN's poor temporal ranking in the current results reflects training budget, not architectural weakness. The recommended training is $\geq 5{,}000$ iterations per phase (or $\geq 50$ epochs at the current batch size). The RunPod production run will use adequate epochs; the current paper's TimeGAN results are explicitly flagged as undertrained.
+TimeGAN's earlier poor showing in this project reflected two implementation
+defects rather than the architecture: sigmoid activations throttling the latent
+gradient, and a missing batch loop giving it a fraction of the intended training.
+Both are fixed, and the current results are the first that can be read as
+evidence about the architecture itself.
 }
 
 %% ─────────────────────────────────────────────────────────────────────────────
 \section{QuantGAN}
+\label{sec:quantgan}
 
 \situation{
-Instead of processing a sequence step-by-step (like a recurrent network), imagine looking at the whole sequence at once with multiple ``zoom levels'': a short zoom sees the last 2 days, a medium zoom sees the last week, a long zoom sees the last month. The network combines all zoom levels simultaneously to capture structure at every timescale.
+Rather than reading a sequence step by step, view the whole window at several zoom
+levels at once --- one filter seeing adjacent days, another every second day,
+another every fourth --- and combine them.
+}
+
+\problem{
+Recurrent models process sequences serially and their memory decays
+(\S\ref{sec:rnn}). Convolutions are parallel and stable but see a narrow window
+unless made very deep. Dilation buys reach without depth.
+}
+
+\workedarith{
+\textbf{The architecture.} Three temporal blocks, each containing \emph{two}
+causal convolutions of kernel size 3, with dilations $1, 2, 4$ and channel widths
+$[64, 64, 32]$.
+
+\medskip
+\textbf{Receptive field, computed properly.} Each convolution with kernel $k$ and
+dilation $d$ extends the field by $(k-1)d$. With two convolutions per block:
+
+\medskip
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Block & Dilation & Extension $2(k-1)d$ & Cumulative \\
+\midrule
+--- & --- & --- & $1$ \\
+0 & $1$ & $4$  & $5$ \\
+1 & $2$ & $8$  & $13$ \\
+2 & $4$ & $16$ & $29$ \\
+\bottomrule
+\end{tabular}
+
+\[
+  R = 1 + 2(k-1)\sum_l d_l = 1 + 4(1 + 2 + 4) = 29 .
+\]
+
+\medskip
+\textbf{Twenty-nine days, not eight.} A common shortcut quotes $2^{K}$ for $K$
+blocks, giving $8$ here. That formula ignores both the kernel size and the second
+convolution in each block, and understates the true field by a factor of nearly
+four.
+
+\medskip
+\textbf{What 29 days means.} The output at any position depends on roughly six
+trading weeks of history --- and on nothing before that. Section~\ref{sec:acf}
+measured $\hat\rho(|r|, 50) = +0.05$, still around twice the significance band, so
+there is genuine structure beyond the horizon this architecture can represent.
 }
 
 \formaldef{
-\textbf{QuantGAN} (Wiese et al., 2020) uses a \textbf{Temporal Convolutional Network} (TCN) with \emph{causal dilated convolutions}:
-\begin{itemize}
-  \item \textbf{Causal:} the convolution at time $t$ only sees inputs at times $\leq t$ (no future leakage)
-  \item \textbf{Dilated:} dilation $d$ means the filter sees steps $t, t-d, t-2d, \ldots$ (stride-$d$ subsampling in the receptive field)
-\end{itemize}
-With $K$ residual blocks of dilations $1, 2, 4, \ldots, 2^{K-1}$, the receptive field = $2^K$ steps.
+\textbf{QuantGAN} (Wiese et al.\ 2020) uses temporal convolutional networks for
+both generator and critic, trained with WGAN-GP.
 
-Three TCN blocks with dilations 1/2/4: receptive field = 8 steps. For a 128-step sequence, this covers the full window.
-
-WGAN-GP with $n_\text{critic}=5$, $\lambda_{gp}=10$.
-Noise dim = 100, lr = $10^{-4}$.
+Configuration here: noise dimension 100, sequence length 128, batch size 64,
+learning rate $10^{-4}$ for both networks, $n_{\text{critic}} = 5$,
+$\lambda = 10$.
 }
 
 \analogybreak{
-The parallel multi-scale processing is the key advantage over RNNs: a GRU must ``remember'' information across many steps using a hidden state of fixed size, leading to gradient issues for long horizons. A dilated TCN accesses all timescales in one forward pass without vanishing gradients. The tradeoff: TCN is less natural for autoregressive modelling (each step predicts the next), and its inductive bias may over-smooth long-range structure.
+A large receptive field bounds what the model \emph{can} attend to, not what it
+does. The 29-day figure is a ceiling. It is also a hard one: dependence beyond 29
+days cannot be represented at all, which sits uncomfortably beside the long-memory
+findings of \S\ref{sec:hurst}, where volatility autocorrelation remains
+measurable well past lag 50. Extending the field requires a fourth block --- at
+dilation 8, adding $32$ to give $61$.
 }
 
 \whyhere{
-QuantGAN's TCN architecture is well-suited to the multi-scale structure of BRICS volatility: intraday effects (1--5 days), weekly patterns (5 days), and monthly cycles (20 days) are all covered by dilations 1/2/4 in a 128-step window. QuantGAN achieves the best composite ranking in current (smoke-test) results.
+QuantGAN led the composite ranking in this project's smoke test with a
+composite rank of $1.50$ against FinGAN's $1.93$ and TimeGAN's $2.57$. Those are
+smoke-test numbers at $1{,}000$ generator steps on one market and one seed, and
+they are not the benchmark result. The receptive-field limit above is a concrete,
+falsifiable prediction about where QuantGAN should underperform in the full run:
+on \texttt{hurst\_diff} and long-lag ACF, not on short-horizon clustering.
 }
 
 %% ─────────────────────────────────────────────────────────────────────────────
 \section{FinGAN}
+\label{sec:fingan}
 
 \situation{
-Image-generating GANs start from a small noisy image ($4\times 4$ pixels) and progressively upsample it to full resolution ($256\times 256$), adding detail at each step. FinGAN adapts this idea to sequences: start from a short noise vector and upsample via transposed convolutions to a full 128-step return sequence.
+Image GANs begin with a coarse grid and upsample repeatedly, adding detail at each
+stage. FinGAN applies the same idea to sequences: start from a short noise vector
+and expand it to a full 128-step series.
+}
+
+\problem{
+The benchmark needs a baseline representing the standard convolutional
+image-generation approach transferred to time series, deliberately simple, so that
+the effect of its inductive bias can be isolated.
+}
+
+\workedarith{
+\textbf{The generator.} Three \texttt{ConvTranspose1d} blocks with stride 2, base
+channels 64. Each doubles the sequence length:
+\[
+  16 \to 32 \to 64 \to 128 .
+\]
+This is why the sequence length must be divisible by $2^3 = 8$: at $128$,
+$128/8 = 16$ is the starting length. A sequence length of $100$ would fail, since
+$100/8 = 12.5$.
+
+\medskip
+\textbf{The critic} mirrors this with strided \texttt{Conv1d} layers and
+\textbf{layer} normalisation --- not batch normalisation, for the reason given in
+\S\ref{sec:gp}: the gradient penalty is a per-point quantity, and batch
+normalisation would make each output depend on the rest of the batch.
+
+\medskip
+\textbf{Cost.} At $1{,}000$ generator steps FinGAN took $39.3$s against
+QuantGAN's $180.1$s --- roughly a fifth of the compute for the same generator
+budget, since transposed convolutions over a short latent sequence are far cheaper
+than dilated convolutions over 128 steps.
 }
 
 \formaldef{
-\textbf{FinGAN} (this paper): CNN deconvolution WGAN-GP.
-\begin{itemize}
-  \item Generator: 3$\times$ \texttt{ConvTranspose1d} with stride 2, base channels = 64
-  \item Critic: mirror architecture with \texttt{Conv1d} and LayerNorm (not BatchNorm)
-  \item seq\_len must be divisible by 8 ($= 2^3$ from 3 upsampling blocks)
-\end{itemize}
+\textbf{FinGAN}, as implemented here, is a transposed-convolution WGAN-GP:
+generator of three \texttt{ConvTranspose1d} blocks with stride 2; critic mirroring
+with \texttt{Conv1d} and layer normalisation; noise dimension 100, batch size 64,
+learning rate $10^{-4}$, $n_{\text{critic}} = 5$, $\lambda = 10$.
 
-\textbf{Why LayerNorm in the critic, not BatchNorm:} the WGAN-GP gradient penalty is computed at a single interpolated point $\hat{x}$. BatchNorm normalises across the batch, introducing a dependency on other batch members that corrupts the per-point gradient norm calculation. LayerNorm normalises across channels at each point independently.
+Constraint: $\texttt{seq\_len}$ must be divisible by 8.
 }
 
 \analogybreak{
-The image-GAN inductive bias assumes hierarchical structure: coarse features first, fine details added later. Market return sequences may not have this structure --- the fine-scale noise on any given day is not a refinement of the coarse-scale trend. This may explain FinGAN's weaker performance relative to QuantGAN, whose temporal convolutions are better suited to sequential dependencies.
+The upsampling bias assumes hierarchical structure --- coarse features first, fine
+detail as refinement. Images have this; return series plausibly do not. A day's
+idiosyncratic move is not a refinement of the month's trend, it is a separate
+shock. If FinGAN underperforms QuantGAN, that mismatch is the natural explanation,
+and it is a hypothesis the benchmark can test rather than an assumption.
 }
 
 \whyhere{
-FinGAN serves as a baseline for CNN-based approaches to financial time series. Its architecture is deliberately simple (3 upsampling blocks, no attention, no recurrence) to isolate the effect of the upsampling inductive bias. The sq\_len divisibility-by-8 constraint must be checked before training on any new dataset.
+FinGAN is the CNN baseline. Its architecture is deliberately plain --- three
+upsampling blocks, no attention, no recurrence --- so that its results speak to the
+upsampling inductive bias rather than to architectural sophistication. The
+divisibility constraint is a real precondition to check before running on any new
+sequence length.
 }

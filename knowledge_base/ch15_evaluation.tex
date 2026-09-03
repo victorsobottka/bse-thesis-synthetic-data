@@ -1,135 +1,700 @@
-\chapter{Evaluation: Metrics, Taxonomy, and the Shuffled-Control Audit}
+\chapter{Evaluating Synthetic Data}
 \label{ch:evaluation}
 
-%% ─────────────────────────────────────────────────────────────────────────────
-\section{The Metric Taxonomy}
+\begin{tcolorbox}[feynbox={Sky}{BBg},title={Before and After}]
+\textbf{Before this chapter you need:} permutations and independence
+(\S\ref{sec:joint}), the CDF (\S\ref{sec:distributions}), hypothesis testing,
+$p$-values, power and multiple testing
+(\S\ref{sec:hypothesis}--\S\ref{sec:multipletesting}), autocorrelation and Hurst
+(\S\ref{sec:acf}, \S\ref{sec:hurst}), tail index (\S\ref{sec:moments}),
+Wasserstein distance (\S\ref{sec:wasserstein}), the stylised facts
+(\S\ref{sec:stylisedfacts}).\\
+\textbf{After it you will understand:} the single structural property ---
+permutation invariance --- that determines what any metric can possibly detect,
+why nine of nineteen ranked metrics shared it and handed victory to a shuffled
+deck, and the taxonomy that repairs it.
+\end{tcolorbox}
 
-\situation{
-You built a machine that generates fake playing cards. You want to check whether the fakes are good. You could count the card values (does the fake deck have the right number of aces?) --- that's a \emph{fidelity} check. But you could also shuffle the deck and see if the pattern looks natural --- that's a \emph{temporal} check. Both are necessary; neither alone is sufficient.
-}
-
-\formaldef{
-We classify all evaluation metrics into three groups:
-
-\medskip
-\textbf{Fidelity metrics} (7, permutation-invariant): measure the marginal distribution of $r_t$ only. A metric $m$ is permutation-invariant if $m(\pi(r)) = m(r)$ for any permutation $\pi$. These metrics score the shuffled control perfectly by construction.
-\begin{itemize}
-  \item \texttt{mean\_diff}: $|\bar{r}_\text{real} - \bar{r}_\text{syn}|$
-  \item \texttt{std\_diff}: $|\text{sd}(r_\text{real}) - \text{sd}(r_\text{syn})|$
-  \item \texttt{wasserstein}: $W_1(p_\text{real}, p_\text{syn})$
-  \item \texttt{quantile\_mse}: $K^{-1}\sum_k (Q_\text{real}(\alpha_k) - Q_\text{syn}(\alpha_k))^2$
-  \item \texttt{tail\_index\_diff}: $|\hat{\alpha}_\text{real} - \hat{\alpha}_\text{syn}|$ (Hill estimator, top 5\%)
-  \item \texttt{extreme\_events\_diff}: $|P_\text{real}(|r|>2\sigma) - P_\text{syn}(|r|>2\sigma)|$
-  \item \texttt{energy\_distance}: $2\E\|X{-}Y\| - \E\|X{-}X'\| - \E\|Y{-}Y'\|$
-\end{itemize}
-
-\textbf{Temporal metrics} (7, ordering-sensitive): measure properties that depend on the sequence of $r_t$. The shuffled control scores poorly on all of these.
-\begin{itemize}
-  \item \texttt{acf\_returns\_mae}: ACF-MAE of $r_t$ at lags 1--20 (tests fact~2)
-  \item \texttt{acf\_absolute\_mae}: ACF-MAE of $|r_t|$ (tests volatility clustering, fact~3)
-  \item \texttt{acf\_squared\_mae}: ACF-MAE of $r_t^2$ (tests ARCH effects, fact~6)
-  \item \texttt{hurst\_diff}: $|H_\text{real} - H_\text{syn}|$ applied to $|r_t|$ (tests fact~4)
-  \item \texttt{resid\_kurtosis\_diff}: $|\kappa_\text{real} - \kappa_\text{syn}|$ for GARCH residuals (tests fact~7)
-  \item \texttt{discriminative\_auc\_dist}: $|\text{AUC} - 0.5|$ from logistic classifier
-  \item \texttt{discriminative\_auc\_absz}: $|(\text{AUC} - 0.506)/0.084|$ (z-score vs empirical null)
-\end{itemize}
-
-\textbf{Descriptive metrics} (7, excluded from composite): computed and displayed for diagnosis only.
-\begin{itemize}
-  \item \texttt{kurtosis\_diff}: $\E[X^4]=\infty$ for $\hat{\alpha}<4$; sample values diverge with $n$
-  \item \texttt{skewness\_diff}: $\E[X^3]=\infty$ for $\hat{\alpha}<3$ (4/5 BRICS markets)
-  \item \texttt{arch\_pvalue\_diff}: saturates on real data ($|\Delta p|=0.000000$)
-  \item \texttt{arch\_stat\_diff}: null sd 46.4 on simulated GARCH; too noisy to rank
-  \item \texttt{var\_coverage\_error}: unconditional VaR; cannot distinguish Gaussian noise from real
-  \item \texttt{garch\_persistence\_diff}: sd 0.31 across seeds; range 0.000--0.985
-  \item \texttt{discriminative\_auc\_raw}: raw AUC value (superseded by dist/absz variants)
-\end{itemize}
-}
-
-\whyhere{
-The three-group taxonomy is the central methodological contribution of this paper. The composite score $= (\text{fidelity\_rank} + \text{temporal\_rank})/2$ gives equal weight to both families regardless of how many individual metrics each contains. The shuffled control is always shown in the results table with NaN ranks --- it serves as the adversarial baseline.
-}
+Training defines what a model optimises; evaluation defines what counts as
+success. This chapter argues that the second is the harder problem, and that
+getting it wrong is easy to do without noticing.
 
 %% ─────────────────────────────────────────────────────────────────────────────
-\section{The Shuffled-Control Audit}
+\section{What Evaluation Must Answer}
+\label{sec:evalquestions}
 
 \situation{
-You buy a set of playing cards supposedly shuffled randomly. To test the shuffler, you check: (1) are the right cards present (4 of each value)?  (2) is the ordering random? Test (1) passes trivially --- you can count cards without looking at order. Test (2) is the harder test that actually verifies the shuffle.
+Someone hands you a synthetic dataset and says it looks like the real thing.
+Looks how? Under what test? A picture of two overlapping histograms is not an
+answer, and neither is a single number without an account of what it can miss.
+}
+
+\problem{
+There is no likelihood to report (\S\ref{sec:mletraining}), so evaluation must
+work entirely from samples. The danger is not that a metric gives a wrong number;
+it is that a metric gives a right number to a question nobody meant to ask.
 }
 
 \workedarith{
-Shuffled control construction:\\
+\textbf{Three separable questions.}
+
+\medskip
+\begin{tabular}{@{}lll@{}}
+\toprule
+Question & What it asks & Family \\
+\midrule
+Are the values right? & marginal distribution of $r_t$ & fidelity \\
+Is the ordering right? & dependence between $r_t$ and $r_{t-k}$ & temporal \\
+Is it useful? & does a model fitted on it work on real data & downstream \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textbf{They are genuinely independent.} A series can pass any one and fail the
+others:
+
+\begin{itemize}
+  \item Shuffled real data: perfect on the first, fails the second.
+  \item Gaussian noise with the right variance: passes crude versions of the
+        first, fails on tails and on all of the second.
+  \item A memorised replay of the training set: passes all three and generates
+        nothing new.
+\end{itemize}
+
+\medskip
+\textbf{The consequence.} No single number answers all three, and averaging them
+into one lets a model strong in a well-populated family outvote its weakness
+elsewhere. Section~\ref{sec:permutation} shows this happening.
+}
+
+\formaldef{
+An evaluation framework for synthetic data comprises:
+\begin{itemize}
+  \item \textbf{fidelity} --- agreement of marginal distributions;
+  \item \textbf{temporal} --- agreement of dependence structure;
+  \item \textbf{downstream utility} --- performance of a model trained on
+        synthetic data and tested on real (Chapter~\ref{ch:downstream});
+  \item \textbf{controls} --- reference series with known properties, against
+        which the metrics themselves are validated.
+\end{itemize}
+The last is the one usually omitted, and it is what this chapter argues cannot be.
+}
+
+\analogybreak{
+Evaluation frameworks are themselves models, with assumptions that can fail. Every
+metric here assumes stationarity (\S\ref{sec:stationarity}) --- that the test
+distribution matches the training one --- which the MOEX structural break of
+\S\ref{sec:breaks} violates outright. A framework that never tests itself is in the
+same position as a generator that is never evaluated.
+}
+
+\whyhere{
+This is the methodological contribution of the thesis. The metrics themselves are
+standard; the taxonomy that organises them, and the control that validated the
+taxonomy, are what the framework adds.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Distributional Similarity and Statistical Distances}
+\label{sec:distances}
+
+\situation{
+Two bags of marbles. Same question asked three ways: is the largest colour
+imbalance small, is the total imbalance small, or is the work needed to convert
+one bag into the other small? Three sensible answers, three different numbers.
+}
+
+\problem{
+``The distributions match'' needs a metric, and different metrics respond to
+different kinds of disagreement. Choosing one without knowing what it is blind to
+is how a framework acquires a hole.
+}
+
+\workedarith{
+\textbf{Kolmogorov--Smirnov.} The largest vertical gap between two CDFs. Real
+$\{1,3,5\}$, synthetic $\{2,3,4\}$:
+
+\medskip
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+$x$ & $F_{\text{real}}$ & $F_{\text{syn}}$ & $|{\rm gap}|$ \\
+\midrule
+$1$ & $1/3$ & $0$   & $0.333$ \\
+$2$ & $1/3$ & $1/3$ & $0$ \\
+$3$ & $2/3$ & $2/3$ & $0$ \\
+$4$ & $2/3$ & $1$   & $0.333$ \\
+$5$ & $1$   & $1$   & $0$ \\
+\bottomrule
+\end{tabular}
+
+$D_{\rm KS} = 0.333$, driven by the largest single discrepancy.
+
+\medskip
+\textbf{Wasserstein.} The average gap between sorted samples (\S\ref{sec:wasserstein}):
+$W_1 = \tfrac13(1 + 0 + 1) = 0.667$. It accumulates every discrepancy rather than
+taking the maximum.
+
+\medskip
+\textbf{Quantile MSE.} Squared differences at matched quantiles ---
+like $W_1$ but penalising large gaps disproportionately.
+
+\medskip
+\textbf{Energy distance.} $2\E\norm{X-Y} - \E\norm{X-X'} - \E\norm{Y-Y'}$, zero
+only when the distributions are identical, and sensitive to the whole shape.
+
+\medskip
+\textbf{Why KS is not used for ranking here.} It was designed for independent
+data. Returns are dependent, so the effective sample size is far below the nominal
+$n$ and KS $p$-values are badly anti-conservative. It is reported, not ranked.
+}
+
+\formaldef{
+Fidelity metrics used in this project, all permutation-invariant:
+\[
+  \texttt{mean\_diff},\;
+  \texttt{std\_diff},\;
+  \texttt{wasserstein},\;
+  \texttt{quantile\_mse},
+\]
+\[
+  \texttt{tail\_index\_diff},\;
+  \texttt{extreme\_events\_diff},\;
+  \texttt{energy\_distance} .
+\]
+Seven metrics. Each depends only on the multiset of values, never on their order.
+}
+
+\analogybreak{
+Every metric in this list has a floor set by the real data itself. Section
+\ref{sec:wasserstein} showed the Wasserstein floor: a generator emitting the
+constant $\mu$ scores $W_1$ equal to the real data's mean absolute deviation ---
+$0.00770$ for BOVESPA --- and a genuine but imperfect generator can score worse.
+Reading any of these metrics without knowing its floor invites exactly the wrong
+conclusion.
+}
+
+\whyhere{
+These seven constitute the fidelity family. \texttt{tail\_index\_diff} replaced
+\texttt{kurtosis\_diff} for the reasons in \S\ref{sec:kurtosis}: the population
+kurtosis is infinite at the measured tail indices, so ranking on its sample
+estimate ranks on noise.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Temporal Similarity}
+\label{sec:temporalsim}
+
+\situation{
+Two pieces of music using exactly the same notes in the same proportions. One is a
+melody; the other is the notes shuffled. Any measurement that counts notes calls
+them identical.
+}
+
+\problem{
+Fidelity metrics are blind to order by construction. Everything that makes a
+return series a \emph{series} rather than a bag of numbers must be measured by a
+second family, chosen so that shuffling changes the answer.
+}
+
+\workedarith{
+\textbf{The test any temporal metric must pass.} Shuffle the real data. A temporal
+metric must score the shuffle badly; a fidelity metric cannot.
+
+\medskip
+\begin{tabular}{@{}lrl@{}}
+\toprule
+Metric on shuffled real & Score & Correct? \\
+\midrule
+\texttt{wasserstein}       & $0.000\text{e}{+}00$ & yes, and useless \\
+\texttt{kurtosis\_diff}    & $1.78\times10^{-15}$ & yes, and useless \\
+\texttt{energy\_distance}  & $2.97\times10^{-5}$  & yes, and useless \\
+\midrule
+\texttt{acf\_returns\_mae}   & $0.043$ & penalised \\
+\texttt{acf\_absolute\_mae}  & $0.076$ & penalised \\
+\texttt{hurst\_diff}         & $0.052$ & penalised \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textbf{Read the top block.} Those are not failures of computation. The values are
+exactly right: a permutation has the identical distribution, so the distributional
+distance genuinely is zero. The metrics are working perfectly and answering a
+question that cannot distinguish the two series.
+
+\medskip
+\textbf{Read the bottom block.} Shuffling destroys autocorrelation and long
+memory, so these three respond. That responsiveness is the definition of a
+temporal metric.
+}
+
+\formaldef{
+Temporal metrics used here, all ordering-sensitive:
+\[
+  \texttt{acf\_returns\_mae},\;
+  \texttt{acf\_absolute\_mae},\;
+  \texttt{acf\_squared\_mae},\;
+  \texttt{hurst\_diff},
+\]
+\[
+  \texttt{resid\_kurtosis\_diff},\;
+  \texttt{discriminative\_auc\_dist},\;
+  \texttt{discriminative\_auc\_absz} .
+\]
+Seven metrics, matching the seven fidelity metrics in count --- which is what makes
+an unweighted mean of the two families defensible.
+}
+
+\analogybreak{
+Ordering-sensitivity is necessary but not sufficient. Three of these seven ---
+the ACF triple --- measure closely related quantities, so the family is less
+independent than its size suggests. Section~\ref{sec:multipletesting} made the
+same point about Bonferroni: correlated tests do not count as separate evidence,
+and seven correlated metrics are not seven independent checks.
+}
+
+\whyhere{
+The pairing of facts 2 and 3 from \S\ref{sec:stylisedfacts} is why three ACF
+metrics are needed rather than one. A generator producing independent noise
+matches \texttt{acf\_returns\_mae} perfectly --- real returns are nearly
+uncorrelated too --- while failing \texttt{acf\_absolute\_mae} completely. Only
+computing both catches it.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Discriminative and Predictive Scores}
+\label{sec:discriminative}
+
+\situation{
+The practical test of a forgery is whether an expert can tell. Rather than
+enumerating features, hand both to a classifier and see whether it can separate
+them.
+}
+
+\problem{
+Hand-chosen metrics test the properties we thought to test. A learned
+discriminator searches for \emph{any} exploitable difference, including ones not
+on the list --- which makes it the most general check available and the one most
+easily misread.
+}
+
+\workedarith{
+\textbf{The procedure.} Label real windows 1 and synthetic 0, train a classifier,
+report its AUC on held-out data.
+
+\medskip
+\begin{tabular}{@{}lll@{}}
+\toprule
+AUC & Reading & \\
+\midrule
+$0.50$ & cannot separate & synthetic is indistinguishable \\
+$0.75$ & separates well  & a detectable difference exists \\
+$1.00$ & perfect         & trivially distinguishable \\
+$0.30$ & anti-predictive & \emph{also} a detectable difference \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textbf{The direction bug.} Ranking ascending on raw AUC puts $0.30$ above
+$0.50$ --- treating anti-predictive as better than indistinguishable. But a
+classifier achieving $0.30$ can be made to achieve $0.70$ by inverting its output,
+so it has found just as much signal. The fix is to rank on $|{\rm AUC} - 0.5|$.
+
+\medskip
+\textbf{Null calibration.} Two samples from the \emph{same} distribution do not
+give exactly $0.5$. Fifteen real-versus-real half-splits gave
+\[
+  0.506 \pm 0.084 .
+\]
+An observed $0.62$ is therefore
+\[
+  z = \frac{0.62 - 0.506}{0.084} = 1.36 ,
+\]
+giving $p \approx 0.17$ --- not significant, despite looking well above $0.5$.
+
+\medskip
+\textbf{The CV shuffle bug.} Windows of 20 days overlap by 19 observations.
+Shuffling the cross-validation folds places near-duplicate windows in both train
+and test, leaking information. Measured effect on the null: $0.506 \to 0.584$.
+Unshuffled cross-validation is required.
+}
+
+\formaldef{
+The \textbf{discriminative score} is the AUC of a classifier trained to separate
+real from synthetic windows. Two derived metrics are ranked:
+\[
+  \texttt{discriminative\_auc\_dist} = |{\rm AUC} - 0.5| ,
+  \qquad
+  \texttt{discriminative\_auc\_absz} = \left|\frac{{\rm AUC} - 0.506}{0.084}\right| .
+\]
+Both are minimised at the generator's optimum. The raw AUC is retained as
+descriptive only.
+
+The \textbf{predictive score} (TSTR in its sequence form) trains a forecaster on
+synthetic data and measures its error on real data.
+}
+
+\analogybreak{
+A discriminator that cannot separate the two proves only that \emph{this}
+classifier, with these features and this much data, found nothing. A stronger
+model might. AUC near the null is evidence of indistinguishability at a stated
+level of scrutiny, never a proof of equality --- and \S\ref{sec:power} applies:
+failure to detect is not evidence of absence when power is unknown.
+}
+
+\whyhere{
+The three defects above --- direction, null calibration, and CV shuffling --- were
+found in this project's own implementation, and all three would inflate apparent
+performance if left uncorrected. They are documented as a caution: the
+discriminative score is the most general metric in the framework and the easiest
+to get quietly wrong.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{TSTR and TRTS}
+\label{sec:tstr}
+
+\situation{
+A flight simulator is not judged on how much it resembles a cockpit. It is judged
+on whether pilots trained in it can fly the aircraft.
+}
+
+\problem{
+Distributional and temporal metrics ask whether synthetic data \emph{looks} right.
+The question that matters to a user is whether it \emph{works} --- whether a model
+built on it performs on reality.
+}
+
+\workedarith{
+\textbf{The two protocols.}
+
+\medskip
+\begin{tabular}{@{}lll@{}}
+\toprule
+Protocol & Train on & Test on \\
+\midrule
+TSTR & synthetic & real \\
+TRTS & real      & synthetic \\
+TRTR & real      & real (the reference ceiling) \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textbf{TSTR is the one that matters.} It answers the practical question: if I had
+only synthetic data, would the model I build be any good on the real world? TRTS
+answers a narrower question --- whether the synthetic data is \emph{easy}, which a
+degenerate generator satisfies trivially.
+
+\medskip
+\textbf{The reference.} TRTR gives QLIKE $\approx -8.134$ on this project's pooled
+data. A synthetic dataset whose GARCH parameters transfer well should produce
+TSTR QLIKE close to that. The gap is the cost of using synthetic data instead of
+real.
+
+\medskip
+\textbf{Why the reference is essential.} Without TRTR, a TSTR QLIKE of $-7.9$ has
+no interpretation. Against $-8.134$ it is a small, quantified shortfall.
+}
+
+\formaldef{
+\textbf{TSTR} (Train on Synthetic, Test on Real) fits a downstream model on
+synthetic data, applies it to real data, and scores it. \textbf{TRTS} reverses the
+roles. \textbf{TRTR} trains and tests on real data and provides the upper
+reference.
+
+Here the downstream model is GARCH$(1,1)$: parameters are estimated on the
+synthetic series, used to filter the real series, and the resulting conditional
+VaR forecasts and QLIKE are scored --- the subject of
+Chapter~\ref{ch:downstream}.
+}
+
+\analogybreak{
+TSTR inherits every limitation of the downstream model it uses. Scoring through
+GARCH tests whether the synthetic data supports \emph{GARCH-shaped} volatility
+structure, and a generator producing a different but equally valid structure would
+be penalised. The protocol measures usefulness for one purpose, and generalises no
+further than that purpose.
+}
+
+\whyhere{
+TSTR is what makes the evaluation more than a similarity exercise. A generator
+matching every stylised fact and failing TSTR would be an interesting object and a
+useless tool. QLIKE is the primary downstream signal because it is a proper
+scoring rule and, at pooled $n \approx 2{,}480$, has adequate power ---
+which at per-market $n \approx 126$ it demonstrably does not
+(\S\ref{sec:qlike}).
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Permutation Invariance and the Shuffled Control}
+\label{sec:permutation}
+
+\situation{
+You buy a shuffling machine. To test it, you check that the deck still holds 52
+cards with four of each value --- and it does, every time. That check can never
+fail, because shuffling does not remove cards. You have verified nothing about
+shuffling.
+}
+
+\problem{
+This is not an analogy. It is what the evaluation framework was doing, and the
+control that exposed it is the central methodological finding of the thesis.
+}
+
+\workedarith{
+\textbf{The control.} Take the pooled real test data and permute it:
+\begin{quote}
 \texttt{rng = numpy.random.default\_rng(42)}\\
 \texttt{shuffled = rng.permutation(pooled\_real\_array).copy()}
-Scores of shuffled control on Fidelity metrics (pooled test set):
+\end{quote}
+The result has \emph{identical} values in a random order. It is the best possible
+fidelity generator --- it \emph{is} the real data --- and the worst possible
+temporal one.
+
+\medskip
+\textbf{What it scored.}
+
+\medskip
 \begin{tabular}{@{}lr@{}}
 \toprule
 Metric & Shuffled control \\
 \midrule
-wasserstein         & 0.000e+00 (exact zero) \\
-kurtosis\_diff      & $1.78\times10^{-15}$ (floating-point noise) \\
-energy\_distance    & $2.97\times10^{-5}$ \\
-mean\_diff          & $< 10^{-14}$ \\
-quantile\_mse       & $< 10^{-14}$ \\
+\texttt{wasserstein}        & $0.000\text{e}{+}00$ (exact zero) \\
+\texttt{kurtosis\_diff}     & $1.78\times10^{-15}$ (floating-point noise) \\
+\texttt{energy\_distance}   & $2.97\times10^{-5}$ \\
+\texttt{mean\_diff}         & $< 10^{-14}$ \\
+\texttt{quantile\_mse}      & $< 10^{-14}$ \\
 \midrule
-acf\_absolute\_mae  & 0.076 (correctly penalised) \\
-hurst\_diff         & 0.052 (correctly penalised) \\
+\texttt{acf\_absolute\_mae} & $0.076$ (correctly penalised) \\
+\texttt{hurst\_diff}        & $0.052$ (correctly penalised) \\
 \bottomrule
 \end{tabular}
 
-Under the old unweighted 19-metric composite: avg\_rank = 1.24 (shuffled) vs 2.47 (real-like generator). The shuffled deck won.
+\medskip
+\textbf{The verdict under the old design.} With nineteen metrics averaged
+unweighted, the shuffled control scored an average rank of
+\[
+  1.24 ,
+\]
+against $2.47$ for a genuine generator. \textbf{The shuffled deck won the
+benchmark.}
+
+\medskip
+\textbf{Why: count the invariant metrics.} Of the nineteen ranked metrics,
+\emph{nine} were permutation-invariant --- the seven current fidelity metrics plus
+\texttt{kurtosis\_diff} and \texttt{skewness\_diff}. Nine of nineteen, very nearly
+half, scored the shuffle perfectly by construction. No weighting of the remaining
+ten could overcome a near-perfect score on nine.
+
+\medskip
+\textbf{The arithmetic of the fix.} Split into two families of seven and average
+the \emph{family ranks} rather than the metric ranks:
+\[
+  \texttt{composite\_rank} = \tfrac12\bigl(\texttt{fidelity\_rank} + \texttt{temporal\_rank}\bigr) .
+\]
+Now a perfect fidelity score buys at most half the composite, and the shuffled
+control's temporal failure cannot be outvoted.
 }
 
 \formaldef{
-A metric $m$ is \textbf{permutation-invariant} if for all $r \in \R^n$ and all permutations $\pi \in S_n$:
+A metric $m$ is \textbf{permutation-invariant} if
 \[
-  m(\pi(r_1, \ldots, r_n)) = m(r_1, \ldots, r_n)
+  m\bigl(\pi(r_1,\ldots,r_n)\bigr) = m(r_1,\ldots,r_n)
 \]
-Any metric that depends only on the \emph{sorted} values (empirical CDF, moments, quantiles, order statistics) is permutation-invariant. This includes: Wasserstein, energy distance, KS statistic, kurtosis, skewness, mean, variance, tail index, extreme event rate.
+for every permutation $\pi$. Any metric depending only on the sorted values ---
+the empirical CDF, moments, quantiles, order statistics --- is invariant. This
+includes Wasserstein, energy distance, KS, kurtosis, skewness, mean, variance,
+tail index and extreme-event rate.
 
-A metric $m$ is \textbf{ordering-sensitive} if $\exists\, r, \pi$ such that $m(\pi(r)) \neq m(r)$. ACF, Hurst exponent, GARCH-based metrics, and the discriminative classifier (which uses time-window features) are all ordering-sensitive.
+A metric is \textbf{ordering-sensitive} if some permutation changes its value:
+ACF, Hurst, GARCH-based quantities, and any classifier using time-window features.
 }
 
 \analogybreak{
-The shuffled control is not a bad generator --- it is the best possible fidelity generator (it \emph{is} the real data). Its failure on temporal metrics is not a bug; it is the point. Any evaluation that does not include the shuffled control as a baseline cannot claim to have tested temporal structure.
+The shuffled control is not a bad generator. It is the \emph{best possible}
+fidelity generator, since it is the real data. Its failure on temporal metrics is
+not a bug to be explained away --- it is the point. And it is not a rival to be
+beaten: it is an instrument for testing the metrics, playing the role of a
+positive control in an experiment.
 }
 
 \whyhere{
-The shuffled control is a permanent entry in the evaluation table (with NaN composite rank). It plays the same role as a positive control in a biology experiment: it is expected to score well on fidelity and poorly on temporal. A GAN that scores worse than the shuffled control on temporal metrics has learned nothing about market dynamics.
+This finding restructured the evaluation. The control is now a permanent row in
+every results table with NaN composite rank, and any future metric added to the
+framework must be classified as invariant or ordering-sensitive before it can be
+ranked. An evaluation without such a control cannot claim to have tested temporal
+structure --- it can only claim not to have checked.
 }
 
 %% ─────────────────────────────────────────────────────────────────────────────
-\section{Discriminative AUC: Null Calibration and Direction Bug}
+\section{The Metric Taxonomy}
+\label{sec:taxonomy}
 
 \situation{
-You train a classifier to tell real returns from synthetic returns. If it achieves 50\% accuracy (random guessing), the synthetic data is indistinguishable from real. If it achieves 90\%, the synthetic data is clearly different.
+A hospital reports outcomes. Mixing survival rates, waiting times and satisfaction
+scores into one average produces a number that moves for reasons nobody can
+identify. Grouping them first makes the number interpretable.
+}
+
+\problem{
+The previous section established that families must be separated. This section
+states the resulting taxonomy and, equally importantly, why seven metrics are
+computed and deliberately excluded from ranking.
 }
 
 \workedarith{
-\textbf{Direction bug:} under ascending rank (lower is better), AUC = 0.30 ranked above AUC = 0.50. But AUC = 0.50 is \emph{better} (indistinguishable), and AUC = 0.30 is worse (the classifier is \emph{anti-predictive} --- it can tell real from fake by doing the opposite of its prediction). Fix: rank on $|\text{AUC} - 0.5|$.
+\textbf{Fidelity, 7 metrics}, permutation-invariant:
+\texttt{mean\_diff}, \texttt{std\_diff}, \texttt{wasserstein},
+\texttt{quantile\_mse}, \texttt{tail\_index\_diff},
+\texttt{extreme\_events\_diff}, \texttt{energy\_distance}.
 
-\textbf{Null calibration:} even with two samples from the same distribution, the classifier achieves AUC $\neq$ 0.5 exactly. Empirical null (15 real-vs-real half-splits): $0.506 \pm 0.084$.
+\medskip
+\textbf{Temporal, 7 metrics}, ordering-sensitive:
+\texttt{acf\_returns\_mae}, \texttt{acf\_absolute\_mae},
+\texttt{acf\_squared\_mae}, \texttt{hurst\_diff},
+\texttt{resid\_kurtosis\_diff}, \texttt{discriminative\_auc\_dist},
+\texttt{discriminative\_auc\_absz}.
 
-An observed AUC = 0.62: $z = (0.62 - 0.506)/0.084 = 1.36$, $p = 0.17$. Not significant.
+\medskip
+\textbf{Descriptive, 7 metrics}, computed and displayed, never ranked --- each for
+a stated reason:
 
-\textbf{CV shuffle bug:} 20-day windows overlap by 19 observations. Adding \texttt{shuffle=True} to the K-fold cross-validation puts near-duplicate windows in both train and test, creating look-ahead leakage. Measured null shift: $0.506 \to 0.584$ with shuffled CV. Unshuffled CV is correct.
+\medskip
+\begin{tabular}{@{}ll@{}}
+\toprule
+Metric & Why excluded \\
+\midrule
+\texttt{kurtosis\_diff}      & $\E[X^4] = \infty$ at $\hat\alpha < 4$ \\
+\texttt{skewness\_diff}      & $\E[X^3] = \infty$ in 4 of 5 markets \\
+\texttt{arch\_pvalue\_diff}  & saturates: $|\Delta p| = 0.000000$ on real data \\
+\texttt{arch\_stat\_diff}    & null sd $46.4$; too noisy to rank \\
+\texttt{var\_coverage\_error}& Gaussian noise and shuffled real both score $0.0227$ \\
+\texttt{garch\_persistence\_diff} & sd $0.31$ across seeds; range $0.000$--$0.985$ \\
+\texttt{discriminative\_auc\_raw} & direction bug; superseded by dist and absz \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textbf{Reading the exclusions.} These are not metrics that performed badly. They
+are metrics that cannot discriminate --- either because the quantity they estimate
+does not exist, or because their noise exceeds their signal, or because a
+degenerate control matches a genuine model on them. Computing and displaying them
+while refusing to rank on them is more honest than either ranking on them or
+dropping them silently.
+
+\medskip
+\textbf{The composite.}
+\[
+  \texttt{composite\_rank} = \tfrac12\bigl(\texttt{fidelity\_rank} + \texttt{temporal\_rank}\bigr) .
+\]
+Equal weight to both families regardless of how many metrics each contains.
+\texttt{avg\_rank}, the legacy unweighted mean, is retained for comparability only
+--- it is the score the shuffled control wins.
 }
 
 \formaldef{
-AUC (Area Under the ROC Curve) for a binary classifier: $\Prob(\hat{p}(x_\text{real}) > \hat{p}(x_\text{syn}))$.
+Ranking uses \texttt{na\_option='bottom'}: a metric that fails to compute yields
+NaN and ranks \emph{last}, so a failure counts as the worst outcome rather than
+being silently excluded. This is what prevents the Hill $\alpha > 20$ rejection of
+\S\ref{sec:hillfail} from becoming an advantage.
 
-The optimal value for a generator is $\text{AUC} = 0.5$ (chance level).
+The shuffled control appears in every table with NaN composite rank --- present as
+a reference, excluded from the competition.
+}
 
-Our two ranking metrics:
-\[
-  \texttt{discriminative\_auc\_dist} = \abs{\text{AUC} - 0.5}
-\]
-\[
-  \texttt{discriminative\_auc\_absz} = \abs{(\text{AUC} - 0.506) / 0.084}
-\]
-Both are minimised at the GAN optimum and entered into the Temporal family.
+\analogybreak{
+Two families of seven is a defensible balance, not a derived optimum. The metrics
+within each family are correlated (\S\ref{sec:temporalsim}), so neither family
+represents seven independent pieces of evidence, and a different reasonable
+taxonomy would give slightly different rankings. What the design guarantees is
+narrower and more important: no amount of fidelity performance can conceal a
+temporal failure.
 }
 
 \whyhere{
-The three bugs found in the discriminative AUC implementation (direction, null calibration, CV shuffling) are documented in ED Table 2 of the paper. They represent common pitfalls in synthetic data evaluation that affect published benchmarks. The corrected implementation is in cell \texttt{aaef7bd2} of \texttt{3\_4\_integrated\_pipeline.ipynb}.
+\texttt{composite\_rank} is the headline metric for model selection throughout the
+thesis, and the pipeline selects on it rather than on \texttt{avg\_rank}. The
+comment recording why sits in the code beside the selection, because this is
+precisely the kind of decision that gets silently reverted during a refactor.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Discriminative AUC: Null Calibration in Detail}
+\label{sec:aucnull}
+
+\situation{
+A metal detector that beeps occasionally on clean sand. Before trusting it on a
+beach, you must know its false-alarm rate on ground you know to be empty.
+}
+
+\problem{
+Section~\ref{sec:discriminative} introduced the AUC null of
+$0.506 \pm 0.084$. That number does real work in the framework, and where it comes
+from --- and what it costs to get wrong --- deserves setting out fully.
+}
+
+\workedarith{
+\textbf{How the null was measured.} Split the real data in half, label one half 1
+and the other 0, and train the classifier. There is genuinely nothing to find, so
+any AUC above $0.5$ is noise. Repeating fifteen times:
+\[
+  \text{AUC}_{\text{null}} = 0.506 \pm 0.084 .
+\]
+
+\medskip
+\textbf{Why not exactly $0.5$.} Finite samples, and a classifier flexible enough to
+fit some of the noise. The $+0.006$ offset is small; the $\pm 0.084$ spread is
+not.
+
+\medskip
+\textbf{What the spread implies.} A $95\%$ interval is roughly
+$0.506 \pm 1.96(0.084) = [0.34, 0.67]$. Any observed AUC inside that band is
+consistent with the synthetic data being indistinguishable from real.
+
+\medskip
+\begin{tabular}{@{}lrrl@{}}
+\toprule
+Observed AUC & $z$ & $p$ & Verdict \\
+\midrule
+$0.55$ & $0.52$ & $0.60$ & indistinguishable \\
+$0.62$ & $1.36$ & $0.17$ & indistinguishable \\
+$0.70$ & $2.31$ & $0.02$ & detectably different \\
+$0.90$ & $4.69$ & $<0.001$ & clearly different \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textbf{The cost of skipping this.} Judged against a theoretical $0.5$, an AUC of
+$0.62$ looks like a clear failure. Judged against the measured null, it is
+ordinary sampling noise. Without the calibration, the framework would report
+differences that are not there.
+
+\medskip
+\textbf{And the leakage figure again.} Shuffling the cross-validation folds moves
+the null from $0.506$ to $0.584$ --- a shift comparable to the entire effect one
+might hope to measure. Overlapping windows make unshuffled CV mandatory here.
+}
+
+\formaldef{
+\textbf{AUC} is $\Prob\bigl(\hat{p}(x_{\text{real}}) > \hat{p}(x_{\text{syn}})\bigr)$
+for a randomly chosen pair. The generator's optimum is $0.5$.
+
+The empirical null distribution --- $0.506 \pm 0.084$ from fifteen real-versus-real
+splits with unshuffled $K$-fold CV --- is what
+\texttt{discriminative\_auc\_absz} standardises against.
+}
+
+\analogybreak{
+The null is specific to this classifier, these features, this window length and
+this sample size. Change any of them and it must be re-measured. It is a property
+of the measurement apparatus, not a universal constant, and quoting
+$0.506 \pm 0.084$ in a different setting would be an error of the same kind as
+quoting a Hurst exponent without naming the estimator (\S\ref{sec:roughvol}).
+}
+
+\whyhere{
+Three defects were found and corrected in this metric: the direction bug,
+the missing null calibration, and CV shuffling. All three inflate apparent
+performance. They are reported in full because they are ordinary pitfalls rather
+than exotic ones, and a framework that documents its own near-misses is more
+trustworthy than one that presents only its final state.
 }

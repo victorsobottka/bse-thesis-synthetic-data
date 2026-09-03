@@ -1,0 +1,543 @@
+\chapter{Financial Generative Modelling}
+\label{ch:financial}
+
+\begin{tcolorbox}[feynbox={Sky}{BBg},title={Before and After}]
+\textbf{Before this chapter you need:} log returns (\S\ref{sec:logreturns}),
+expectation and variance (\S\ref{sec:expectation}--\S\ref{sec:variance}),
+covariance (\S\ref{sec:covariance}), quantiles and CDFs
+(\S\ref{sec:distributions}), stationarity and GARCH
+(\S\ref{sec:stationarity}, \S\ref{sec:garch}), tail index
+(\S\ref{sec:moments}).\\
+\textbf{After it you will understand:} the seven stylised facts with this
+project's measured values, what VaR and expected shortfall report, why the Sharpe
+ratio is misleading on heavy-tailed data, and what a structural break does to
+every assumption in the preceding chapters --- with the MOEX 2022 suspension as
+the worked case.
+\end{tcolorbox}
+
+This chapter is the domain half of the problem. It states what a synthetic return
+series must reproduce to be useful, and it does so in measurements rather than
+adjectives.
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Returns, Volatility and Scaling}
+\label{sec:volatility}
+
+\situation{
+Two funds report their year. One says ``up \$4 million''; the other ``up 12\%''.
+Only the second can be compared to anything. And neither says how nervous the year
+was --- a steady 12\% and a 12\% arrived at via two crashes are different products.
+}
+
+\problem{
+Level, change and risk are three different quantities, and financial data supplies
+only the first directly. Everything else is derived, and the derivations carry
+conventions worth stating explicitly.
+}
+
+\workedarith{
+\textbf{Return, restated.} From \S\ref{sec:logreturns},
+$r_t = \ln(P_t/P_{t-1})$, additive across time.
+
+\medskip
+\textbf{Volatility is a standard deviation of returns.} For the five markets in
+this project, measured over 2006--2026:
+
+\medskip
+\begin{tabular}{@{}lrr@{}}
+\toprule
+Market & Daily $\sigma$ & Annualised \\
+\midrule
+MOEX     & $1.87\%$ & $29.7\%$ \\
+BOVESPA  & $1.63\%$ & $25.9\%$ \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textbf{The $\sqrt{252}$ rule, derived.} If daily returns were independent with
+common variance $\sigma^2$, then over $T$ days variances add
+(\S\ref{sec:variance}):
+\[
+  \Var\!\left(\sum_{t=1}^{T} r_t\right) = T\sigma^2 ,
+  \qquad\text{so}\qquad
+  \sigma_T = \sigma\sqrt{T} .
+\]
+With 252 trading days, $\sqrt{252} = 15.87$. For MOEX:
+$1.87\% \times 15.87 = 29.7\%$. \checkmark
+
+\medskip
+\textbf{Why the rule is wrong here.} It assumed independence. Returns are
+uncorrelated but not independent (\S\ref{sec:covariance}), and volatility clusters,
+so realised annual volatility varies far more across years than the formula
+implies. The convention is retained for comparability, not accuracy.
+
+\medskip
+\textbf{Realised volatility.} An alternative estimate over a window:
+\[
+  \mathrm{RV}_t = \sqrt{\frac{1}{n}\sum_{i=t-n+1}^{t} r_i^2} ,
+\]
+which is what the rolling-volatility panel of the stylised-facts figure plots.
+}
+
+\formaldef{
+For a price series $\{P_t\}$:
+\[
+  r_t = \ln\frac{P_t}{P_{t-1}} , \qquad
+  \sigma = \sqrt{\Var(r_t)} , \qquad
+  \sigma_{\text{annual}} = \sigma\sqrt{252} .
+\]
+\textbf{Unconditional volatility} $\sigma$ is the long-run standard deviation;
+\textbf{conditional volatility} $\sigma_t$ is the standard deviation given
+information up to $t-1$, which is what GARCH models (\S\ref{sec:garch}).
+
+The distinction is central: $\sigma$ is a single number for the whole history,
+$\sigma_t$ is a series.
+}
+
+\analogybreak{
+Volatility is a symmetric measure applied to an asymmetric phenomenon. It treats a
+$3\%$ rise and a $3\%$ fall identically, whereas an investor does not, and it says
+nothing about the shape of the tail --- two series can share a standard deviation
+while one has a tail index of $2.5$ and the other is Gaussian. That is exactly why
+\texttt{std\_diff} alone is a weak metric and \texttt{tail\_index\_diff} is
+computed alongside it.
+}
+
+\whyhere{
+Volatility is the scale against which every guard threshold in the pipeline is
+set. The post-generation check requires a generated standard deviation between
+$0.001$ and $0.15$, bracketing the $0.9$--$2.0\%$ daily range measured across the
+five markets --- loose enough to admit any plausible market, tight enough to catch
+the collapse of \S\ref{sec:modecollapse} at $0.0002$.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{The Seven Stylised Facts}
+\label{sec:stylisedfacts}
+
+\situation{
+A forger studying banknotes lists the features to reproduce: the watermark, the
+thread, the paper weight, the microprint. The list is what makes forgery
+checkable --- and equally, what makes detection possible.
+}
+
+\problem{
+``Realistic returns'' must become a finite list of measurable properties, or there
+is no way to score a generator. Cont (2001) assembled the canonical list; this
+section attaches this project's own measurements to it.
+}
+
+\workedarith{
+\medskip
+\begin{tabular}{@{}rlll@{}}
+\toprule
+\# & Fact & Measured here & Metric \\
+\midrule
+1 & Heavy tails & $\hat\alpha = 2.54$--$3.21$ & \texttt{tail\_index\_diff} \\
+2 & No linear autocorrelation & $\hat\rho(r,1) = +0.03$ & \texttt{acf\_returns\_mae} \\
+3 & Volatility clustering & $\hat\rho(|r|,1) = +0.19$ & \texttt{acf\_absolute\_mae} \\
+4 & Long memory in volatility & $H = 0.57$--$0.65$ & \texttt{hurst\_diff} \\
+5 & Aggregational Gaussianity & --- & not scored \\
+6 & ARCH effects & $\hat\rho(r^2,1) = +0.17$ & \texttt{acf\_squared\_mae} \\
+7 & Conditional heavy tails & residual kurtosis $> 0$ & \texttt{resid\_kurtosis\_diff} \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textbf{Fact 1, in context.} A tail index near 3 means
+$\Prob(|r| > x) \sim x^{-3}$. The consequence, from \S\ref{sec:moments}: the
+fourth moment is infinite in all five markets, so kurtosis is not estimable.
+
+\medskip
+\textbf{Facts 2 and 3 together.} This is the pairing that defines the problem.
+Direction is unpredictable ($+0.03$, at the edge of the $\pm0.028$ band) while
+magnitude is strongly predictable ($+0.19$, seven times the band). A generator
+must reproduce \emph{both} --- and producing independent noise satisfies fact 2
+perfectly while failing fact 3 completely.
+
+\medskip
+\textbf{Fact 5, and why it is not scored.} Aggregational Gaussianity says that as
+returns are aggregated over longer horizons, their distribution approaches a
+normal --- monthly returns are closer to Gaussian than daily ones. It is a
+consequence of the CLT (\S\ref{sec:clt}) applying to sums. This project evaluates
+at the daily horizon only, so the fact is real but not measured here; scoring it
+would require re-aggregating the synthetic series, which is a natural extension.
+
+\medskip
+\textbf{Fact 7, the subtle one.} After dividing out GARCH volatility, the
+standardised residuals \emph{still} have excess kurtosis (Bollerslev 1987). Fat
+tails are not merely a by-product of clustering --- there is genuine conditional
+heavy-tailedness on top. A generator can reproduce facts 1 and 3 and still fail
+this, and \S\ref{sec:qmle} explains the QMLE design that makes the test
+non-circular.
+
+\medskip
+\textbf{The clustering ratio, restated.} From \S\ref{sec:conditional}, MOEX:
+$\Prob(A) = 3.8\%$ against $\Prob(A \mid B) = 22.9\%$, a ratio of $6.0$. Facts 3,
+4 and 6 are three different instruments measuring that one phenomenon.
+}
+
+\formaldef{
+The \textbf{stylised facts} of asset returns (Cont 2001) are empirical regularities
+observed across markets, instruments and periods. They are descriptive rather than
+derived from theory, and their value is that they are stable enough to serve as
+falsifiable targets.
+
+A generative model for financial returns is judged by how many it reproduces and
+how closely --- which is precisely the evaluation framework of
+Chapter~\ref{ch:evaluation}.
+}
+
+\analogybreak{
+The list is a necessary condition, never a sufficient one. A generator could
+reproduce all seven and still be useless --- for instance by memorising and
+replaying the training data, which matches every fact perfectly while generating
+nothing new. The shuffled-real control makes exactly this point in reverse: it
+matches every permutation-invariant fact by construction while destroying every
+temporal one.
+}
+
+\whyhere{
+These seven facts are what the fourteen ranked metrics measure. The mapping is not
+one-to-one --- facts 3, 4 and 6 are covered by four metrics between them, and fact
+5 by none --- and stating the mapping explicitly is what allows the evaluation to
+claim coverage rather than assume it.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Value at Risk}
+\label{sec:var}
+
+\situation{
+A bank asks: on a bad day, how much might we lose? Not the worst conceivable
+loss --- that is unbounded and useless for planning --- but a threshold exceeded
+only rarely.
+}
+
+\problem{
+Risk must become a single reportable number for capital rules and internal limits.
+Any such number discards information, and knowing exactly which information is
+discarded is the difference between using it and being misled by it.
+}
+
+\workedarith{
+\textbf{Definition by counting.} The $5\%$ VaR is the loss exceeded on $5\%$ of
+days --- the $5$th percentile of the return distribution.
+
+\medskip
+\textbf{Under a normal distribution.} With $\mu \approx 0$ and
+$\sigma = 1.63\%$ (BOVESPA), the $5\%$ quantile of a standard normal is
+$z_{0.05} = -1.645$:
+\[
+  \mathrm{VaR}_{0.05} = -1.645 \times 1.63\% = -2.68\% .
+\]
+On a \$1M position, about \$26{,}800.
+
+\medskip
+\textbf{Why that understates the risk.} The Gaussian assumption is wrong in
+exactly the region VaR cares about. At $\hat\alpha \approx 3$ the empirical $5\%$
+quantile is further out than the normal predicts, and the gap widens at more
+extreme levels: at $1\%$, the Gaussian says $-2.326\sigma$ while a heavy-tailed
+distribution says considerably more.
+
+\medskip
+\textbf{Empirical VaR instead.} Sort the returns and take the $5$th percentile
+directly. With $n = 496$ test observations, that is the $25$th smallest value
+($0.05 \times 496 = 24.8$). No distributional assumption needed --- and no ability
+to extrapolate beyond the sample either.
+
+\medskip
+\textbf{Counting violations.} If the model is correct, exceedances should occur on
+$5\%$ of days. Over $496$ days, expect $24.8$. Observing $40$ is $61\%$ too many;
+whether that is evidence of a broken model is the question
+Chapter~\ref{ch:downstream} answers.
+}
+
+\formaldef{
+\textbf{Value at Risk} at level $\alpha$ is the $\alpha$-quantile of the return
+distribution:
+\[
+  \mathrm{VaR}_\alpha = F^{-1}(\alpha) ,
+  \qquad\text{so}\qquad
+  \Prob\bigl(r_t < \mathrm{VaR}_\alpha\bigr) = \alpha .
+\]
+\textbf{Unconditional} VaR uses the whole-sample distribution and is a single
+number. \textbf{Conditional} VaR uses the distribution given information to
+$t-1$, typically $\mathrm{VaR}_{\alpha,t} = \hat\mu + \hat\sigma_t z_\alpha$ with
+$\hat\sigma_t$ from GARCH, and is a series that moves with the market.
+}
+
+\analogybreak{
+VaR reports a threshold and says nothing whatever about what lies beyond it. Two
+portfolios can share a $5\%$ VaR of $-2.7\%$ while one loses at most $3\%$ on its
+worst day and the other loses $40\%$. VaR is also not subadditive --- the VaR of a
+combined portfolio can exceed the sum of the parts --- so it can penalise
+diversification, which is why expected shortfall (\S\ref{sec:es}) has largely
+displaced it in regulation.
+}
+
+\whyhere{
+VaR is the downstream task in this thesis: a generator is useful if a risk model
+fitted to its synthetic output produces well-calibrated VaR forecasts on real
+data. That is the TSTR protocol of Chapter~\ref{ch:downstream}. The reference
+figure is the real-GARCH coverage error of $0.0259$.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Expected Shortfall}
+\label{sec:es}
+
+\situation{
+Told a river floods above 3 metres one year in twenty, you still do not know
+whether a flood year means 3.1 metres or 9. The threshold is not the damage.
+}
+
+\problem{
+VaR's blindness beyond the threshold is its central defect, and on heavy-tailed
+data that is where the loss lives. A measure that averages over the tail rather
+than pointing at its edge answers the question actually being asked.
+}
+
+\workedarith{
+Ten worst days from a sample, as percentage returns:
+\[
+  -2.8,\ -3.1,\ -3.4,\ -3.9,\ -4.2,\ -5.1,\ -6.0,\ -7.8,\ -11.2,\ -18.6 .
+\]
+
+Suppose these are the worst $10$ of $200$ days, so they are the worst $5\%$.
+
+\medskip
+\textbf{VaR at $5\%$} is the threshold: $-2.8\%$, the least bad of the ten.
+
+\medskip
+\textbf{Expected shortfall} is their average:
+\[
+  \mathrm{ES} = \frac{-2.8 -3.1 -3.4 -3.9 -4.2 -5.1 -6.0 -7.8 -11.2 -18.6}{10}
+  = \frac{-66.1}{10} = -6.61\% .
+\]
+
+\medskip
+\textbf{A factor of 2.4.} ES is more than twice VaR, and the gap is driven by the
+$-18.6\%$ day. Under a Gaussian the ratio would be about $1.25$; the heavier the
+tail, the wider the gap.
+
+\medskip
+\textbf{Why ES is subadditive and VaR is not.} ES averages over a tail region, and
+averages of sums are sums of averages, so combining portfolios cannot increase it
+beyond the sum. VaR reads off a single quantile, and quantiles do not add ---
+which permits the pathological cases where diversifying raises reported risk.
+}
+
+\formaldef{
+\textbf{Expected shortfall} (also conditional VaR, CVaR) at level $\alpha$ is
+\[
+  \mathrm{ES}_\alpha = \E\bigl[r \mid r \leq \mathrm{VaR}_\alpha\bigr]
+  = \frac{1}{\alpha}\int_0^{\alpha} F^{-1}(u)\,du .
+\]
+It is a \textbf{coherent} risk measure: monotone, translation-equivariant,
+positively homogeneous and subadditive. VaR fails subadditivity.
+
+Basel III replaced VaR with $97.5\%$ ES for market-risk capital, largely on these
+grounds.
+}
+
+\analogybreak{
+ES is harder to estimate than VaR precisely because it depends on the extreme
+tail, where data is scarcest. It also requires a finite mean of the tail, which by
+\S\ref{sec:moments} needs $\alpha > 1$ --- comfortably satisfied here at
+$2.54$--$3.21$, but not a free assumption. And backtesting ES is genuinely harder:
+it is not \emph{elicitable} on its own, so there is no scoring function whose
+minimiser is ES, which is why the Kupiec and Christoffersen tests of
+Chapter~\ref{ch:downstream} target VaR.
+}
+
+\whyhere{
+This thesis backtests VaR rather than ES for exactly that reason: Kupiec and
+Christoffersen are well-established VaR tests with clear nulls, and the equivalent
+machinery for ES is less settled. ES is the more defensible risk measure and the
+less tractable evaluation target, and the choice made here favours testability.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{The Sharpe Ratio and Portfolio Mathematics}
+\label{sec:sharpe}
+
+\situation{
+Two funds returned 15\% last year. One did it steadily; the other was up 60\% by
+June and down again by December. Comparing them on return alone is meaningless ---
+the second took far more risk for the same result.
+}
+
+\problem{
+Performance must be reported per unit of risk, not in isolation. The standard
+device does this by dividing by volatility --- which imports every limitation of
+volatility as a risk measure, and on heavy-tailed data that is a serious import.
+}
+
+\workedarith{
+\textbf{The ratio.} With mean excess return $\bar{r} - r_f$ and volatility
+$\sigma$:
+\[
+  S = \frac{\bar{r} - r_f}{\sigma} .
+\]
+
+Annual return $12\%$, risk-free $2\%$, volatility $18\%$:
+\[
+  S = \frac{0.12 - 0.02}{0.18} = 0.556 .
+\]
+
+\medskip
+\textbf{Annualising from daily.} A daily Sharpe of $0.035$ scales by $\sqrt{252}$
+--- the mean scales with $T$ and the volatility with $\sqrt{T}$, so the ratio
+scales with $\sqrt{T}$:
+\[
+  0.035 \times 15.87 = 0.556 .
+\]
+
+\medskip
+\textbf{Portfolio risk depends on covariance.} Two assets, weights $w_1, w_2$:
+\[
+  \sigma_p^2 = w_1^2\sigma_1^2 + w_2^2\sigma_2^2 + 2w_1w_2\rho\sigma_1\sigma_2 .
+\]
+With $\sigma_1 = \sigma_2 = 1.5\%$ and equal weights:
+
+\medskip
+\begin{tabular}{@{}lrl@{}}
+\toprule
+$\rho$ & $\sigma_p$ & \\
+\midrule
+$1.0$  & $1.50\%$ & no diversification \\
+$0.5$  & $1.30\%$ & partial \\
+$0.0$  & $1.06\%$ & full, $= 1.5/\sqrt{2}$ \\
+$-1.0$ & $0.00\%$ & perfect hedge \\
+\bottomrule
+\end{tabular}
+
+\medskip
+The same two marginals give portfolio risk anywhere in a $42\%$ range depending
+only on $\rho$ --- the point already made in \S\ref{sec:multivariate}.
+}
+
+\formaldef{
+The \textbf{Sharpe ratio} is
+\[
+  S = \frac{\E[r] - r_f}{\sqrt{\Var(r)}} ,
+\]
+scaling as $\sqrt{T}$ under aggregation when returns are independent.
+
+For a portfolio with weights $\mathbf{w}$ and covariance matrix $\Sigma$,
+\[
+  \sigma_p^2 = \mathbf{w}^{\!\top}\Sigma\,\mathbf{w} ,
+\]
+a quadratic form in the matrix language of \S\ref{sec:matmul}.
+}
+
+\analogybreak{
+The Sharpe ratio penalises upside and downside volatility identically, which no
+investor does, and it depends on a variance that exists here only because
+$\hat\alpha > 2$. Had the tail index fallen below 2, the denominator would be
+infinite and the ratio undefined. It is also easy to inflate: a strategy selling
+deep out-of-the-money options shows a superb Sharpe for years and then loses
+everything, because the risk it carries is entirely in the tail the denominator
+cannot see.
+}
+
+\whyhere{
+No Sharpe ratio is reported in this thesis, and the reason is worth stating: the
+generators are evaluated on distributional and temporal fidelity, not on trading
+performance. A synthetic series with a plausible Sharpe but wrong tail behaviour
+would be worse than useless for risk work, which is the intended application. The
+portfolio mathematics above is included to mark the boundary --- these are
+univariate models, and $\Sigma$ is exactly what they do not provide.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Structural Breaks and Regime Change}
+\label{sec:breaks}
+
+\situation{
+A river's flood records span eighty years. Halfway through, a dam was built
+upstream. Averaging all eighty years describes neither the pre-dam river nor the
+post-dam one.
+}
+
+\problem{
+Every method in this book has assumed stationarity --- that the rules generating
+the data do not change (\S\ref{sec:stationarity}). Real markets break that
+assumption, and this project's dataset contains a textbook case.
+}
+
+\workedarith{
+\textbf{MOEX, February 2022.} The Russian invasion of Ukraine produced, in order:
+
+\medskip
+\begin{tabular}{@{}ll@{}}
+\toprule
+Date & Event \\
+\midrule
+2022-02-24 & single-day return of $-33.3\%$ \\
+2022-02-25 to 2022-03-24 & exchange suspended, 27 trading days absent \\
+after & trading resumes under capital controls \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textbf{What the single day does to the statistics.} MOEX's sample kurtosis is
+$65.70$, the largest of the five markets, and it is driven overwhelmingly by this
+one observation. Per \S\ref{sec:kurtosis} that number estimates nothing --- the
+population kurtosis is infinite --- but it does show how one day dominates a
+20-year sample.
+
+\medskip
+\textbf{What the suspension does.} Twenty-seven trading days are simply missing.
+Any calculation treating consecutive rows as consecutive days silently bridges a
+month-long gap. The return computed across the reopening is not a daily return at
+all; it is a month's worth of accumulated news compressed into one row.
+
+\medskip
+\textbf{How the pipeline handles it.} The closure is recorded explicitly as a
+known gap rather than being interpolated or discarded silently. The alternatives
+are worse: interpolating invents data during precisely the period when the true
+value was undefined, and dropping the market entirely would remove the most
+informative regime change in the dataset.
+
+\medskip
+\textbf{What it means for the walk-forward protocol.} Folds are contiguous blocks
+in time, so one fold contains the break and its neighbours do not. That fold's
+training and test distributions genuinely differ, and a model that scores badly
+there may be behaving correctly --- it was trained on one regime and evaluated on
+another.
+}
+
+\formaldef{
+A \textbf{structural break} is a change in the data-generating process at some
+point in the sample: a shift in mean, variance, or dependence structure. It
+violates weak stationarity (\S\ref{sec:stationarity}), since the moments are no
+longer constant in time.
+
+Tests exist for a break at a known date (Chow) and at an unknown one
+(Quandt--Andrews, Bai--Perron). A \textbf{regime-switching} model instead treats
+the state as latent and estimates transition probabilities.
+}
+
+\analogybreak{
+Structural breaks are not outliers to be cleaned. Removing 2022-02-24 from MOEX
+would produce a better-behaved series describing a market that does not exist ---
+one in which invasions do not happen. The extreme observations are the phenomenon
+the thesis exists to model, and a generator that cannot produce them has failed at
+its actual job.
+
+It does not follow that anything goes. There is a real difference between a
+genuine $-33.3\%$ move and a data error, and only domain knowledge distinguishes
+them.
+}
+
+\whyhere{
+The MOEX case is why the train/validation/test split is strictly temporal
+(\S\ref{sec:stochproc}) and why results are reported per market rather than
+pooled for the headline comparison. It is also the honest limit on every
+stationarity-dependent metric in Chapter~\ref{ch:evaluation}: they assume the test
+distribution matches the training one, and for MOEX across 2022 that is false by
+construction. Where a model does poorly on MOEX, the regime change is a candidate
+explanation that must be ruled out before architecture is blamed.
+}
