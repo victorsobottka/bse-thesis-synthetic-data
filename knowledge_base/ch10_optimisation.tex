@@ -1,0 +1,681 @@
+\chapter{Optimisation}
+\label{ch:optimisation}
+
+\begin{tcolorbox}[feynbox={Sky}{BBg},title={Before and After}]
+\textbf{Before this chapter you need:} quadratics and curvature
+(\S\ref{sec:quadratics}), derivatives and the second-derivative test
+(\S\ref{sec:derivative}--\S\ref{sec:secondderiv}), partial derivatives, the
+gradient and the Hessian
+(\S\ref{sec:partials}--\S\ref{sec:gradient}, \S\ref{sec:hessian}), norms
+(\S\ref{sec:norms}), eigenvalues (\S\ref{sec:eigen}), expectation
+(\S\ref{sec:expectation}), the law of large numbers (\S\ref{sec:lln}).\\
+\textbf{After it you will understand:} what gradient descent actually does, why
+mini-batching is not merely a memory convenience, how a learning rate interacts
+with curvature, and why a minimax game does not converge in the way a
+minimisation does --- the structural reason GAN training is hard.
+\end{tcolorbox}
+
+Every model in this thesis is produced by minimising something. This chapter
+takes the gradient of Chapter~\ref{ch:calculus2} and builds the algorithms that
+use it, ending with the two-player problem that the rest of the thesis lives
+inside.
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Objective Functions}
+\label{sec:objective}
+
+\situation{
+You are packing a suitcase. You want everything to fit, nothing to break, and the
+weight under the airline limit. Before you can say whether one arrangement beats
+another, you have to decide what ``better'' means --- and different answers give
+different packings.
+}
+
+\problem{
+``Train the model'' is not yet a computation. It becomes one only when there is a
+single number to make small, and the choice of that number determines everything
+the model will and will not learn.
+}
+
+\workedarith{
+\textbf{Squared error.} Predictions $\hat{y} = (2, 5, 8)$ against truth
+$y = (3, 5, 6)$:
+\[
+  L = (2-3)^2 + (5-5)^2 + (8-6)^2 = 1 + 0 + 4 = 5 .
+\]
+
+\textbf{Absolute error} on the same data:
+\[
+  L = |2-3| + |5-5| + |8-6| = 1 + 0 + 2 = 3 .
+\]
+
+\medskip
+\textbf{They rank differently.} Compare two candidate predictors for
+$y = (3,5,6)$:
+\begin{itemize}
+  \item Predictor A errs by $(0, 0, 3)$: squared $= 9$, absolute $= 3$.
+  \item Predictor B errs by $(1, 1, 1)$: squared $= 3$, absolute $= 3$.
+\end{itemize}
+Squared error prefers B decisively; absolute error is indifferent. Squaring
+punishes one large mistake more than several small ones, so the objective encodes
+a judgement about which failures matter.
+
+\medskip
+\textbf{Why it matters here.} On heavy-tailed returns, squared error is dominated
+by the rare enormous days --- the same leverage that broke the ARCH-LM test in
+\S\ref{sec:archtest}. An objective is never neutral.
+}
+
+\formaldef{
+An \textbf{objective function} (or \textbf{loss}, or \textbf{cost})
+$L : \R^n \to \R$ maps parameters to a single number to be minimised. The problem
+\[
+  \theta^{*} = \arg\min_{\theta} L(\theta)
+\]
+asks for the parameters attaining the smallest value. Maximisation is the same
+problem applied to $-L$.
+
+$L$ typically averages over data: $L(\theta) = \frac{1}{N}\sum_{i=1}^{N}\ell(\theta; x_i)$,
+an estimate of the expected loss $\E[\ell(\theta; X)]$.
+}
+
+\analogybreak{
+The objective is a proxy for what you actually want, never the thing itself. This
+thesis wants generators that reproduce stylised facts; what gets minimised is an
+adversarial loss that mentions none of them. The gap between the two is why a
+separate evaluation framework exists at all --- and why a model can improve its
+training loss while getting worse at the job.
+}
+
+\whyhere{
+The three models minimise different objectives --- TimeGAN a sum of
+reconstruction, supervised and adversarial terms; QuantGAN and FinGAN a WGAN-GP
+critic loss. None of them optimises Wasserstein distance to the real marginal, ACF
+error, or tail index. The evaluation metrics are deliberately \emph{not} the
+training objectives, which is what stops the comparison being circular.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Local versus Global Minima}
+\label{sec:minima}
+
+\situation{
+You are dropped somewhere in a mountain range in thick fog and told to find the
+lowest point. You can feel the slope underfoot. Walking downhill until the ground
+is level lands you at the bottom of \emph{a} valley --- with no way of knowing
+whether a deeper one lies over the ridge.
+}
+
+\problem{
+Every practical algorithm is a fog-walker. It sees only local information, so it
+can certify only local optimality. Claims about global optima require either a
+special structure or an exhaustive search, and neither is available here.
+}
+
+\workedarith{
+Take $f(x) = x^4 - 4x^2 + x$. Then
+\[
+  f'(x) = 4x^3 - 8x + 1 .
+\]
+Stationary points occur near $x \approx -1.44$, $x \approx 0.13$ and
+$x \approx 1.32$. Evaluate:
+
+\medskip
+\begin{tabular}{@{}lrr@{}}
+\toprule
+$x$ & $f(x)$ & Type \\
+\midrule
+$-1.44$ & $-5.68$ & local minimum (the global one) \\
+$0.13$  & $+0.06$ & local maximum \\
+$1.32$  & $-3.52$ & local minimum \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textbf{The consequence.} Start the walk at $x = 2$ and the slope carries you to
+$1.32$, where $f = -3.52$. You stop, correctly, at a point where $f'(x) = 0$ and
+$f''(x) > 0$. And you are $2.16$ above the true minimum, with nothing in the local
+information to tell you so.
+
+\medskip
+\textbf{Starting point decides the outcome.} From $x = -2$ the same algorithm
+reaches $-1.44$ and the global minimum. Same objective, same rule, different
+answer --- determined entirely by initialisation.
+}
+
+\formaldef{
+$\theta^{*}$ is a \textbf{local minimum} if $L(\theta^{*}) \leq L(\theta)$ for all
+$\theta$ in some neighbourhood of $\theta^{*}$, and a \textbf{global minimum} if
+the inequality holds for all $\theta$ in the domain.
+
+First-order condition: $\nabla L(\theta^{*}) = \mathbf{0}$. Second-order
+sufficient condition: the Hessian is positive definite --- every eigenvalue
+positive (\S\ref{sec:eigen}) --- which is the many-variable version of
+$f''(a) > 0$.
+
+A point with $\nabla L = \mathbf{0}$ and mixed-sign eigenvalues is a
+\textbf{saddle}.
+}
+
+\analogybreak{
+In high dimensions the intuition from one variable misleads. For a random function
+of $n$ variables, a stationary point is a local minimum only if all $n$
+eigenvalues happen to be positive, which becomes vanishingly unlikely as $n$
+grows. Saddles, not spurious minima, are the dominant obstacle --- and a saddle
+has a downhill direction, so an algorithm that is not exactly stationary can
+eventually escape. That is part of why training very large models works better
+than the one-variable picture predicts.
+}
+
+\whyhere{
+Every result in this thesis is a local optimum, and nothing in the procedure
+certifies more. This is also why seeds are reported per seed and never averaged
+away: different seeds mean different initialisations, hence different valleys, and
+the spread across seeds is a genuine part of the finding rather than noise to be
+smoothed.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Convexity}
+\label{sec:convexity}
+
+\situation{
+A smooth bowl has one lowest point, and a marble released anywhere inside reaches
+it. An egg carton has many, and where the marble stops depends on where you
+dropped it. Whether a problem is easy or hard is largely the question of which
+shape you have.
+}
+
+\problem{
+The previous section showed local search cannot certify a global answer. There is
+one important exception, and knowing whether you are inside it tells you how much
+to trust the result.
+}
+
+\workedarith{
+\textbf{The chord test.} A function is convex if the straight line joining any two
+points on its graph never dips below the graph.
+
+For $f(x) = x^2$, take $x = 1$ and $x = 3$, with $f = 1$ and $9$. The midpoint of
+the chord is at height
+\[
+  \tfrac12(1 + 9) = 5 ,
+\]
+while the function at the midpoint $x = 2$ is $f(2) = 4$. Since $4 \leq 5$, the
+chord lies above. \checkmark
+
+\medskip
+\textbf{A non-convex case.} $g(x) = x^4 - 4x^2 + x$ from \S\ref{sec:minima}, at
+$x = -1.44$ and $x = 1.32$: heights $-5.68$ and $-3.52$, chord midpoint
+$\tfrac12(-5.68 - 3.52) = -4.60$. The midpoint is $x = -0.06$, where
+\[
+  g(-0.06) = 0.000013 - 0.0144 - 0.06 = -0.074 .
+\]
+Here $-0.074 > -4.60$: the function lies \emph{above} the chord. Not convex.
+\checkmark
+
+\medskip
+\textbf{Via the second derivative.} $f''(x) = 2 > 0$ everywhere for $x^2$ ---
+convex. For $g$, $g''(x) = 12x^2 - 8$, which is negative for
+$|x| < \sqrt{2/3} = 0.816$ --- so $g$ is concave in that band and convex outside.
+Mixed sign, not convex. \checkmark
+}
+
+\formaldef{
+$f$ is \textbf{convex} on a convex set if for all $x, y$ and $t \in [0,1]$
+\[
+  f\bigl(tx + (1-t)y\bigr) \leq t f(x) + (1-t) f(y) .
+\]
+For twice-differentiable $f$ this is equivalent to the Hessian being positive
+semi-definite everywhere.
+
+The essential consequence: \textbf{for a convex function every local minimum is
+global}, and the set of minimisers is convex.
+}
+
+\analogybreak{
+Convexity is the exception in this field. Squared error in a \emph{linear} model
+is convex; put the same loss behind a neural network and it is not, because the
+composition of a convex function with a non-linear map need not be convex. Every
+objective minimised in this thesis is non-convex, so no global guarantee is
+available anywhere in it.
+}
+
+\whyhere{
+The reconstruction loss in TimeGAN's Phase 1 is quadratic in the reconstruction
+error, and its bowl shape is why an $R^2$ of $+0.995$ is meaningful --- the
+autoencoder really did approach the bottom of a well-behaved objective. Phase 3 is
+adversarial and has no such structure, which is exactly the difference
+\S\ref{sec:minimax} describes.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Gradient Descent}
+\label{sec:gradientdescent}
+
+\situation{
+The fog-walker again, now with a method: feel which way is steepest downhill, take
+a step that way, and repeat. It requires nothing but local slope, which is
+precisely what is available.
+}
+
+\problem{
+Section~\ref{sec:gradient} established that $-\nabla L$ is the steepest downhill
+direction. Turning that into an algorithm requires deciding how far to step, and
+knowing when the procedure can be trusted to make progress.
+}
+
+\workedarith{
+Minimise $f(x) = x^2$ from $x_0 = 4$, with $f'(x) = 2x$ and step size
+$\eta = 0.1$. The rule is $x \leftarrow x - \eta f'(x)$:
+
+\medskip
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Step & $x$ & $f'(x)$ & next $x$ \\
+\midrule
+0 & $4.000$ & $8.000$ & $3.200$ \\
+1 & $3.200$ & $6.400$ & $2.560$ \\
+2 & $2.560$ & $5.120$ & $2.048$ \\
+3 & $2.048$ & $4.096$ & $1.638$ \\
+\bottomrule
+\end{tabular}
+
+\medskip
+Each step multiplies $x$ by $1 - 2\eta = 0.8$. After $n$ steps
+$x_n = 4(0.8)^n$, converging to $0$ geometrically. At $n = 30$:
+$4(0.8)^{30} = 0.005$.
+
+\medskip
+\textbf{Two variables.} Minimise $f(x,y) = x^2 + 3y^2$ from $(2, 2)$ with
+$\eta = 0.1$. Here $\nabla f = [2x, 6y]$:
+\[
+  x: 2 \to 2 - 0.1(4) = 1.6 , \qquad y: 2 \to 2 - 0.1(12) = 0.8 .
+\]
+The $y$ coordinate moves much faster, because the surface is steeper in $y$ ---
+the elongated bowl of \S\ref{sec:hessian}, with Hessian $\mathrm{diag}(2,6)$.
+
+Next step: $x \to 1.28$, $y \to 0.32$. The $x$ direction shrinks by $0.8$ per
+step, $y$ by $0.4$. One global step size, two very different effective rates.
+}
+
+\formaldef{
+\textbf{Gradient descent} iterates
+\[
+  \theta_{t+1} = \theta_t - \eta\,\nabla L(\theta_t) ,
+\]
+with \textbf{learning rate} $\eta > 0$.
+
+For an $L$-smooth convex objective --- gradient Lipschitz with constant $L$ ---
+convergence is guaranteed when $\eta < 2/L$, at rate $O(1/t)$. For non-convex
+objectives the guarantee weakens to convergence toward a stationary point, with no
+claim about which one.
+}
+
+\analogybreak{
+Gradient descent is greedy: it takes the locally steepest direction, which is
+rarely the direction pointing at the minimum. In the elongated bowl above it
+zig-zags, making rapid progress across the narrow direction and crawling along the
+shallow one. The number governing how bad this gets is the ratio of largest to
+smallest Hessian eigenvalue --- the \textbf{condition number} --- which here is
+$6/2 = 3$, mild. Real loss surfaces reach condition numbers in the thousands.
+}
+
+\whyhere{
+Every parameter in every model in this thesis is updated by a variant of this
+rule. The gradient-norm clip of $\texttt{max\_norm}=1.0$ applied in all three
+models rescales $\nabla L$ whenever $\norm{\nabla L}_2 > 1$, bounding the step
+length regardless of how steep the surface becomes.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{The Learning Rate}
+\label{sec:learningrate}
+
+\situation{
+Descending a staircase in the dark. Tiny shuffles get you down safely but take all
+night. Enormous strides are fast until one overshoots the step and you land
+further down than intended --- or fall.
+}
+
+\problem{
+The step size is the single most consequential setting in the algorithm, and it
+has no universally right value: too small wastes computation, too large diverges,
+and the boundary between them depends on curvature that changes as you move.
+}
+
+\workedarith{
+Minimise $f(x) = x^2$ from $x_0 = 4$. Each step multiplies $x$ by $(1 - 2\eta)$.
+
+\medskip
+\begin{tabular}{@{}lrl@{}}
+\toprule
+$\eta$ & factor $|1-2\eta|$ & behaviour \\
+\midrule
+$0.01$ & $0.98$ & converges, slowly \\
+$0.1$  & $0.80$ & converges well \\
+$0.5$  & $0.00$ & reaches the minimum in one step \\
+$0.9$  & $0.80$ & converges, oscillating in sign \\
+$1.0$  & $1.00$ & oscillates for ever between $4$ and $-4$ \\
+$1.5$  & $2.00$ & \textbf{diverges}: $4 \to -8 \to 16 \to -32$ \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textbf{Check the divergent case.} At $\eta = 1.5$ and $x = 4$:
+\[
+  x \leftarrow 4 - 1.5(8) = 4 - 12 = -8 ,
+\]
+then $-8 - 1.5(-16) = -8 + 24 = 16$. Growing by a factor of 2 each step, away
+from the minimum. \checkmark
+
+\medskip
+\textbf{The stability threshold.} Convergence needs $|1-2\eta| < 1$, so
+$0 < \eta < 1$. In general the bound is $\eta < 2/\lambda_{\max}$ where
+$\lambda_{\max}$ is the largest Hessian eigenvalue. Here $f'' = 2$, giving
+$\eta < 1$. \checkmark
+
+\medskip
+\textbf{The conditioning trap.} For $f(x,y) = x^2 + 3y^2$, stability demands
+$\eta < 2/6 = 0.333$ from the $y$ direction, while the $x$ direction would happily
+take $\eta$ up to $1$. The steepest direction caps the rate for every direction,
+so the shallow one is starved.
+}
+
+\formaldef{
+The learning rate $\eta$ must satisfy $\eta < 2/\lambda_{\max}(H)$ for stability
+on a quadratic. Common schedules reduce it over training:
+\begin{itemize}
+  \item \textbf{step decay}: multiply by a factor at fixed intervals;
+  \item \textbf{cosine annealing}: decay smoothly to near zero;
+  \item \textbf{warmup}: start small and increase, to avoid early instability.
+\end{itemize}
+\textbf{Adam} (Kingma \& Ba 2015) instead maintains per-parameter step sizes from
+running estimates of the gradient's first and second moments, which adapts to
+differing curvature without forming the Hessian (\S\ref{sec:hessian}).
+}
+
+\analogybreak{
+There is no learning rate that is right throughout training. Early on the surface
+is steep and small steps are safe; later it flattens and larger steps would help.
+Adaptive methods address this per parameter, and they are heuristics with no
+convergence guarantee on non-convex problems --- they work well in practice, which
+is a different claim from working provably.
+}
+
+\whyhere{
+This project uses Adam throughout: $10^{-3}$ for TimeGAN, and $10^{-4}$ for both
+generator and critic in QuantGAN and FinGAN. The lower adversarial rate is
+standard for WGAN-GP, where a critic that moves too fast destabilises the game of
+\S\ref{sec:minimax}. Adam's per-parameter scaling is the practical answer to the
+conditioning trap above.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Stochastic Gradient Descent and Batching}
+\label{sec:sgd}
+
+\situation{
+You want the average height of a city's population. You could measure everyone ---
+exact, and absurdly slow. Or measure a hundred people, get a good estimate in a
+minute, and repeat with a fresh hundred whenever you need another. If you only
+need the direction of a trend, the sample is enough.
+}
+
+\problem{
+The true gradient averages over the whole dataset, and computing it for one update
+is wasteful when a small sample gives nearly the same direction. But the sample
+introduces noise, and the size of the sample controls a trade-off that this
+project got badly wrong once.
+}
+
+\workedarith{
+\textbf{The estimate and its noise.} With $N$ training windows, the full gradient
+is $\frac{1}{N}\sum_{i=1}^{N}\nabla\ell_i$. A batch of $B$ drawn at random gives an
+unbiased estimate whose standard error scales as $1/\sqrt{B}$
+(\S\ref{sec:lln}).
+
+Quadrupling the batch halves the gradient noise --- and quadruples the cost per
+step. Four small steps usually beat one large one.
+
+\medskip
+\textbf{What went wrong in this project.} TimeGAN's training loop drew
+\emph{one} batch per epoch instead of iterating over all of them.
+
+With $n_{\text{windows}} = 3{,}835$ and $\texttt{batch\_size} = 128$:
+\[
+  n_{\text{batches}} = \left\lfloor \frac{3835}{128} \right\rfloor = 29 .
+\]
+So each ``epoch'' performed 1 gradient step where it should have performed 29 ---
+a $29\times$ shortfall. Set against QuantGAN, which iterated properly over roughly
+59 batches per epoch, TimeGAN was receiving a small fraction of the training its
+configuration appeared to specify.
+
+\medskip
+\textbf{Why it was invisible.} Both models reported ``epochs'', and the epoch
+counts looked comparable. The unit was the same word and meant different things.
+
+\medskip
+\textbf{The fix, and then the real fix.} Adding the inner batch loop brought
+TimeGAN to 29 steps per epoch. But the deeper problem remained: an epoch is
+$\lfloor n/B \rfloor$ steps, so identical epoch counts still mean different step
+counts whenever the models or folds differ in size. The project therefore
+specifies budgets in \textbf{gradient steps} directly, deriving
+\[
+  n_{\text{epochs}} = \left\lceil \frac{\text{steps}}{n_{\text{batches}}} \right\rceil
+\]
+at run time. With a 9{,}000-step budget and 29 batches per epoch that is 311
+epochs --- a number nobody would have chosen by hand, and exactly the number
+required for parity.
+}
+
+\formaldef{
+\textbf{Stochastic gradient descent} replaces the full gradient with a mini-batch
+estimate:
+\[
+  \theta_{t+1} = \theta_t - \eta\,\frac{1}{B}\sum_{i \in \mathcal{B}_t}\nabla\ell_i(\theta_t) ,
+\]
+where $\mathcal{B}_t$ is a randomly drawn batch of size $B$. The estimate is
+unbiased: $\E[\hat{g}] = \nabla L$.
+
+An \textbf{epoch} is one pass through the dataset, comprising
+$\lfloor N/B \rfloor$ steps. Convergence for SGD requires a decaying learning
+rate, $\sum_t \eta_t = \infty$ and $\sum_t \eta_t^2 < \infty$, though constant
+rates are used in practice.
+}
+
+\analogybreak{
+Gradient noise is not purely a cost. It helps escape saddle points and sharp
+narrow minima, and models trained with small batches often generalise better than
+those trained with very large ones. The noise is part of why the method works, not
+only an approximation error to be minimised --- so ``use the largest batch that
+fits'' is bad advice.
+}
+
+\whyhere{
+The epoch-versus-step distinction is the single most consequential lesson in this
+project's training code. Reporting a budget in epochs conceals a dependence on
+dataset size and batch size; reporting it in gradient steps does not. The parity
+assertion in the pipeline now enforces equal \emph{generator updates} across all
+three models and refuses to run otherwise --- because a benchmark in which one
+model silently trains $29\times$ less than another measures the bug, not the
+models.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Constraints and Lagrange Multipliers}
+\label{sec:lagrange}
+
+\situation{
+Fence off the largest possible rectangular field with 100 metres of fencing. You
+are not free to make it arbitrarily large --- the fencing is fixed, and the answer
+lives on that boundary rather than at an unconstrained optimum.
+}
+
+\problem{
+Setting the gradient to zero finds unconstrained optima. When the answer is forced
+onto a constraint surface, the gradient there is generally \emph{not} zero, and a
+different condition is needed.
+}
+
+\workedarith{
+Maximise area $A = xy$ subject to perimeter $2x + 2y = 100$, i.e.\ $x + y = 50$.
+
+\medskip
+\textbf{By substitution.} $y = 50 - x$, so $A(x) = x(50-x) = 50x - x^2$. Then
+$A'(x) = 50 - 2x = 0$ gives $x = 25$, $y = 25$, $A = 625$. A square. And
+$A'' = -2 < 0$ confirms a maximum. \checkmark
+
+\medskip
+\textbf{By Lagrange.} Form
+\[
+  \mathcal{L}(x,y,\lambda) = xy - \lambda(x + y - 50) .
+\]
+Setting the partial derivatives to zero:
+\[
+  \frac{\partial\mathcal{L}}{\partial x} = y - \lambda = 0 , \qquad
+  \frac{\partial\mathcal{L}}{\partial y} = x - \lambda = 0 , \qquad
+  \frac{\partial\mathcal{L}}{\partial \lambda} = -(x + y - 50) = 0 .
+\]
+The first two give $x = y = \lambda$; the third gives $2\lambda = 50$, so
+$\lambda = 25$ and $x = y = 25$. \checkmark Same answer.
+
+\medskip
+\textbf{What $\lambda$ means.} It is the rate at which the optimum improves as the
+constraint is relaxed. With 102 metres of fence the optimum is $25.5^2 = 650.25$,
+up $25.25$ from $625$ for 2 extra metres --- about $12.6$ per metre, and
+$\lambda/2 = 12.5$ per metre of fence since perimeter uses two metres per unit of
+$x+y$. \checkmark The multiplier is a shadow price.
+}
+
+\formaldef{
+To optimise $f(\mathbf{x})$ subject to $g(\mathbf{x}) = 0$, form
+\[
+  \mathcal{L}(\mathbf{x}, \lambda) = f(\mathbf{x}) - \lambda\,g(\mathbf{x})
+\]
+and solve $\nabla_{\mathbf{x}}\mathcal{L} = \mathbf{0}$, $g(\mathbf{x}) = 0$.
+Geometrically this requires $\nabla f = \lambda\nabla g$: the gradients are
+parallel, so no movement along the constraint surface improves $f$.
+
+For inequality constraints $g(\mathbf{x}) \leq 0$ the \textbf{KKT conditions}
+apply, adding $\lambda \geq 0$ and complementary slackness $\lambda g = 0$ --- the
+multiplier is non-zero only where the constraint binds.
+}
+
+\analogybreak{
+Exact constraint enforcement is rare in deep learning, because projecting onto a
+constraint surface after every step is expensive and often ill-defined. The usual
+substitute is a \textbf{penalty}: add a term that grows when the constraint is
+violated, and accept approximate satisfaction. That is a soft version of the same
+idea with a fixed multiplier chosen by hand rather than solved for.
+}
+
+\whyhere{
+The WGAN-GP gradient penalty is precisely such a soft constraint. The critic
+should satisfy $\norm{\nabla D}_2 = 1$; rather than enforce it exactly, the
+objective adds $\lambda\,\E[(\norm{\nabla D}_2 - 1)^2]$ with $\lambda = 10$ fixed.
+The constraint is encouraged, never guaranteed --- a distinction
+Chapter~\ref{ch:gans} takes seriously.
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Minimax Problems}
+\label{sec:minimax}
+
+\situation{
+Rock--paper--scissors. Whatever you settle on, your opponent has a best reply, and
+against that reply you would rather have chosen differently. There is no pair of
+fixed choices both players are content with, so no amount of thinking converges to
+one.
+}
+
+\problem{
+Everything so far assumed a single objective going downhill. A GAN has two
+networks with opposed objectives, and the surface each descends is reshaped by the
+other's movement. The convergence story from \S\ref{sec:gradientdescent} does not
+transfer, and understanding why is the point of this section.
+}
+
+\workedarith{
+\textbf{The simplest adversarial objective.} Let
+\[
+  L(x, y) = xy ,
+\]
+with one player minimising over $x$ and the other maximising over $y$. The
+equilibrium is $(0,0)$: neither can improve unilaterally.
+
+Simultaneous gradient steps with rate $\eta$:
+\[
+  x \leftarrow x - \eta y , \qquad y \leftarrow y + \eta x .
+\]
+
+Start at $(1, 0)$ with $\eta = 0.1$:
+
+\medskip
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Step & $x$ & $y$ & $\sqrt{x^2+y^2}$ \\
+\midrule
+0 & $1.000$ & $0.000$ & $1.000$ \\
+1 & $1.000$ & $0.100$ & $1.005$ \\
+2 & $0.990$ & $0.200$ & $1.010$ \\
+3 & $0.970$ & $0.299$ & $1.015$ \\
+4 & $0.940$ & $0.396$ & $1.020$ \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textbf{The distance from equilibrium grows.} It should be shrinking. Compute it
+exactly: after one joint step,
+\[
+  x'^2 + y'^2 = (x - \eta y)^2 + (y + \eta x)^2 = (1 + \eta^2)(x^2 + y^2) .
+\]
+The radius multiplies by $\sqrt{1+\eta^2} > 1$ at every step, \emph{for any
+positive $\eta$}. The players spiral outward for ever.
+
+\medskip
+\textbf{This is not a tuning failure.} No learning rate fixes it --- smaller $\eta$
+only slows the divergence. The problem is structural: each player descends
+correctly with respect to a target the other is moving.
+
+\medskip
+\textbf{Contrast with minimisation.} For $f(x) = x^2$ the same simultaneous update
+gave a factor of $0.8$ per step (\S\ref{sec:gradientdescent}), monotonically
+decreasing. Minimisation has a Lyapunov function --- the objective itself, which
+falls every step. A minimax game has none.
+}
+
+\formaldef{
+A \textbf{minimax problem} seeks
+\[
+  \min_{\theta}\max_{\phi} V(\theta, \phi) .
+\]
+A \textbf{Nash equilibrium} is a pair $(\theta^{*},\phi^{*})$ at which neither
+player can improve alone:
+\[
+  V(\theta^{*},\phi^{*}) \leq V(\theta,\phi^{*}) \ \forall\theta ,
+  \qquad
+  V(\theta^{*},\phi^{*}) \geq V(\theta^{*},\phi) \ \forall\phi .
+\]
+For convex--concave $V$ an equilibrium exists and averaged iterates converge. For
+the non-convex, non-concave $V$ of a GAN, neither existence nor convergence is
+guaranteed, and simultaneous gradient steps can cycle or diverge as above.
+}
+
+\analogybreak{
+The word ``converged'' does not mean for a GAN what it means for a regression. GAN
+losses characteristically oscillate without settling, and a stable loss can
+indicate collapse rather than success --- a generator producing one output makes
+the critic's job easy and both losses flat. Loss curves are close to uninformative
+as a stopping criterion, which is why this project judges the models by external
+evaluation and explicit degeneracy guards instead.
+}
+
+\whyhere{
+This is the structural reason GAN training is hard, and the reason the pipeline
+carries the safeguards it does: a post-generation check on mean, standard
+deviation and ACF(1); a fixed gradient-step budget rather than training to
+convergence; and a full evaluation framework external to the training objective.
+Chapter~\ref{ch:gans} shows what the failures look like in practice, including a
+TimeGAN collapse to standard deviation $0.0002$ against a real $0.0103$.
+}
