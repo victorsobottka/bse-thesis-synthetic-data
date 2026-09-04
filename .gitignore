@@ -146,6 +146,8 @@ venv.bak/
 # mkdocs documentation
 /site
 papers/
+thesis_archive/
+knowledge_base/
 # mypy
 .mypy_cache/
 .dmypy.json
