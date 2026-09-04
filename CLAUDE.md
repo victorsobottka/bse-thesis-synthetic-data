@@ -7,36 +7,19 @@ Read this before editing anything.
 
 ## 1. Workflow
 
-### Close the notebook tab in VS Code before editing `.ipynb`
-
-VS Code holds an in-memory copy of an open notebook. Its next save writes that
-copy to disk, silently discarding any edit made outside the editor. **This has
-destroyed work three times.**
-
-The failure is quiet and it survives verification. Commit `ab37aad` contains a
-hardened `SMOKE_TEST` check *and* `SMOKE_TEST = True`, so `verify_notebook.py`
-fails on that commit — even though it passed 34/34 in the moments before the
-`git add`. The file changed in between. Nothing errored.
-
-Before any programmatic edit to `3_4_integrated_pipeline.ipynb`:
-
-1. Close the notebook tab in VS Code.
-2. Make the edit.
-3. Run `python verify_notebook.py`.
-4. `git add` and commit.
-5. Re-open the tab afterwards if needed.
-
-If the tab cannot be closed, say so and stop rather than editing anyway.
-
-### `verify_notebook.py` must exit 0 before every commit
+### `verify_notebook.py` must exit 0 immediately before every commit
 
 ```bash
 python verify_notebook.py   # must exit 0
 ```
 
-A FAIL is a regression, not a warning. Do not commit through one. The script
-guards against exactly the silent-overwrite failure above, and it only helps if
-it is run immediately before staging — not several steps earlier.
+A FAIL is a regression, not a warning. Do not commit through one.
+
+Run it immediately before `git add`, not several steps earlier. `SMOKE_TEST =
+True` was carried through eight commits despite verify having passed during the
+session that produced them — the check had been run, then the file changed, then
+the commit was made. Verification is only evidence about the state it actually
+read.
 
 ---
 
