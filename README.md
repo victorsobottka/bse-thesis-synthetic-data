@@ -38,8 +38,13 @@ Collaboration between **Barcelona School of Economics (BSE)** and **UPC**.
 │       ├── train/ valid/ test/                    # Parquet splits per market
 │       └── preliminary_results/                   # Early-run BRICS metrics & plots
 │
-├── reports/                                       # Generated PDF reports (pdflatex)
-│   └── report_2026-08-20.pdf                      # Latest — 30 pages, clickable references
+├── reports/                                       # Shareable reports and report inputs
+│   ├── report_YYYY-MM-DD.pdf                      # Main date-stamped PDF report
+│   ├── metric_diagnostics/                        # HTML metric/plot diagnostics from pipeline
+│   │   └── index.html                             # Cross-market diagnostics entry point
+│   └── pipeline_run_metadata.json                 # Run config, commit, seeds, device
+│
+├── thesis_results/                                # Pipeline data artifacts: CSVs, metrics, plots
 │
 ├── papers/                                        # Reference papers for the BRICS paper
 │
@@ -84,6 +89,9 @@ jupyter nbconvert --to notebook --execute 0_3_Optiver_datapreprocessing_BRICS_v0
 
 # 2. Run the full pipeline (trains all three GANs, evaluates, ranks)
 jupyter nbconvert --to notebook --execute 3_4_integrated_pipeline.ipynb
+#    → thesis_results/*.csv, thesis_results/*/*.png
+#    → reports/metric_diagnostics/index.html
+#    → reports/pipeline_run_metadata.json
 
 # 3. Generate the PDF report
 python generate_report.py        # → reports/report_YYYY-MM-DD.pdf

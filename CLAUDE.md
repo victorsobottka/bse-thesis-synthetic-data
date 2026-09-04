@@ -170,7 +170,8 @@ collapsed constant-output model can beat a working one on that metric alone.
 | `3_4_integrated_pipeline.ipynb` | the pipeline: models, metrics, plots, run loop |
 | `verify_notebook.py` | regression guard; must exit 0 before any commit |
 | `knowledge_base/` | 16-chapter LaTeX book; `make` builds `knowledge_base.pdf` |
-| `thesis_results/` | outputs; `manifest.json` records commit, seed, device |
+| `thesis_results/` | pipeline data artifacts: CSVs, metrics, plots, walk-forward outputs |
+| `reports/` | shareable reports; main PDFs, metric diagnostics HTML, run metadata |
 
 **Notebook cell map** (indices shift when cells are inserted — re-check before
 editing by index):
@@ -178,13 +179,15 @@ editing by index):
 | Cell | Contents |
 |---|---|
 | 0 | imports, shared return bounds |
-| 1 | paths (`ROOT`, `DATA`, `RESULTS`) |
+| 1 | paths (`ROOT`, `DATA`, `RESULTS`, `REPORTS`) |
 | 2 | **EXPERIMENT CONFIGURATION** — seeds, markets, folds, step budgets, `SMOKE_TEST` |
 | 7 / 9 / 11 | TimeGAN / QuantGAN / FinGAN |
 | 13 | `FinancialMetrics` |
 | 15 | plotting |
-| 17 | pipeline and `generate_results_report` |
+| 17 | pipeline and `generate_metric_diagnostics_report` |
 | 18 | main execution |
 
-Reports use LaTeX (`pdflatex`), never matplotlib, and are written to
-`reports/report_YYYY-MM-DD.pdf`.
+Main reports use LaTeX (`pdflatex`), never matplotlib, and are written to
+`reports/report_YYYY-MM-DD.pdf`. Pipeline-generated metric diagnostics are
+written to `reports/metric_diagnostics/`, and reproducibility metadata is
+written to `reports/pipeline_run_metadata.json`.

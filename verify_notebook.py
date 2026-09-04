@@ -79,11 +79,13 @@ REQUIRED = [
              and l != l.lstrip()
              for l in ALL.split("\n"))),
     ("r24   timing uses _now()", "_now()" in ALL),
-    ("r26   HTML report is called",   "generate_results_report(all_market_results)" in EXEC),
+    ("r26   metric diagnostics report is called",
+     "generate_metric_diagnostics_report(all_market_results)" in EXEC),
     ("r26   config block present",    "GENERATOR_UPDATES" in ALL),
     ("r26   parity assertion",        "Generator-update budgets must be equal" in ALL),
     ("r26   seeds propagated",        "torch.manual_seed(self.seed)" in ALL),
-    ("r26   manifest written",        "manifest.json" in ALL),
+    ("r26   run metadata written",    "pipeline_run_metadata.json" in ALL),
+    ("r26   report artifacts centralized", 'REPORTS = ROOT / "reports"' in ALL),
     ("r26   no epochs keys in config",
      not any(k in ALL for k in ('"ae_epochs":', '"joint_epochs":', '"sup_epochs":'))),
     # Line-anchored: a substring match is satisfied by the surrounding comment
