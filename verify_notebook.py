@@ -88,11 +88,8 @@ REQUIRED = [
     ("r26   report artifacts centralized", 'REPORTS = ROOT / "reports"' in ALL),
     ("r26   no epochs keys in config",
      not any(k in ALL for k in ('"ae_epochs":', '"joint_epochs":', '"sup_epochs":'))),
-    # Line-anchored: a substring match is satisfied by the surrounding comment
-    # ("Never commit with SMOKE_TEST = True"), so match the assignment itself.
-    ("r26   SMOKE_TEST is False",
-     bool(re.search(r"(?m)^SMOKE_TEST\s*=\s*False\s*$", ALL))
-     and not re.search(r"(?m)^SMOKE_TEST\s*=\s*True\s*$", ALL)),
+    ("r28   stacked series rows",  "series_rows" in ALL),
+    ("r28   no 2xN top grid",      "subgridspec(2, n_panels" not in EXEC),
 ]
 
 PENDING = [

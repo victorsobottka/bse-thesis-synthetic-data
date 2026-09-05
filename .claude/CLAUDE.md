@@ -180,12 +180,13 @@ editing by index):
 |---|---|
 | 0 | imports, shared return bounds |
 | 1 | paths (`ROOT`, `DATA`, `RESULTS`, `REPORTS`) |
-| 2 | **EXPERIMENT CONFIGURATION** — seeds, markets, folds, step budgets, `SMOKE_TEST` |
-| 7 / 9 / 11 | TimeGAN / QuantGAN / FinGAN |
-| 13 | `FinancialMetrics` |
-| 15 | plotting |
-| 17 | pipeline and `generate_metric_diagnostics_report` |
-| 18 | main execution |
+| 3 | **EXPERIMENT CONFIGURATION** — seeds, markets, folds, step budgets, `SMOKE_TEST` |
+| 4 | GPU Device Check |
+| 8 / 10 / 12 | TimeGAN / QuantGAN / FinGAN |
+| 14 | `FinancialMetrics` |
+| 16 | plotting |
+| 18 | pipeline and `generate_metric_diagnostics_report` |
+| 19 | main execution |
 
 Main reports use LaTeX (`pdflatex`), never matplotlib, and are written to
 `reports/report_YYYY-MM-DD.pdf`. Pipeline-generated metric diagnostics are
