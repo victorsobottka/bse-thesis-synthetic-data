@@ -3,15 +3,58 @@ LaTeX-based PDF report — Synthetic Financial Time Series Generation.
 Run from the project root:  python generate_report.py
 Requires pdflatex (TeX Live or MiKTeX).
 Output: reports/report_YYYY-MM-DD.pdf  and  reports/report_latest.tex
+
+Every number in the report is read from pipeline run artifacts via
+report_data.py -- see that module's docstring for the exact files. If
+reports/pipeline_run_metadata.json reports smoke_test=true, this script
+refuses to build a report unless --allow-smoke is passed, in which case the
+output is stamped (banner + watermark) and named report_<DATE>_SMOKE.pdf so
+it cannot be mistaken for a production report on the filesystem.
 """
 
+import argparse
 import os, sys, datetime, subprocess, shutil
+
+import report_data
 
 DATE     = datetime.date.today().isoformat()
 OUT_DIR  = "reports"
-TEX_PATH = f"{OUT_DIR}/report_{DATE}.tex"
-PDF_PATH = f"{OUT_DIR}/report_{DATE}.pdf"
 LATEST   = f"{OUT_DIR}/report_latest.tex"
+
+SMOKE_WATERMARK_PACKAGE = r"""\usepackage{draftwatermark}
+\SetWatermarkText{SMOKE TEST}
+\SetWatermarkScale{3}
+\SetWatermarkColor[gray]{0.85}
+\SetWatermarkAngle{45}"""
+
+
+def _build_provenance_box(prov: dict) -> str:
+    return r"""\begin{tcolorbox}[enhanced,arc=3pt,boxrule=0.8pt,
+  colframe=Navy,colback=LBg,left=8pt,right=8pt,top=5pt,bottom=5pt]
+\small\textbf{Provenance} --- every number in this report is read from the run below, not hand-typed.
+\begin{tabular}{@{}ll@{}}
+Generated & """ + prov['timestamp'] + r""" (git \texttt{""" + prov['git_commit_short'] + r"""}) \\
+Seeds & """ + prov['seeds'] + r""" \\
+Markets & """ + prov['markets'] + r""" \\
+Walk-forward folds & """ + prov['n_folds'] + r""" \\
+Generator updates & """ + prov['generator_updates'] + r""" \\
+Software & Python """ + prov['python'] + r""" $\cdot$ PyTorch """ + prov['torch'] + r""" \\
+CUDA & """ + prov['cuda'] + r""" (""" + prov['device'] + r""") \\
+Platform & """ + prov['platform'] + r"""\\
+\end{tabular}
+\end{tcolorbox}"""
+
+
+def _build_smoke_banner(prov: dict) -> str:
+    return r"""\begin{center}
+\colorbox{DRed}{\parbox{0.92\linewidth}{\centering\color{white}
+{\bfseries\large SMOKE-TEST DATA --- NOT A PRODUCTION RUN}\\[3pt]
+{\normalsize seeds=""" + prov['seeds'] + r"""\quad markets=""" + prov['markets'] + \
+        r"""\quad folds=""" + prov['n_folds'] + \
+        r"""\quad generator updates=""" + prov['generator_updates'] + r"""}
+}}
+\end{center}
+\vspace{4pt}"""
 
 TEX = r"""
 \documentclass[10pt]{article}
@@ -31,6 +74,7 @@ TEX = r"""
 \usepackage[hidelinks]{hyperref}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta,positioning,calc}
+%%SMOKE_WATERMARK_PACKAGE%%
 \definecolor{TealBg}{HTML}{E0F2F1}
 \definecolor{NavyBg}{HTML}{E8EEFF}
 
@@ -111,6 +155,7 @@ TEX = r"""
 %% ─── Page 1: Title ───────────────────────────────────────────────────────────
 \thispagestyle{empty}
 \pagecolor{Navy}\color{white}
+%%SMOKE_BANNER%%
 \vspace*{2.0cm}
 \begin{center}
 {\fontsize{26}{32}\selectfont\bfseries Synthetic Financial Time Series Generation\par}
@@ -132,6 +177,9 @@ TEX = r"""
 \end{tabular}
 \end{center}
 \clearpage\pagecolor{white}\color{black}
+
+%% ─── Provenance: which run this PDF was built from ─────────────────────────
+%%PROVENANCE_BOX%%
 
 %% ═══════════════════════════════════════════════════════════════════════════════
 %% PART I — FOUNDATIONS
@@ -1261,26 +1309,76 @@ Logistic classifier on 20-day rolling windows. AUC = 0.5 is the optimum (indisti
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="Build the LaTeX/PDF report from pipeline run artifacts.")
+    parser.add_argument("--results-dir", default="thesis_results",
+                         help="thesis_results/ directory to read (default: thesis_results). "
+                              "Point this at a RunPod output directory directly.")
+    parser.add_argument("--reports-dir", default=OUT_DIR,
+                         help=f"Output directory for the .tex/.pdf (default: {OUT_DIR}).")
+    parser.add_argument("--processed-dir", default="data/processed_files",
+                         help="data/processed_files/ directory for Table 1's real-market "
+                              "statistics (default: data/processed_files).")
+    parser.add_argument("--allow-smoke", action="store_true",
+                         help="Render even when pipeline_run_metadata.json reports "
+                              "smoke_test=true. Output is stamped (banner + watermark) "
+                              "and named report_<DATE>_SMOKE.pdf.")
+    args = parser.parse_args()
+
     if not shutil.which('pdflatex'):
         print("ERROR: pdflatex not found. Install TeX Live or MiKTeX.")
         sys.exit(1)
 
-    os.makedirs(OUT_DIR, exist_ok=True)
-    content = TEX.replace('<<<DATE>>>', DATE)
+    try:
+        ctx = report_data.load_report_context(
+            results_dir=args.results_dir,
+            reports_dir=args.reports_dir,
+            processed_dir=args.processed_dir,
+        )
+    except report_data.ReportDataError as e:
+        print(f"ERROR: {e}")
+        sys.exit(1)
 
-    with open(TEX_PATH, 'w', encoding='utf-8') as f:
+    prov = ctx["formatted"]["provenance"]
+    is_smoke = prov["smoke_test"]
+
+    if is_smoke and not args.allow_smoke:
+        print("REFUSING TO BUILD REPORT: pipeline_run_metadata.json reports smoke_test=true.")
+        print(f"  seeds={prov['seeds']}  markets={prov['markets']}  "
+              f"folds={prov['n_folds']}  generator_updates={prov['generator_updates']}")
+        print("This is a structural smoke-test run, not production results.")
+        print("Pass --allow-smoke to build a clearly stamped smoke-test PDF anyway.")
+        sys.exit(1)
+
+    suffix = "_SMOKE" if is_smoke else ""
+    tex_path = f"{args.reports_dir}/report_{DATE}{suffix}.tex"
+    pdf_path = f"{args.reports_dir}/report_{DATE}{suffix}.pdf"
+
+    os.makedirs(args.reports_dir, exist_ok=True)
+    content = TEX.replace('<<<DATE>>>', DATE)
+    content = content.replace('%%PROVENANCE_BOX%%', _build_provenance_box(prov))
+    if is_smoke:
+        print(f"WARNING: building a SMOKE-TEST report (--allow-smoke). "
+              f"Output will be named {os.path.basename(pdf_path)}.")
+        content = content.replace('%%SMOKE_WATERMARK_PACKAGE%%', SMOKE_WATERMARK_PACKAGE)
+        content = content.replace('%%SMOKE_BANNER%%', _build_smoke_banner(prov))
+    else:
+        content = content.replace('%%SMOKE_WATERMARK_PACKAGE%%', '')
+        content = content.replace('%%SMOKE_BANNER%%', '')
+
+    with open(tex_path, 'w', encoding='utf-8') as f:
         f.write(content)
-    print(f"Wrote {TEX_PATH}")
+    print(f"Wrote {tex_path}")
 
     # Keep report_latest.tex in sync for the verify script
-    shutil.copy(TEX_PATH, LATEST)
+    shutil.copy(tex_path, LATEST)
     print(f"Wrote {LATEST}")
 
     for run in range(1, 3):
         print(f"pdflatex pass {run}/2 ...")
         result = subprocess.run(
             ['pdflatex', '-interaction=nonstopmode',
-             '-output-directory', OUT_DIR, TEX_PATH],
+             '-output-directory', args.reports_dir, tex_path],
             capture_output=True, text=True
         )
         if result.returncode != 0 and run == 2:
@@ -1288,14 +1386,14 @@ def main():
             print('\n'.join(result.stdout.splitlines()[-80:]))
             sys.exit(1)
 
-    base = TEX_PATH.replace('.tex', '')
+    base = tex_path.replace('.tex', '')
     for ext in ('.aux', '.log', '.out', '.toc', '.fls', '.fdb_latexmk'):
         p = base + ext
         if os.path.exists(p):
             os.remove(p)
 
-    kb = os.path.getsize(PDF_PATH) / 1024
-    print(f"\nGenerated: {PDF_PATH}  ({kb:.0f} KB)")
+    kb = os.path.getsize(pdf_path) / 1024
+    print(f"\nGenerated: {pdf_path}  ({kb:.0f} KB)")
 
 
 if __name__ == '__main__':
