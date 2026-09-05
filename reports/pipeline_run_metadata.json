@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-09-05T19:12:22",
-  "git_commit": "6cb0208e876d5522b5f63c0bf55daffe8b1713c5",
+  "timestamp": "2026-09-05T20:24:20",
+  "git_commit": "276113a97683e6598770814004942745820ce5c6",
   "smoke_test": true,
   "seeds": [
     42
@@ -42,8 +42,8 @@
       "seq_len": 128
     }
   },
-  "python": "3.10.17",
-  "torch": "2.13.0+cu132",
+  "python": "3.12.3",
+  "torch": "2.13.0+cu130",
   "cuda": true,
   "device": "NVIDIA GeForce RTX 3050 Laptop GPU",
   "platform": "Linux-7.0.0-30-generic-x86_64-with-glibc2.39"
