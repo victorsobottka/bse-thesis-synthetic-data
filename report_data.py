@@ -140,6 +140,33 @@ _MARKET_FILE_STEM = {
 }
 
 
+_TEST_FILE_RE = re.compile(r"^(?P<market>.+)_test\.parquet$")
+
+
+def _discover_data_markets(processed_dir: Path) -> list:
+    """List every market with a complete train/valid/test parquet triad under
+    data/processed_files/. This is the full BRICS input basket -- independent
+    of which markets have a completed GAN run in thesis_results/. Table 1
+    describes the *data*, not the pipeline's progress, so it must not be
+    filtered down to whichever market happens to have finished training."""
+    test_dir = processed_dir / "test"
+    if not test_dir.is_dir():
+        raise ReportDataError(f"Required directory not found: {test_dir}")
+    markets = []
+    for f in sorted(test_dir.iterdir()):
+        m = _TEST_FILE_RE.match(f.name)
+        if not m:
+            continue
+        market = m.group("market")
+        stem = _MARKET_FILE_STEM.get(market, market)
+        if all((processed_dir / split / f"{stem}_{split}.parquet").exists()
+               for split in ("train", "valid", "test")):
+            markets.append(market)
+    if not markets:
+        raise ReportDataError(f"No complete train/valid/test parquet triads found under {processed_dir}")
+    return markets
+
+
 def compute_real_market_characteristics(processed_dir: Path, markets: list) -> dict:
     """Per-market sigma, excess kurtosis, |r|>5*sigma count, and a big-move
     clustering ratio, computed from the full (train+valid+test) real series.
@@ -277,16 +304,41 @@ def _build_budget_parity_rows(per_seed_market: pd.DataFrame) -> str:
 
 
 def _build_table1_rows(characteristics: dict) -> str:
+    """Market, sigma, excess kurtosis, resid. kurtosis (not yet computable
+    without duplicating FinancialMetrics' GARCH fit -- left as an em-dash,
+    same as the table this replaces)."""
     lines = []
     for market, c in characteristics.items():
         if market == "_totals":
             continue
         lines.append(
             f"{_escape_latex(market)} & {_fnum(c['sigma_pct'], 2)} & "
-            f"{_fnum(c['excess_kurtosis'], 2)} & {_fint(c['n_extreme_5sigma'])} & "
-            f"{_fnum(c['clustering_ratio'], 2)} \\\\"
+            f"{_fnum(c['excess_kurtosis'], 2)} & --- \\\\"
         )
     return "\n".join(lines)
+
+
+def _build_table1_prose(characteristics: dict) -> dict:
+    """Scalars for the hand-written sentences below Table 1 -- e.g. 'we
+    observed ${RPT_TABLE1_TOTAL_EXTREME} [days]' -- so only the numbers are
+    templated, not the analysis around them."""
+    per_market = {m: c for m, c in characteristics.items() if m != "_totals"}
+    totals = characteristics["_totals"]
+    max_ratio_market = max(per_market, key=lambda m: per_market[m]["clustering_ratio"])
+    max_extreme_market = max(per_market, key=lambda m: per_market[m]["n_extreme_5sigma"])
+    ratios = [c["clustering_ratio"] for c in per_market.values()]
+    return {
+        "total_days": _fint(totals["n_days"]),
+        "total_extreme": _fint(totals["n_extreme_5sigma"]),
+        "max_extreme_market": _escape_latex(max_extreme_market),
+        "max_extreme_count": _fint(per_market[max_extreme_market]["n_extreme_5sigma"]),
+        "max_ratio_market": _escape_latex(max_ratio_market),
+        "max_ratio_p_big": _fnum(per_market[max_ratio_market]["p_big_move"], 1),
+        "max_ratio_p_big_given_big": _fnum(per_market[max_ratio_market]["p_big_given_big"], 1),
+        "max_ratio_value": _fnum(per_market[max_ratio_market]["clustering_ratio"], 1),
+        "ratio_min": _fnum(min(ratios), 1),
+        "ratio_max": _fnum(max(ratios), 1),
+    }
 
 
 def _build_downstream_utility_rows(pooled_utility: pd.DataFrame) -> str:
@@ -305,6 +357,26 @@ def _build_downstream_utility_rows(pooled_utility: pd.DataFrame) -> str:
     return "\n".join(lines)
 
 
+def _build_walk_forward_rows(wf_by_model: dict) -> str:
+    """One row per model: wasserstein, hurst_diff and discriminative_auc,
+    mean +/- sd across folds. These three are common to every model's
+    walk_forward_<MODEL>_seed<N>.csv; the full per-metric breakdown is in
+    walk_forward_summary for anyone consuming the context directly."""
+    cols = ["wasserstein", "hurst_diff", "discriminative_auc"]
+    lines = []
+    for model in sorted(wf_by_model):
+        df = wf_by_model[model]
+        missing = [c for c in cols if c not in df.columns]
+        if missing:
+            raise ReportDataError(
+                f"walk_forward file for model {model!r} is missing column(s) "
+                f"{missing} required for the walk-forward summary table"
+            )
+        cells = [f"{df[c].mean():.4f} $\\pm$ {df[c].std():.4f}" for c in cols]
+        lines.append(f"{_escape_latex(model)} & " + " & ".join(cells) + r" \\")
+    return "\n".join(lines)
+
+
 def _build_walk_forward_summary(wf_by_model: dict) -> dict:
     """model -> {metric -> 'mean \\pm sd'} across folds, for every numeric
     column present (excluding bookkeeping columns)."""
@@ -317,6 +389,39 @@ def _build_walk_forward_summary(wf_by_model: dict) -> dict:
             c: f"{df[c].mean():.4f} $\\pm$ {df[c].std():.4f}" for c in cols
         }
     return out
+
+
+_FIGURE_TITLES = {
+    "stylized_facts": "Stylised facts: synthetic against real daily log returns",
+    "metrics_heatmap": "Normalised metrics heatmap",
+    "rank_comparison": "Average rank comparison",
+}
+
+
+def _build_figures_block(figures: dict) -> str:
+    """One \\includegraphics per figure that exists on disk; a plain note,
+    not a broken reference, for any that don't."""
+    parts = []
+    for key, title in _FIGURE_TITLES.items():
+        path = figures[key]
+        title_esc = _escape_latex(title)
+        if path.exists():
+            parts.append(
+                # height as well as width: the stylized-facts figure is a
+                # tall, portrait-oriented multi-row chart, and constraining
+                # width alone let it overflow past the bottom of a landscape
+                # page (the footer printed directly on top of it).
+                r"\clearpage\begin{center}\includegraphics"
+                r"[width=0.85\linewidth,height=0.82\textheight,keepaspectratio]{"
+                + str(path) + r"}\end{center}"
+                r"\centerline{\small\textit{" + title_esc + r"}}\vspace{6pt}"
+            )
+        else:
+            parts.append(
+                r"\begin{center}\textit{[" + title_esc + " not available: "
+                + _escape_latex(str(path)) + r" not found]}\end{center}"
+            )
+    return "\n\n".join(parts)
 
 
 def _build_provenance(metadata: dict) -> dict:
@@ -404,7 +509,8 @@ def load_report_context(results_dir="thesis_results", reports_dir="reports",
         "seeds": seeds,
     }
 
-    characteristics = compute_real_market_characteristics(processed_dir, markets)
+    data_markets = _discover_data_markets(processed_dir)
+    characteristics = compute_real_market_characteristics(processed_dir, data_markets)
 
     # One run's worth of downstream-utility / walk-forward tables for now
     # (single-market smoke-test data): B2-B8 use runs[0]. A multi-market
@@ -415,16 +521,15 @@ def load_report_context(results_dir="thesis_results", reports_dir="reports",
     ctx["formatted"] = {
         "provenance": _build_provenance(metadata),
         "table1_rows": _build_table1_rows(characteristics),
-        "table1_total_days": _fint(characteristics["_totals"]["n_days"]),
-        "table1_total_extreme": _fint(characteristics["_totals"]["n_extreme_5sigma"]),
+        "table1_prose": _build_table1_prose(characteristics),
         "table3_rows": _build_table3_rows(overall),
         "budget_parity_rows": _build_budget_parity_rows(per_seed_market),
         "downstream_utility_rows": _build_downstream_utility_rows(primary["pooled_utility"]),
+        "walk_forward_rows": _build_walk_forward_rows(primary["walk_forward"]),
         "walk_forward_summary": _build_walk_forward_summary(primary["walk_forward"]),
         "primary_market": primary["market"],
         "primary_seed": str(primary["seed"]),
-        "figures": {k: str(v) for k, v in primary["figures"].items()},
-        "figures_exist": {k: v.exists() for k, v in primary["figures"].items()},
+        "figures_block": _build_figures_block(primary["figures"]),
     }
     return ctx
 

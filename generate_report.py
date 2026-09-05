@@ -13,6 +13,7 @@ it cannot be mistaken for a production report on the filesystem.
 """
 
 import argparse
+import string
 import os, sys, datetime, subprocess, shutil
 
 import report_data
@@ -74,7 +75,8 @@ TEX = r"""
 \usepackage[hidelinks]{hyperref}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta,positioning,calc}
-%%SMOKE_WATERMARK_PACKAGE%%
+\usepackage{graphicx}
+${RPT_SMOKE_WATERMARK_PACKAGE}
 \definecolor{TealBg}{HTML}{E0F2F1}
 \definecolor{NavyBg}{HTML}{E8EEFF}
 
@@ -155,7 +157,7 @@ TEX = r"""
 %% ─── Page 1: Title ───────────────────────────────────────────────────────────
 \thispagestyle{empty}
 \pagecolor{Navy}\color{white}
-%%SMOKE_BANNER%%
+${RPT_SMOKE_BANNER}
 \vspace*{2.0cm}
 \begin{center}
 {\fontsize{26}{32}\selectfont\bfseries Synthetic Financial Time Series Generation\par}
@@ -173,13 +175,13 @@ TEX = r"""
   \textbf{Document type} & Research draft --- prepared for Quantitative Finance / ACM ICAIF \\[4pt]
   \textbf{Models}        & TimeGAN (GRU) $\cdot$ QuantGAN (TCN-WGAN-GP) $\cdot$ FinGAN (CNN-WGAN-GP) \\[4pt]
   \textbf{Markets}       & BOVESPA $\cdot$ FTSE JSE $\cdot$ MOEX $\cdot$ NIFTY50 $\cdot$ SHANGHAI \\[4pt]
-  \textbf{Generated}     & <<<DATE>>> \\
+  \textbf{Generated}     & ${RPT_DATE} \\
 \end{tabular}
 \end{center}
 \clearpage\pagecolor{white}\color{black}
 
 %% ─── Provenance: which run this PDF was built from ─────────────────────────
-%%PROVENANCE_BOX%%
+${RPT_PROVENANCE_BOX}
 
 %% ═══════════════════════════════════════════════════════════════════════════════
 %% PART I — FOUNDATIONS
@@ -507,20 +509,16 @@ Daily log returns were computed from five closing-price series (20-year window, 
 \toprule
 Market & $\sigma$ (\%/day) & Kurt. & Resid. kurt. \\
 \midrule
-BOVESPA    & 1.63 & 10.37 & --- \\
-FTSE JSE   & 1.20 &  5.73 & --- \\
-MOEX       & 1.87 & 65.70 & --- \\
-NIFTY50    & 1.29 & 14.54 & --- \\
-SHANGHAI   & 1.48 &  5.78 & --- \\
+${RPT_TABLE1_ROWS}
 \bottomrule
 \end{tabular}
 
 \smallskip
-\textit{$\sigma$}: daily volatility (annualised $\approx16\times$). \textit{Kurt.}: excess kurtosis of raw returns (Gaussian = 0). MOEX kurtosis dominated by 2022 invasion outlier. Residual kurtosis (GARCH Gaussian QMLE) will be recomputed after the full 20-year RunPod run.
+\textit{$\sigma$}: daily volatility (annualised $\approx16\times$). \textit{Kurt.}: excess kurtosis of raw returns (Gaussian = 0), computed directly from the processed return series. MOEX kurtosis dominated by 2022 invasion outlier. Residual kurtosis (GARCH Gaussian QMLE) is a per-model \emph{difference} metric in this pipeline (\texttt{resid\_kurtosis\_diff}) rather than a standalone real-data statistic, so it is not shown here; awaits the full 20-year multi-market RunPod run.
 
-Across 24,758 market-days, the Gaussian benchmark predicts $<0.01$ days with $|r|>5\sigma$. We observed 76 --- all five markets exceed the Gaussian prediction by a factor exceeding 10{,}000 (Gaussian: once per 6,922 years; observed: $\approx$once per year per market). NIFTY50 alone had 11.
+Across ${RPT_TABLE1_TOTAL_DAYS} market-days, the Gaussian benchmark predicts $<0.01$ days with $|r|>5\sigma$. We observed ${RPT_TABLE1_TOTAL_EXTREME} --- all five markets exceed the Gaussian prediction by a factor exceeding 10{,}000 (Gaussian: once per 6,922 years; observed: $\approx$once per year per market). ${RPT_TABLE1_MAX_EXTREME_MARKET} alone had ${RPT_TABLE1_MAX_EXTREME_COUNT}.
 
-MOEX shows the strongest volatility clustering: $P(\text{big move}) = 3.8\%$; $P(\text{big move}\,|\,\text{yesterday big}) = 22.9\%$; ratio 6.1. All five markets show ratios between 3.4 and 6.1.}
+${RPT_TABLE1_MAX_RATIO_MARKET} shows the strongest volatility clustering: $P(\text{big move}) = ${RPT_TABLE1_MAX_RATIO_P_BIG}\%$; $P(\text{big move}\,|\,\text{yesterday big}) = ${RPT_TABLE1_MAX_RATIO_P_BIG_GIVEN_BIG}\%$; ratio ${RPT_TABLE1_MAX_RATIO_VALUE}. All five markets show ratios between ${RPT_TABLE1_RATIO_MIN} and ${RPT_TABLE1_RATIO_MAX}.}
 
 \skybox{Shuffled-Control Audit (Table~2)}{%
 A shuffled-control series (real BRICS test returns, randomly permuted with seed 42) was constructed and evaluated alongside all GAN generators.
@@ -612,27 +610,35 @@ On the real pooled BRICS test set ($n\approx2{,}480$, 20-year data): real LM and
 \begin{multicols}{2}
 
 \navybox{Model Composite Rankings (Table~3)}{%
-Rankings are computed among three GAN generators (TimeGAN, QuantGAN, FinGAN) pooled across five markets. The shuffled control is appended as a reference line with NaN ranks.
+Rankings are computed among the generators present in \texttt{overall\_performance.csv} for this run (markets: ${RPT_PROV_MARKETS}). The shuffled control is appended as a reference line with NaN ranks, shown as em-dashes.
 
 \smallskip
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Model & composite\_rank & fidelity\_rank & temporal\_rank & avg\_rank \\
+\midrule
+${RPT_TABLE3_ROWS}
+\bottomrule
+\end{tabular}}
+
+\smallskip
+\texttt{avg\_rank} is the unweighted mean over all 14 ranked metrics, retained for comparability only; it is not the selection criterion (CLAUDE.md \S2 -- an unweighted mean is won by the shuffled control, 1.24 vs 2.47, because nine of the original metrics are permutation-invariant). Model selection uses \texttt{composite\_rank}.
+
+\textbf{Walk-forward validation.} ${RPT_N_FOLDS} rolling fold(s) per market enable mean\,$\pm$\,std across folds rather than a single metric estimate. Budgets are equalised on generator updates across all three models (Yoon et al.'s four-phase pre-training is reported separately), so TimeGAN's temporal ranking reflects its architecture at parity, not an unequal training budget.
+
+\smallskip
+\resizebox{\linewidth}{!}{%
 \begin{tabular}{@{}lccc@{}}
 \toprule
-Model & fidelity\_rank & temporal\_rank & composite \\
+Model & Wasserstein & Hurst diff & Discriminative AUC \\
 \midrule
-real\_like  & 1.44 & 1.29 & \textbf{1.42} \\
-gaussian    & 1.56 & 1.71 & 1.63 \\
-too\_wide   & 2.00 & 2.00 & 2.00 \\
-\midrule
-Control (ref.) & --- & --- & --- \\
+${RPT_WALK_FORWARD_ROWS}
 \bottomrule
-\end{tabular}
+\end{tabular}}
 
 \smallskip
-These are illustrative names for three generator configurations; full per-architecture results will replace them upon completion of the full pipeline run.
-
-The best composite score (1.42) reflects better performance on temporal metrics than fidelity metrics. No configuration scores below the shuffled control on temporal metrics (which would indicate failure to learn any temporal structure).
-
-\textbf{Walk-forward validation.} Five rolling folds per market enable mean\,$\pm$\,std across folds rather than a single metric estimate. Budgets are equalised on generator updates across all three models (Yoon et al.'s four-phase pre-training is reported separately), so TimeGAN's temporal ranking reflects its architecture at parity, not an unequal training budget.}
+{\small Mean $\pm$ sd across ${RPT_N_FOLDS} fold(s), market ${RPT_PRIMARY_MARKET} seed ${RPT_PRIMARY_SEED}.}}
 
 \skybox{Discriminative AUC: Null Calibration and Direction Bug}{%
 A logistic classifier is trained on 20-day rolling windows (features: mean, std, mean-abs, mean-sq) to distinguish real from synthetic. AUC\,=\,0.5 is the desired outcome (indistinguishability). Two non-obvious implementation choices matter:
@@ -651,21 +657,25 @@ A logistic classifier is trained on 20-day rolling windows (features: mean, std,
 \purplebox{Conditional Heavy Tails}{%
 Stylized fact 7 (Bollerslev 1987\tcite{36}): after fitting a GARCH(1,1) model and extracting standardised residuals $\varepsilon_t = r_t / \sigma_t$, the residuals remain leptokurtic. Gaussian QMLE is used deliberately: a Student-$t$ specification absorbs the kurtosis by construction, creating circularity.
 
-Full 20-year GARCH residual kurtosis awaits the production RunPod run. Preliminary values (5-year):
-\begin{itemize}[noitemsep,topsep=1pt]
-  \item MSCI: 8.80 (largest, now replaced by MOEX in evaluation)
-  \item NIFTY50: 2.12
-  \item SHANGHAI: 1.79
-  \item FTSE JSE: 0.93
-  \item BOVESPA: 0.48
-\end{itemize}
-
-MOEX residual kurtosis will dominate in 20-year analysis due to the 2022 invasion ($-33.3\%$). Metric: $|\text{resid\_kurtosis\_real} - \text{resid\_kurtosis\_syn}|$, ranked in the Temporal family.}
+The real series' own residual kurtosis, independent of any generator, is not currently persisted as a standalone artifact (see Methods). What the pipeline does persist and rank is the per-model difference, $|\text{resid\_kurtosis\_real} - \text{resid\_kurtosis\_syn}|$ (\texttt{resid\_kurtosis\_diff}), part of the Temporal family in Table 3. MOEX is expected to dominate any standalone real-kurtosis comparison because of the 2022 invasion ($-33.3\%$ single day).}
 
 \navybox{Downstream Utility: TSTR Protocol}{%
 \textbf{Motivating finding.} Four of six distributional metrics score the shuffled control as perfect. These tests tell us the synthetic data \emph{looks} real. The TSTR test asks: can a practitioner \emph{build a working risk model} on it?
 
 \textbf{Protocol.} (1) Fit GARCH(1,1) on the synthetic series $\to$ $(\mu, \omega, \alpha, \beta)$. (2) Filter those parameters over real test returns to get one-step-ahead $\sigma_t$. (3) $\text{VaR}_t = \mu + \sigma_t z_\alpha$. (4) Backtest via Kupiec (1995)\tcite{34} and Christoffersen (1998)\tcite{35}.
+
+\smallskip
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+Model & QLIKE & VaR cov.\ err. & Kupiec $p$ & Christoffersen $p$ & Viol. & $n$ \\
+\midrule
+${RPT_DOWNSTREAM_UTILITY_ROWS}
+\bottomrule
+\end{tabular}}
+
+\smallskip
+{\small From \texttt{pooled\_downstream\_utility.csv} (${RPT_PROV_MARKETS}, seed(s) ${RPT_PROV_SEEDS}). Lower QLIKE is better. An em-dash means Christoffersen's test was not computed (e.g.\ too few violations to fit the independence statistic).}
 
 \textit{Why conditional, not unconditional VaR?} Tested first: gaussian iid scored identically to real data (coverage error both 0.0276), because unconditional quantiles probe only the marginal --- already covered by KS/Wasserstein. Conditional VaR probes whether the GARCH structure is transferable.
 
@@ -683,6 +693,14 @@ This is not a seeding bug: loss traces agree to four significant figures at epoc
 \texttt{composite\_rank} itself is stable across runs (QuantGAN wins all five, $1.429$--$1.500$; FinGAN $1.786$--$1.893$; TimeGAN $2.643$--$2.714$). But \texttt{tail\_index\_diff}, \texttt{hurst\_diff}, and \texttt{mean\_diff} change their winning model between runs. A single-run winner on \texttt{tail\_index\_diff} should never be reported: QuantGAN spans $0.065$--$1.707$ there, against FinGAN's $0.357$--$0.865$ --- ranges that overlap enough to hide the true comparison in any one run.}
 
 \end{multicols}
+
+\clearpage
+
+%% ─── Figures: this run's plots, included by reference ──────────────────────
+\pagehead{Figures --- ${RPT_PRIMARY_MARKET} (seed ${RPT_PRIMARY_SEED})}
+         {Generated by the notebook's plotting cell; included here, not redrawn}
+
+${RPT_FIGURES_BLOCK}
 
 \clearpage
 
@@ -889,7 +907,7 @@ Source files use MM/DD/YYYY format. Lexicographic sorting of this format across 
 $r_t = \ln(P_t / P_{t-1})$. No outlier clipping is applied to log returns. Clipping at 0.5th/99.5th percentiles would remove exactly the observations that determine kurtosis, tail index, and the extreme-events metric --- the three properties motivating the BRICS market choice. Adams et al.\ (2019)\tcite{6} show that winsorising can worsen distributional misfit.
 
 \textbf{Train/test split.}
-Temporal 80/10/10 split (no shuffle). The 80\% training portion feeds GAN training; the 10\% test portion is the evaluation target. Walk-forward validation uses five rolling folds within the test portion; each fold retrains the model from scratch on the fold's training segment.
+Temporal 80/10/10 split (no shuffle). The 80\% training portion feeds GAN training; the 10\% test portion is the evaluation target. Walk-forward validation uses ${RPT_N_FOLDS} rolling fold(s) within the test portion; each fold retrains the model from scratch on the fold's training segment.
 
 \textbf{Window construction.}
 128-step sliding windows with stride 1. From $\approx$3{,}960 training days, each market yields $\approx$3{,}833 windows. Models train on one market's windows only; no cross-market data mixing.
@@ -932,7 +950,7 @@ QLIKE, Kupiec, and Christoffersen statistics are computed on the pooled test set
 \textbf{Discriminative AUC implementation.}
 Logistic regression on 20-day rolling-window features (mean, std, mean of absolute values, mean of squared values). Five-fold cross-validation without temporal shuffling (shuffling introduces look-ahead leakage from overlapping windows; measured shift in null: $0.506 \to 0.584$). Empirical null estimated by 20 real-vs-real half-splits. AUC ranking metric: $|\text{AUC} - 0.506|$.
 
-\textbf{Hardware.} Evaluation metrics run on CPU (single machine). GAN training uses a RunPod A100 instance. Budgets are specified in gradient steps with generator-update parity enforced across all three models (Extended Data Table 3); wall-clock at 1,000 generator steps is TimeGAN $\approx$20.5\,s, FinGAN $\approx$42.4\,s, QuantGAN $\approx$178\,s --- equal generator updates is not equal compute.
+\textbf{Hardware.} Evaluation metrics run on CPU (single machine). Training hardware is recorded per run in the provenance block (page 2). Budgets are specified in gradient steps with generator-update parity enforced across all three models (Extended Data Table 3); measured wall-clock for this run is in Extended Data Table 3b --- equal generator updates is not equal compute.
 
 \end{multicols}
 
@@ -1221,9 +1239,25 @@ seq\_len constraint & Any length & Any length & Must be divisible by 8 \\
 Inductive bias & Temporal ordering matters step-by-step; GARCH-like persistence via GRU hidden state & Multi-scale patterns (short + long memory); dilations cover intraday/weekly/monthly simultaneously & Generate from compressed noise like image GANs; hierarchical refinement from coarse to fine \\
 Normalisation & MinMax $[0,1]$ & MinMax $[-1,1]$ & MinMax $[-1,1]$ \\
 Generator-update budget & parity with QuantGAN, FinGAN (pipeline-asserted) & parity with TimeGAN, FinGAN & parity with TimeGAN, QuantGAN \\
-Wall-clock @ 1,000 gen.\ steps & $\approx$20.5\,s & $\approx$178\,s & $\approx$42.4\,s \\
 \bottomrule
 \end{tabularx}}
+
+\vspace{8pt}
+\pagehead{Extended Data Table 3b --- Measured Budget Parity (This Run)}
+         {From \texttt{per\_seed\_market\_performance.csv} --- equal generator updates is not equal compute}
+
+\vspace{4pt}
+{\small
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+Model & Generator updates & Critic updates & Wall-clock (s) & Generator params \\
+\midrule
+${RPT_BUDGET_PARITY_ROWS}
+\bottomrule
+\end{tabular}}
+
+\smallskip
+{\small Wall-clock is total training time for one (market, seed) run, averaged over every run present in this report. Generator-update parity does not imply equal compute: QuantGAN and FinGAN run \texttt{n\_critic=5} discriminator updates per generator update (Gulrajani et al.\ 2017\tcite{3}); TimeGAN's four-phase pre-training (\texttt{ae\_steps}/\texttt{sup\_steps}) is excluded from this table, reported separately in Extended Data Table 3 above.}
 
 \vspace{6pt}
 \begin{multicols}{2}
@@ -1293,7 +1327,7 @@ ACF(returns) MAE tests absence of linear predictability (fact 2). ACF($|r|$) and
 \navybox{Temporal Group: Hurst and Residual Kurtosis}{%
 \textbf{Hurst exponent.} $\E[R_n/S_n] \sim c\cdot n^H$, applied to $|r_t|$ (not raw $r_t$; sign flips destroy long memory on raw returns). $H>0.5$: long memory. Metric: $|H_\text{real} - H_\text{syn}|$. Estimated by R/S (Hurst 1951\tcite{23}). Failure mode: sd 0.022 at $n=1{,}000$, 0.004 at $n=4{,}000$.
 
-\textbf{Residual kurtosis.} Fit GARCH(1,1) Gaussian QMLE, extract $\varepsilon_t = r_t/\sigma_t$, report excess kurtosis. Tests fact 7 (Bollerslev 1987\tcite{36}). Gaussian QMLE avoids circularity. Full 20-year residual kurtosis awaits RunPod production run; 5-year preliminary: MSCI 8.80, NIFTY50 2.12, SHANGHAI 1.79, FTSE 0.93, BOVESPA 0.48. MOEX values inflate due to 2022 invasion.}
+\textbf{Residual kurtosis.} Fit GARCH(1,1) Gaussian QMLE, extract $\varepsilon_t = r_t/\sigma_t$, report excess kurtosis. Tests fact 7 (Bollerslev 1987\tcite{36}). Gaussian QMLE avoids circularity. Reported per model as \texttt{resid\_kurtosis\_diff} (a real-vs-synthetic difference, part of the temporal metric family in Table 3); the real series' own residual kurtosis, independent of any generator, is not currently persisted as a standalone artifact.}
 
 \tealbox{Temporal Group: Discriminative AUC}{%
 Logistic classifier on 20-day rolling windows. AUC = 0.5 is the optimum (indistinguishability). Ranking metric: $|\text{AUC} - 0.5|$ (not raw AUC). Empirical null: $0.506 \pm 0.084$ (15 seeds, real vs real half-splits). z-score: $(\text{AUC} - 0.506)/0.084$.
@@ -1354,17 +1388,48 @@ def main():
     tex_path = f"{args.reports_dir}/report_{DATE}{suffix}.tex"
     pdf_path = f"{args.reports_dir}/report_{DATE}{suffix}.pdf"
 
-    os.makedirs(args.reports_dir, exist_ok=True)
-    content = TEX.replace('<<<DATE>>>', DATE)
-    content = content.replace('%%PROVENANCE_BOX%%', _build_provenance_box(prov))
     if is_smoke:
         print(f"WARNING: building a SMOKE-TEST report (--allow-smoke). "
               f"Output will be named {os.path.basename(pdf_path)}.")
-        content = content.replace('%%SMOKE_WATERMARK_PACKAGE%%', SMOKE_WATERMARK_PACKAGE)
-        content = content.replace('%%SMOKE_BANNER%%', _build_smoke_banner(prov))
-    else:
-        content = content.replace('%%SMOKE_WATERMARK_PACKAGE%%', '')
-        content = content.replace('%%SMOKE_BANNER%%', '')
+
+    fmt = ctx["formatted"]
+    t1 = fmt["table1_prose"]
+    mapping = {
+        "RPT_DATE": DATE,
+        "RPT_PROVENANCE_BOX": _build_provenance_box(prov),
+        "RPT_SMOKE_WATERMARK_PACKAGE": SMOKE_WATERMARK_PACKAGE if is_smoke else "",
+        "RPT_SMOKE_BANNER": _build_smoke_banner(prov) if is_smoke else "",
+        "RPT_N_FOLDS": prov["n_folds"],
+        "RPT_PROV_MARKETS": prov["markets"],
+        "RPT_PROV_SEEDS": prov["seeds"],
+        "RPT_TABLE1_ROWS": fmt["table1_rows"],
+        "RPT_TABLE1_TOTAL_DAYS": t1["total_days"],
+        "RPT_TABLE1_TOTAL_EXTREME": t1["total_extreme"],
+        "RPT_TABLE1_MAX_EXTREME_MARKET": t1["max_extreme_market"],
+        "RPT_TABLE1_MAX_EXTREME_COUNT": t1["max_extreme_count"],
+        "RPT_TABLE1_MAX_RATIO_MARKET": t1["max_ratio_market"],
+        "RPT_TABLE1_MAX_RATIO_P_BIG": t1["max_ratio_p_big"],
+        "RPT_TABLE1_MAX_RATIO_P_BIG_GIVEN_BIG": t1["max_ratio_p_big_given_big"],
+        "RPT_TABLE1_MAX_RATIO_VALUE": t1["max_ratio_value"],
+        "RPT_TABLE1_RATIO_MIN": t1["ratio_min"],
+        "RPT_TABLE1_RATIO_MAX": t1["ratio_max"],
+        "RPT_TABLE3_ROWS": fmt["table3_rows"],
+        "RPT_BUDGET_PARITY_ROWS": fmt["budget_parity_rows"],
+        "RPT_DOWNSTREAM_UTILITY_ROWS": fmt["downstream_utility_rows"],
+        "RPT_WALK_FORWARD_ROWS": fmt["walk_forward_rows"],
+        "RPT_PRIMARY_MARKET": fmt["primary_market"],
+        "RPT_PRIMARY_SEED": fmt["primary_seed"],
+        "RPT_FIGURES_BLOCK": fmt["figures_block"],
+    }
+
+    os.makedirs(args.reports_dir, exist_ok=True)
+    # safe_substitute (not substitute): the document is full of bare "$...$"
+    # math mode, which .substitute() treats as invalid placeholders and
+    # raises on. safe_substitute() leaves any "$" not shaped like one of our
+    # ${RPT_*} keys untouched. All of our own keys use the long RPT_ prefix
+    # specifically so they can never collide with a short bare-math variable
+    # like "$n$" or "$W_1$" that happens to look like a valid identifier.
+    content = string.Template(TEX).safe_substitute(mapping)
 
     with open(tex_path, 'w', encoding='utf-8') as f:
         f.write(content)
