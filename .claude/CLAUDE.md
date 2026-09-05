@@ -21,6 +21,11 @@ session that produced them — the check had been run, then the file changed, th
 the commit was made. Verification is only evidence about the state it actually
 read.
 
+As of 2026-09-05, `verify_notebook.py` no longer checks `SMOKE_TEST` at all — see
+§4. That flag is now unguarded: nothing here will stop a commit that claims real
+results while `SMOKE_TEST = True`. Read the assignment yourself before any commit
+that is meant to report real results, not just before a checkpoint commit.
+
 ---
 
 ## 2. Do not remove
@@ -78,8 +83,10 @@ The pipeline asserts this and refuses to run otherwise.
   update. That is intrinsic to WGAN-GP (Gulrajani et al. 2017), not an extra
   budget.
 - Equal generator updates is **not** equal compute. Measured wall-clock at 1,000
-  generator steps: TimeGAN 19.7 s, FinGAN 39.3 s, QuantGAN 180.1 s — a 9× spread.
-  Record both budget and wall-clock; they are different claims.
+  generator steps, averaged over five runs: TimeGAN 20.5 s, FinGAN 42.4 s,
+  QuantGAN 178.0 s — roughly a 9× spread. Record both budget and wall-clock;
+  they are different claims. Run-to-run spread itself is uneven across models —
+  see §6, Run-to-run nondeterminism.
 
 All budgets, seeds, markets and fold counts live in the **EXPERIMENT
 CONFIGURATION** cell. Do not set them anywhere else. Scattered hyperparameters
@@ -88,15 +95,21 @@ models and not the third.
 
 ---
 
-## 4. `SMOKE_TEST` must be `False` in any commit
+## 4. `SMOKE_TEST` must be `False` in any commit that reports real results — unguarded, check manually
 
-The flag is in the EXPERIMENT CONFIGURATION cell. `verify_notebook.py` checks the
-**assignment**, line-anchored — an earlier substring check was satisfied by the
-neighbouring comment text and passed while the flag was `True`.
+The flag is in the EXPERIMENT CONFIGURATION cell. `verify_notebook.py` used to
+check the **assignment**, line-anchored — an earlier substring check was
+satisfied by the neighbouring comment text and passed while the flag was `True`.
 
-Setting it `True` also changes seeds, markets, folds and step budgets, so a
-commit carrying `True` silently records a configuration nobody intended to
-publish.
+As of 2026-09-05 that check has been deliberately removed, to allow committing a
+smoke-test run as a checkpoint. There is now **no automated gate at all**:
+`verify_notebook.py` passing says nothing about the value of `SMOKE_TEST`. Before
+any commit meant to report real results, open the EXPERIMENT CONFIGURATION cell
+and confirm `SMOKE_TEST = False` yourself.
+
+Setting it `True` also changes seeds, markets, folds and step budgets, so an
+unnoticed `True` silently records a configuration nobody intended to publish —
+this is exactly how it was carried through eight commits previously (§1).
 
 ---
 
@@ -160,6 +173,23 @@ only at pooled n.
 **Reference values.** TRTR QLIKE ≈ −8.134. Real-GARCH VaR coverage error 0.0259.
 Wasserstein has a floor at the real data's MAD (0.00770 for BOVESPA), so a
 collapsed constant-output model can beat a working one on that metric alone.
+
+**Run-to-run nondeterminism.** At fixed seed and identical code, TimeGAN and the
+shuffled control are bit-identical across five runs (sd = 0 on every metric,
+including every walk-forward fold). FinGAN drifts slightly: Wasserstein CV 1.6%,
+WF AUC sd 0.009. QuantGAN drifts substantially: Wasserstein CV 37%,
+`tail_index_diff` CV 79%, raw AUC 0.551–0.734.
+
+Not a seeding bug — loss traces agree to four significant figures at epoch 1 and
+separate by epoch 5. Consistent with QuantGAN being the only model combining
+WGAN-GP double-backward with dilated convolutions.
+`torch.use_deterministic_algorithms(True)` and `cudnn.deterministic` remain
+deliberately unset; the cost is now measured rather than assumed.
+
+`composite_rank` is stable (QuantGAN wins 5/5, 1.429–1.500; FinGAN 1.786–1.893;
+TimeGAN 2.643–2.714). But `tail_index_diff`, `hurst_diff` and `mean_diff` change
+their winner between runs. Never report a single-run winner on
+`tail_index_diff` — QuantGAN spans 0.065–1.707 against FinGAN's 0.357–0.865.
 
 ---
 

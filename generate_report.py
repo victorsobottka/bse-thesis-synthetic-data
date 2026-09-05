@@ -123,9 +123,9 @@ TEX = r"""
 \vspace{0.7cm}
 
 \begin{tabular}{r@{\hspace{10pt}}l}
-  \textbf{Format}        & Dual-audience: Foundations (Part~I) $\cdot$ NMI Technical (Part~II) \\[4pt]
+  \textbf{Format}        & Dual-audience: Foundations (Part~I) $\cdot$ Technical (Part~II) \\[4pt]
   \textbf{Collaboration} & Universitat Polit\`{e}cnica de Catalunya (UPC) \\[4pt]
-  \textbf{Document type} & Research draft --- NMI-format submission in preparation \\[4pt]
+  \textbf{Document type} & Research draft --- prepared for Quantitative Finance / ACM ICAIF \\[4pt]
   \textbf{Models}        & TimeGAN (GRU) $\cdot$ QuantGAN (TCN-WGAN-GP) $\cdot$ FinGAN (CNN-WGAN-GP) \\[4pt]
   \textbf{Markets}       & BOVESPA $\cdot$ FTSE JSE $\cdot$ MOEX $\cdot$ NIFTY50 $\cdot$ SHANGHAI \\[4pt]
   \textbf{Generated}     & <<<DATE>>> \\
@@ -141,7 +141,7 @@ TEX = r"""
 
 %% ─── Page 2: Summary + Sections 1–2 ─────────────────────────────────────────
 \pagehead{Summary --- For All Readers}
-         {Non-specialist language $\cdot$ $\leq$200 words $\cdot$ required by Nature Machine Intelligence}
+         {Non-specialist language $\cdot$ $\leq$200 words}
 
 \begin{tcolorbox}[enhanced,arc=4pt,boxrule=1pt,colframe=Teal,colback=TealBg,
   top=6pt,bottom=6pt,left=8pt,right=8pt,before skip=4pt,after skip=8pt]
@@ -272,7 +272,7 @@ That result reshaped this project. It means the standard way of checking synthet
 If real data exists, why generate fake data? There are three reasons, each pointing at a different kind of problem.
 
 \medskip
-\textbf{Reason 1: not enough real crashes.} Deep learning systems need thousands of examples to learn reliably. Real markets produce roughly 250 trading days per year. A five-year dataset gives 1{,}250 days. A single crash, by definition, happens rarely --- so the system trains on almost none of them. A generative model can supply as many fake crash sequences as needed.
+\textbf{Reason 1: not enough real crashes.} Deep learning systems need thousands of examples to learn reliably. Real markets produce roughly 250 trading days per year. Even twenty years of history gives only $\approx$4{,}960 days per market. A single crash, by definition, happens rarely --- so even at that length the system trains on almost none of them: the 76 extreme days found across the whole dataset (Section~3) cluster into a handful of episodes, not thousands of independent examples. A generative model can supply as many fake crash sequences as needed.
 
 \medskip
 \textbf{Reason 2: stress testing.} Banks and regulators must demonstrate that their risk systems survive scenarios that have not happened yet. ``What would a 2008-style crisis look like in the Brazilian market?'' Real history cannot answer that. A well-trained generator can produce thousands of plausible answers.
@@ -387,9 +387,9 @@ The best composite score is 1.421.}
 This project establishes a benchmark and evaluation framework. It does not solve the underlying problem completely. Four limitations matter for the paper.
 
 \medskip
-\textbf{Limitation 1: five years of data is short.}
+\textbf{Limitation 1: real crisis regimes remain rare, even at 20 years.}
 
-We now use 20 years of daily data (2006--2026), giving $\approx$4{,}960 observations per market and a pooled test set of $\approx$2{,}480. The Hill estimator standard deviation at $n=4{,}960$ is $\approx$0.035 (versus 0.52 at $n=995$ for 5-year data), a 15-fold improvement. This resolves all per-market QLIKE inversions and raises Kupiec power to $\approx$99\% pooled.
+Twenty years of daily data (2006--2026, $\approx$4{,}960 observations per market, pooled test set $\approx$2{,}480) resolves the sample-size problem for stylized-fact estimation: Hill estimator standard deviation falls from $\approx$0.52 at $n=995$ (5-year data) to $\approx$0.035 at $n=4{,}960$, a 15-fold improvement, resolving the per-market QLIKE inversion and raising Kupiec power to $\approx$99\% pooled. It does not resolve the sparsity of independent crisis episodes: the 76 extreme days recorded (Section~3) cluster into a handful of regimes --- the 2008 financial crisis, the 2020 COVID crash, and the 2022 MOEX invasion shock. A benchmark validated against a few crisis episodes is validated against a few crisis episodes, however many market-days each one contributes. That is why synthetic crisis generation (Section~5) stays useful even at 20 years of real history.
 
 \medskip
 \textbf{Limitation 2: no diffusion model baseline.}
@@ -399,7 +399,7 @@ Takahashi and Mizuno (2025)\tcite{29} showed that diffusion-based generators out
 \medskip
 \textbf{Limitation 3: no systematic hyperparameter search.}
 
-All three GAN architectures use reference-implementation defaults from their original papers. No search over learning rates, hidden dimensions, or noise dimensions has been run. TimeGAN in particular is trained with only five epochs --- far below the 5{,}000--10{,}000 iterations per phase recommended by Yoon et al.\ (2019)\tcite{4}. TimeGAN's poor ranking reflects this budget, not its architecture.
+All three GAN architectures use reference-implementation defaults from their original papers. No search over learning rates, hidden dimensions, or noise dimensions has been run. Budgets are now equalised on generator updates across all three models (TimeGAN's four-phase pre-training is reported separately, per Yoon et al.\ 2019\tcite{4}), so TimeGAN's weak result is no longer attributable to an unequal training budget: at equal budget it gives excess kurtosis $-1.02$ against real $+1.34$, Hill $\hat\alpha=16.4$ against real $4.12$, $0.40\%$ extreme events against real $6.05\%$, and raw AUC $0.953$ --- bounded, platykurtic, and nearly tailless, consistent with tanh saturation in the Recovery network rather than an undertrained model.
 
 \medskip
 \textbf{Limitation 4: ARCH tests are unreliable across regimes.}
@@ -411,7 +411,7 @@ The ARCH-LM test, the standard tool for detecting volatility clustering, saturat
 \clearpage
 
 %% ═══════════════════════════════════════════════════════════════════════════════
-%% PART II — TECHNICAL SPECIFICATION (NMI FORMAT)
+%% PART II — TECHNICAL SPECIFICATION
 %% ═══════════════════════════════════════════════════════════════════════════════
 
 %% ─── Page 6: Abstract + Untitled Opening ─────────────────────────────────────
@@ -420,7 +420,7 @@ The ARCH-LM test, the standard tool for detecting volatility clustering, saturat
   colback=Navy!10,colframe=Navy!10,top=3pt,bottom=3pt,left=8pt,right=8pt,
   before skip=0pt,after skip=6pt]
 {\large\bfseries\color{Navy} PART II --- TECHNICAL SPECIFICATION}
-\hfill{\small\color{Navy!70} NMI format $\cdot$ Abstract $\cdot$ Results $\cdot$ Discussion $\cdot$ References $\cdot$ Methods}
+\hfill{\small\color{Navy!70} Abstract $\cdot$ Results $\cdot$ Discussion $\cdot$ References $\cdot$ Methods}
 \end{tcolorbox}
 
 \begin{tcolorbox}[enhanced,arc=4pt,boxrule=1pt,colframe=Navy,colback=LBg,
@@ -559,7 +559,7 @@ On the real pooled BRICS test set ($n\approx2{,}480$, 20-year data): real LM and
 \clearpage
 
 \pagehead{Results (continued)}
-         {Model composite rankings $\cdot$ discriminative AUC $\cdot$ downstream utility $\cdot$ 20-year pooled ($n\approx2{,}480$)}
+         {Model composite rankings $\cdot$ discriminative AUC $\cdot$ downstream utility $\cdot$ run-to-run nondeterminism}
 
 \begin{multicols}{2}
 
@@ -584,7 +584,7 @@ These are illustrative names for three generator configurations; full per-archit
 
 The best composite score (1.42) reflects better performance on temporal metrics than fidelity metrics. No configuration scores below the shuffled control on temporal metrics (which would indicate failure to learn any temporal structure).
 
-\textbf{Walk-forward validation.} Five rolling folds per market enable mean\,$\pm$\,std across folds rather than a single metric estimate. TimeGAN is substantially undertrained (\texttt{epochs=5}; Yoon et al.\ recommend 5{,}000--10{,}000 iterations per phase), so its temporal ranking understates its architectural capability.}
+\textbf{Walk-forward validation.} Five rolling folds per market enable mean\,$\pm$\,std across folds rather than a single metric estimate. Budgets are equalised on generator updates across all three models (Yoon et al.'s four-phase pre-training is reported separately), so TimeGAN's temporal ranking reflects its architecture at parity, not an unequal training budget.}
 
 \skybox{Discriminative AUC: Null Calibration and Direction Bug}{%
 A logistic classifier is trained on 20-day rolling windows (features: mean, std, mean-abs, mean-sq) to distinguish real from synthetic. AUC\,=\,0.5 is the desired outcome (indistinguishability). Two non-obvious implementation choices matter:
@@ -627,6 +627,13 @@ MOEX residual kurtosis will dominate in 20-year analysis due to the 2022 invasio
 
 \textbf{Real coverage error.} Observed violation rate for real GARCH parameters on real data: $|0.0259 - 0.05| = 0.026$. Synthetic GARCH parameters that transfer well should approach this baseline.}
 
+\redbox{Run-to-Run Nondeterminism at Fixed Seed}{%
+At fixed seed and identical code, five repeated runs show sharply different stability across architectures. TimeGAN and the shuffled control are bit-identical across all five runs --- sd\,=\,0 on every metric, including every walk-forward fold. FinGAN drifts slightly: Wasserstein CV $1.6\%$, walk-forward AUC sd $0.009$. QuantGAN drifts substantially: Wasserstein CV $37\%$, \texttt{tail\_index\_diff} CV $79\%$, raw AUC ranging $0.551$--$0.734$.
+
+This is not a seeding bug: loss traces agree to four significant figures at epoch 1 and separate by epoch 5. It is consistent with QuantGAN being the only model that combines WGAN-GP's double-backward gradient penalty with dilated convolutions. \texttt{torch.use\_deterministic\_algorithms(True)} and \texttt{cudnn.deterministic} remain deliberately unset; this makes the cost of that choice measured rather than assumed.
+
+\texttt{composite\_rank} itself is stable across runs (QuantGAN wins all five, $1.429$--$1.500$; FinGAN $1.786$--$1.893$; TimeGAN $2.643$--$2.714$). But \texttt{tail\_index\_diff}, \texttt{hurst\_diff}, and \texttt{mean\_diff} change their winning model between runs. A single-run winner on \texttt{tail\_index\_diff} should never be reported: QuantGAN spans $0.065$--$1.707$ there, against FinGAN's $0.357$--$0.865$ --- ranges that overlap enough to hide the true comparison in any one run.}
+
 \end{multicols}
 
 \clearpage
@@ -648,14 +655,14 @@ The three-score fix (fidelity rank, temporal rank, composite = average) is a min
 
 We recommend this taxonomisation as a standard practice for synthetic time series evaluation. The shuffled control (seed 42, random permutation of the test set) should be a permanent entry in every evaluation table, serving the same diagnostic role as a positive control in a biology experiment.}
 
-\skybox{Architecture Comparison and the TimeGAN Caveat}{%
-Under the current pipeline, QuantGAN achieves the best composite ranking. This result should be interpreted with caution. TimeGAN is trained with \texttt{epochs=5}, giving each of its four training phases approximately two gradient steps. Yoon et al.\ (2019)\tcite{4} recommend 5{,}000--10{,}000 iterations per phase. TimeGAN's poor temporal ranking almost certainly reflects this training budget, not an architectural weakness.
+\skybox{Architecture Comparison and the TimeGAN Result}{%
+Under the current pipeline, QuantGAN achieves the best composite ranking. Training budgets are equalised on generator updates across all three models (TimeGAN's four-phase pre-training is reported separately, per Yoon et al.\ 2019\tcite{4}), so TimeGAN's weak result is no longer attributable to an unequal training budget. At equal budget it gives excess kurtosis $-1.02$ against real $+1.34$, Hill $\hat\alpha=16.4$ against real $4.12$, $0.40\%$ extreme events against real $6.05\%$, and raw AUC $0.953$ --- bounded, platykurtic, and nearly tailless, consistent with tanh saturation in the Recovery network rather than an undertrained model.
 
 The QuantGAN result is consistent with the hypothesis that dilated temporal convolutions better capture the multi-scale clustering structure of BRICS markets --- volatility that operates simultaneously at intraday, weekly, and monthly timescales. TCN dilations cover all three scales in a single forward pass without the gradient issues that affect GRU-based training at longer horizons.
 
 FinGAN's CNN deconvolution approach generates from a compressed noise vector and upsamples via transposed convolutions, a design borrowed from image GANs. Its performance gap relative to QuantGAN may reflect that market return sequences have weaker hierarchical structure than images, making the image-GAN inductive bias less appropriate.
 
-A complete comparison awaits: (1) TimeGAN retrained with $\geq 50$ epochs per phase; (2) systematic hyperparameter search over Tier-2 parameters (learning rate, hidden dimension, noise dimension); (3) reporting of mean\,$\pm$\,std across 3--5 seeds rather than a single seed result.}
+A complete comparison awaits: (1) systematic hyperparameter search over Tier-2 parameters (learning rate, hidden dimension, noise dimension); (2) reporting of mean\,$\pm$\,std across 3--5 seeds rather than a single seed result --- and, per the run-to-run nondeterminism findings below, that matters far more for QuantGAN than for TimeGAN.}
 
 \columnbreak
 
@@ -668,7 +675,7 @@ A complete comparison awaits: (1) TimeGAN retrained with $\geq 50$ epochs per ph
 
 \textbf{Static VaR.} An unconditional VaR based on the empirical quantile of the synthetic distribution adds no information beyond what distributional metrics already capture, and scores identically for Gaussian noise and real data (coverage error 0.0276 in both cases). Only conditional VaR (Section: Downstream Utility) probes the temporal structure.
 
-\textbf{Data length.} Five years of daily data produces approximately 995 observations per market before splitting. Estimator precision at this sample size: Hurst sd 0.022; Hill sd 0.52; ACF($|r|$, lag 50) sd 0.039. Extending to 15--20 years would reduce these standard deviations by 4--15$\times$, sharpening every comparison.}
+\textbf{Data length.} Twenty years of daily data ($\approx$4{,}960 observations per market before splitting) resolves the small-sample estimator problem: Hill sd falls from $\approx$0.52 at $n=995$ (5-year data) to $\approx$0.035 at $n=4{,}960$, a 15-fold improvement, and the per-market QLIKE inversion (Gaussian beating real at $n\approx126$) no longer occurs. What remains limiting is not sample size but the number of independent crisis regimes: the 76 extreme days recorded (Section~3) cluster into a handful of episodes --- the 2008 financial crisis, the 2020 COVID crash, and the 2022 MOEX invasion shock --- not thousands of independent draws.}
 
 \amberbox{Future Work}{%
 \begin{itemize}
@@ -676,7 +683,6 @@ A complete comparison awaits: (1) TimeGAN retrained with $\geq 50$ epochs per ph
   \item \textbf{Add a diffusion model baseline.} Takahashi \& Mizuno (2025)\tcite{29} showed diffusion-based generators outperform GANs on several stylized-fact metrics. This is the largest remaining reviewer risk.
   \item \textbf{Systematic hyperparameter search.} 20--30 random-search candidates per architecture (Bergstra \& Bengio 2012\tcite{12}), scored with composite rank, winner retrained at full budget.
   \item \textbf{Multi-market generalisation test.} Train on BRICS, evaluate on a non-BRICS emerging market (e.g.\ Turkey or Mexico) to test out-of-distribution generalisation.
-  \item \textbf{TimeGAN at correct training budget.} $\geq 50$ epochs per phase (RunPod run in progress).
 \end{itemize}}
 
 \end{multicols}
@@ -813,7 +819,7 @@ A complete comparison awaits: (1) TimeGAN retrained with $\geq 50$ epochs per ph
 \clearpage
 
 %% ─────────────────────────────────────────────────────────────────────────────
-%% METHODS  (NMI: after references)
+%% METHODS  (technical report: after references)
 %% ─────────────────────────────────────────────────────────────────────────────
 \begin{tcolorbox}[
   colback=NavyBg, colframe=NavyBg!60!black, arc=4pt,
@@ -826,7 +832,7 @@ A complete comparison awaits: (1) TimeGAN retrained with $\geq 50$ epochs per ph
 \small
 
 \textbf{Data sources and date range.}
-Five daily closing-price CSV files were obtained from public sources: BOVESPA (Ibovespa), FTSE/JSE All Share, MSCI World (used as an emerging-market proxy in the BRICS basket), NIFTY 50, and Shanghai Composite. Each covers the five-year window used for the benchmark.
+Five daily closing-price CSV files were obtained from public sources: BOVESPA (Ibovespa), FTSE/JSE All Share, MOEX (Moscow Exchange, the Russia leg of the BRICS basket), NIFTY 50, and Shanghai Composite. Each covers the 20-year window used for the benchmark (2006-08-30 to 2026-08-28). MOEX has a documented $-33.3\%$ single-day return on 2022-02-24, followed by a 27-trading-day suspension (2022-02-25 to 2022-03-24); this is recorded as a known gap in the series and is never interpolated.
 
 \textbf{Date parsing.}
 Source files use MM/DD/YYYY format. Lexicographic sorting of this format across year boundaries is incorrect (e.g.\ \texttt{01/01/2021} $<$ \texttt{12/31/2020} alphabetically). All date columns are parsed with \texttt{pd.to\_datetime(df["Date"], dayfirst=False)} and sorted chronologically before any subsequent operation. This fix was applied in \texttt{5\_Paper\_Calculate\_LogReturns.py}.
@@ -843,7 +849,7 @@ Temporal 80/10/10 split (no shuffle). The 80\% training portion feeds GAN traini
 \textbf{GAN architectures and hyperparameters.}
 All three models use WGAN-GP with $n_\text{critic}=5$ (Gulrajani 2017\tcite{3} floor) and $\lambda_\text{gp}=10$. Adam optimiser with $\beta_1=0$, $\beta_2=0.9$ (Gulrajani 2017\tcite{3} recommendation; $\beta_1=0$ disables momentum, which destabilises adversarial training). Batch size 64. See Extended Data for per-architecture hyperparameter tables.
 
-\textbf{TimeGAN} (Yoon et al., 2019\tcite{4}): GRU backbone; hidden\_dim=24, num\_layers=3, lr=1e-3. Currently \texttt{epochs=5} --- inadequate; phases 1 and 2 each receive 2 gradient steps. Requires $\geq$50 epochs (or explicit per-phase iteration counts) for meaningful evaluation.
+\textbf{TimeGAN} (Yoon et al., 2019\tcite{4}): GRU backbone; hidden\_dim=24, num\_layers=3, lr=1e-3. Joint-phase generator updates are set equal to QuantGAN's and FinGAN's training steps (pipeline-asserted parity); \texttt{ae\_steps} and \texttt{sup\_steps} are separate four-phase pre-training, excluded from that parity and reported on their own.
 
 \textbf{QuantGAN} (Wiese et al., 2020\tcite{5}): TCN backbone; noise\_dim=100, lr=1e-4, 3 residual TCN blocks with dilations 1/2/4.
 
@@ -878,7 +884,7 @@ QLIKE, Kupiec, and Christoffersen statistics are computed on the pooled test set
 \textbf{Discriminative AUC implementation.}
 Logistic regression on 20-day rolling-window features (mean, std, mean of absolute values, mean of squared values). Five-fold cross-validation without temporal shuffling (shuffling introduces look-ahead leakage from overlapping windows; measured shift in null: $0.506 \to 0.584$). Empirical null estimated by 20 real-vs-real half-splits. AUC ranking metric: $|\text{AUC} - 0.506|$.
 
-\textbf{Hardware.} Evaluation metrics run on CPU (single machine). GAN training ($\geq$50 epochs per phase) uses a RunPod A100 instance ($\sim$7h/run). Results in this draft use 5-epoch smoke-test weights; production weights will replace them after the full RunPod run.
+\textbf{Hardware.} Evaluation metrics run on CPU (single machine). GAN training uses a RunPod A100 instance. Budgets are specified in gradient steps with generator-update parity enforced across all three models (Extended Data Table 3); wall-clock at 1,000 generator steps is TimeGAN $\approx$20.5\,s, FinGAN $\approx$42.4\,s, QuantGAN $\approx$178\,s --- equal generator updates is not equal compute.
 
 \end{multicols}
 
@@ -1051,9 +1057,17 @@ All code is available at \texttt{victorsobottka/bse-thesis-synthetic-data}. The 
   {WGAN-GP gradient penalty computation is correct (QuantGAN \& FinGAN)}%
   {$\hat{x} = \varepsilon x_\text{real} + (1-\varepsilon)x_\text{fake}$; \texttt{requires\_grad\_(True)}; gradients via \texttt{torch.autograd.grad} with \texttt{create\_graph=True}. \texttt{fake.detach()} prevents spurious accumulation. Correctly implements Gulrajani et al.\ (2017)\tcite{3} Eq.~3.}
 
+\auditrow{FIXED}{Amber}{ABg}%
+  {TimeGAN training budget equalised on generator updates; result reattributed to architecture}%
+  {Training budgets are specified in gradient steps, never epochs, and parity is enforced on generator updates: \texttt{TimeGAN.joint\_steps == QuantGAN.train\_steps == FinGAN.train\_steps}, asserted by the pipeline. TimeGAN's \texttt{ae\_steps}/\texttt{sup\_steps} are four-phase pre-training (Yoon et al.\ 2019\tcite{4}), reported separately and excluded from parity; QuantGAN and FinGAN take $n_\text{critic}=5$ discriminator updates per generator update (Gulrajani et al.\ 2017\tcite{3}), intrinsic to WGAN-GP, not extra budget. Equal generator updates is not equal compute: measured wall-clock at 1,000 generator steps is TimeGAN $\approx$20.5\,s, FinGAN $\approx$42.4\,s, QuantGAN $\approx$178\,s. At this parity, TimeGAN's weak result is no longer attributable to budget: excess kurtosis $-1.02$ against real $+1.34$, Hill $\hat\alpha=16.4$ against real $4.12$, $0.40\%$ extreme events against real $6.05\%$, raw AUC $0.953$ --- bounded, platykurtic, and nearly tailless, consistent with tanh saturation.}
+
 \auditrow{CONCERN}{Amber}{ABg}%
-  {TimeGAN training budget of \texttt{epochs=5} is scientifically insufficient}%
-  {Phases 1 and 2 each receive $5//2=2$ gradient steps. A GRU cannot converge in 2 steps. Yoon et al.\ (2019)\tcite{4} use 5{,}000--10{,}000 iterations per phase. TimeGAN's poor ranking almost certainly reflects this budget.}
+  {A collapsed generator wins the volatility-clustering metrics}%
+  {Identical in all five runs, TimeGAN scores \texttt{acf\_absolute\_mae}~0.0421 and \texttt{acf\_squared\_mae}~0.0407 --- best of all four series, beating the shuffled control (0.0469 / 0.0456), QuantGAN (0.0517 / 0.0542), and FinGAN (0.0524 / 0.0453) --- while independently flagged for mode collapse: ACF(1)\,=\,0.429, Hill $\hat\alpha=16.4$ against real $4.12$, raw AUC $0.953$. Same failure mode as the Wasserstein floor (\S2): a degenerate, near-constant output games a distance metric rather than reproducing the property it is meant to measure.}
+
+\auditrow{OPEN QUESTION}{Indigo}{IBg}%
+  {Shuffled control wins \texttt{acf\_returns\_mae} outright}%
+  {The control scores 0.0528 against 0.0537 for the best generator on \texttt{acf\_returns\_mae}, despite the metric's TEMPORAL (ordering-sensitive) classification --- suggesting it may be permutation-invariant in practice for these series, even though it is not by construction. Recorded as an open question only: reclassifying it would move the headline permutation-invariant count from 9 of 19 to 10 of 19 metrics, and that reclassification is deferred to full-run data. \texttt{FIDELITY\_COLS} and \texttt{TEMPORAL\_COLS} are unchanged here.}
 
 \clearpage
 
@@ -1158,7 +1172,8 @@ Key hyperparameters & hidden\_dim=24, num\_layers=3, lr=1e-3 & noise\_dim=100, l
 seq\_len constraint & Any length & Any length & Must be divisible by 8 \\
 Inductive bias & Temporal ordering matters step-by-step; GARCH-like persistence via GRU hidden state & Multi-scale patterns (short + long memory); dilations cover intraday/weekly/monthly simultaneously & Generate from compressed noise like image GANs; hierarchical refinement from coarse to fine \\
 Normalisation & MinMax $[0,1]$ & MinMax $[-1,1]$ & MinMax $[-1,1]$ \\
-Current training budget & epochs=5 (\textcolor{DRed}{far too low}) & --- & --- \\
+Generator-update budget & parity with QuantGAN, FinGAN (pipeline-asserted) & parity with TimeGAN, FinGAN & parity with TimeGAN, QuantGAN \\
+Wall-clock @ 1,000 gen.\ steps & $\approx$20.5\,s & $\approx$178\,s & $\approx$42.4\,s \\
 \bottomrule
 \end{tabularx}}
 
@@ -1190,7 +1205,7 @@ Current training budget & epochs=5 (\textcolor{DRed}{far too low}) & --- & --- \
 
 \textbf{Phase 4 --- Fine-tuning:} fine-tune recovery $\hat{r}$ with generated sequences.
 
-\textbf{Current failure:} \texttt{epochs=5} gives each phase $\sim$2 gradient steps. No GRU can form useful representations in 2 steps. All TimeGAN results should be interpreted with this caveat.}
+\textbf{Result at parity:} generator-update budget is equal to QuantGAN and FinGAN (pipeline-asserted); \texttt{ae\_steps}/\texttt{sup\_steps} are separate four-phase pre-training, excluded from that parity. At this budget TimeGAN gives excess kurtosis $-1.02$ against real $+1.34$, Hill $\hat\alpha=16.4$ against real $4.12$, and raw AUC $0.953$ --- consistent with tanh saturation in the Recovery network, not an undertrained GRU.}
 
 \end{multicols}
 
