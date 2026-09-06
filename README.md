@@ -45,6 +45,8 @@ Collaboration between **Barcelona School of Economics (BSE)** and **UPC**.
 │   └── pipeline_run_metadata.json                 # Run config, commit, seeds, device
 │
 ├── thesis_results/                                # Pipeline data artifacts: CSVs, metrics, plots
+│   ├── production/                                # Real runs (SMOKE_TEST=False) -- tracked
+│   └── smoke/                                     # Structural-check runs -- gitignored, not tracked
 │
 ├── papers/                                        # Reference papers for the BRICS paper
 │
@@ -89,7 +91,8 @@ jupyter nbconvert --to notebook --execute 0_3_Optiver_datapreprocessing_BRICS_v0
 
 # 2. Run the full pipeline (trains all three GANs, evaluates, ranks)
 jupyter nbconvert --to notebook --execute 3_4_integrated_pipeline.ipynb
-#    → thesis_results/*.csv, thesis_results/*/*.png
+#    → thesis_results/{smoke,production}/*.csv, thesis_results/{smoke,production}/*/*.png
+#      (which one depends on SMOKE_TEST in the EXPERIMENT CONFIGURATION cell)
 #    → reports/metric_diagnostics/index.html
 #    → reports/pipeline_run_metadata.json
 

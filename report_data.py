@@ -7,15 +7,18 @@ substituting a default, a placeholder, or NaN. A report that silently
 renders around missing data is the failure mode this module exists to
 prevent.
 
-Artifact sources (see CLAUDE.md section 7 for the full repository layout):
+Artifact sources (see CLAUDE.md section 7 for the full repository layout).
+thesis_results/ is split production/ vs smoke/ (run_complete_pipeline picks
+one based on SMOKE_TEST); the default results_dir below is production/, and
+that is the only tree meant to back a real report:
 
-    reports/pipeline_run_metadata.json                        run provenance
-    thesis_results/overall_performance.csv                    cross-run ranks
-    thesis_results/per_seed_market_performance.csv             + compute cost
-    thesis_results/<MARKET>/seed<N>/<MARKET>_metrics.csv       19 raw metrics
-    thesis_results/<MARKET>/seed<N>/pooled_downstream_utility.csv
-    thesis_results/walk_forward/<MARKET>/walk_forward_<MODEL>_seed<N>.csv
-    thesis_results/<MARKET>/seed<N>/*.png                      figures
+    reports/pipeline_run_metadata.json                            run provenance
+    thesis_results/production/overall_performance.csv             cross-run ranks
+    thesis_results/production/per_seed_market_performance.csv      + compute cost
+    thesis_results/production/<MARKET>/seed<N>/<MARKET>_metrics.csv  19 raw metrics
+    thesis_results/production/<MARKET>/seed<N>/pooled_downstream_utility.csv
+    thesis_results/production/walk_forward/<MARKET>/walk_forward_<MODEL>_seed<N>.csv
+    thesis_results/production/<MARKET>/seed<N>/*.png               figures
 
 Markets, seeds and models are discovered from the filesystem, never
 hardcoded: the diffusion, GARCH and LLM arms are coming, and a market run
@@ -83,7 +86,7 @@ _SEED_DIR_RE = re.compile(r"^seed(?P<seed>\d+)$")
 _WF_FILE_RE = re.compile(r"^walk_forward_(?P<model>.+?)_seed(?P<seed>\d+)\.csv$")
 
 
-def _discover_market_seed_dirs(results_dir: Path):
+def discover_market_seed_dirs(results_dir: Path):
     """Yield (market, seed, seed_dir) for every thesis_results/<MARKET>/seed<N>/.
 
     Older, pre-parity pipeline runs left per-market CSVs directly under
@@ -459,7 +462,7 @@ def _build_provenance(metadata: dict) -> dict:
 # Public entry point
 # ============================================================================
 
-def load_report_context(results_dir="thesis_results", reports_dir="reports",
+def load_report_context(results_dir="thesis_results/production", reports_dir="reports",
                          processed_dir="data/processed_files") -> dict:
     """Read every artifact the report needs and return a plain-dict context.
 
@@ -475,7 +478,7 @@ def load_report_context(results_dir="thesis_results", reports_dir="reports",
     per_seed_market = _read_csv(results_dir / "per_seed_market_performance.csv")
 
     runs = []
-    for market, seed, seed_dir in _discover_market_seed_dirs(results_dir):
+    for market, seed, seed_dir in discover_market_seed_dirs(results_dir):
         metrics = _read_csv(seed_dir / f"{market}_metrics.csv")
         pooled_utility = _read_csv(seed_dir / "pooled_downstream_utility.csv")
         walk_forward = _discover_walk_forward(results_dir, market, seed)

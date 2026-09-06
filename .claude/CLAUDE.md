@@ -200,8 +200,31 @@ their winner between runs. Never report a single-run winner on
 | `3_4_integrated_pipeline.ipynb` | the pipeline: models, metrics, plots, run loop |
 | `verify_notebook.py` | regression guard; must exit 0 before any commit |
 | `knowledge_base/` | 16-chapter LaTeX book; `make` builds `knowledge_base.pdf` |
-| `thesis_results/` | pipeline data artifacts: CSVs, metrics, plots, walk-forward outputs |
-| `reports/` | shareable reports; main PDFs, metric diagnostics HTML, run metadata |
+| `thesis_results/production/` | real-run (`SMOKE_TEST=False`) data artifacts — **tracked** |
+| `thesis_results/smoke/` | structural-check output — **gitignored, never tracked** |
+| `report_data.py` | data layer for `generate_report.py`; reads `thesis_results/production/` by default |
+| `generate_report.py` | builds the main PDF report; `--results-dir` to point elsewhere |
+| `Makefile` | `make report` / `report-smoke` / `verify` |
+| `reports/` | shareable reports; main PDFs, metric diagnostics HTML, run metadata, run logs |
+
+`thesis_results/<production\|smoke>/` both keep the same internal shape:
+`<MARKET>/seed<N>/` (metrics, `pooled_downstream_utility.csv`,
+`run_config.json`, `weights/` when not smoke-testing), `walk_forward/<MARKET>/`.
+Never mix the two roots by hand — `RESULTS` in the notebook and
+`--results-dir` in `generate_report.py`/`report_data.py` pick one based on
+`SMOKE_TEST`, and nothing reads across the split.
+
+**Resume.** `run_complete_pipeline()` skips a `(market, seed)` whose output
+under the current `RESULTS` is already complete (metrics, downstream utility,
+every model's walk-forward CSV, and — outside smoke tests — every model's
+weights) **and** whose `run_config.json` matches the run about to start
+(`smoke_test`, `generator_updates`, `n_folds`, `seq_len`, TimeGAN pre-training
+steps, git commit). Any mismatch, or an absent `run_config.json`, forces a
+re-run rather than a skip. `FORCE_RERUN = True` in EXPERIMENT CONFIGURATION
+ignores all of this and redoes everything. Aggregation (`overall_performance.csv`,
+`per_seed_market_performance.csv`) is read back from the per-market-seed CSVs
+on disk, not from in-memory state, so a run that skips everything still
+produces complete aggregates.
 
 **Notebook cell map** (indices shift when cells are inserted — re-check before
 editing by index):
@@ -209,16 +232,19 @@ editing by index):
 | Cell | Contents |
 |---|---|
 | 0 | imports, shared return bounds |
-| 1 | paths (`ROOT`, `DATA`, `RESULTS`, `REPORTS`) |
-| 3 | **EXPERIMENT CONFIGURATION** — seeds, markets, folds, step budgets, `SMOKE_TEST` |
-| 4 | GPU Device Check |
+| 1 | paths (`ROOT`, `DATA`, `REPORTS`) — `RESULTS` starts here but is re-pointed to `smoke/`/`production/` in cell 3, once `SMOKE_TEST` is known |
+| 3 | **EXPERIMENT CONFIGURATION** — seeds, markets, folds, step budgets, `SMOKE_TEST`, `FORCE_RERUN`, the `RESULTS` split |
+| 4 | GPU Device Check — raises if CUDA is unavailable, does not fall back to CPU silently |
 | 8 / 10 / 12 | TimeGAN / QuantGAN / FinGAN |
 | 14 | `FinancialMetrics` |
 | 16 | plotting |
-| 18 | pipeline and `generate_metric_diagnostics_report` |
+| 18 | pipeline, resume/skip logic, and `generate_metric_diagnostics_report` |
 | 19 | main execution |
 
 Main reports use LaTeX (`pdflatex`), never matplotlib, and are written to
-`reports/report_YYYY-MM-DD.pdf`. Pipeline-generated metric diagnostics are
-written to `reports/metric_diagnostics/`, and reproducibility metadata is
-written to `reports/pipeline_run_metadata.json`.
+`reports/report_YYYY-MM-DD.pdf` (or `report_YYYY-MM-DD_SMOKE.pdf`, stamped
+with a banner and watermark, when `--allow-smoke` overrides the refusal that
+`smoke_test: true` otherwise triggers). Pipeline-generated metric diagnostics
+are written to `reports/metric_diagnostics/`, reproducibility metadata to
+`reports/pipeline_run_metadata.json`, and full stdout+stderr to
+`reports/run_log_<timestamp>.log`.

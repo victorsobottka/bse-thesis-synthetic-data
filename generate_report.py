@@ -1343,9 +1343,11 @@ Logistic classifier on 20-day rolling windows. AUC = 0.5 is the optimum (indisti
 def main():
     parser = argparse.ArgumentParser(
         description="Build the LaTeX/PDF report from pipeline run artifacts.")
-    parser.add_argument("--results-dir", default="thesis_results",
-                         help="thesis_results/ directory to read (default: thesis_results). "
-                              "Point this at a RunPod output directory directly.")
+    parser.add_argument("--results-dir", default="thesis_results/production",
+                         help="Results directory to read (default: thesis_results/production). "
+                              "thesis_results/ is split smoke/ vs production/ by SMOKE_TEST; "
+                              "pass thesis_results/smoke explicitly for a smoke report, or "
+                              "point this at a RunPod output directory directly.")
     parser.add_argument("--reports-dir", default=OUT_DIR,
                          help=f"Output directory for the .tex/.pdf (default: {OUT_DIR}).")
     parser.add_argument("--processed-dir", default="data/processed_files",

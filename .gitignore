@@ -149,11 +149,17 @@ papers/
 thesis_archive/
 knowledge_base/
 
+# thesis_results/ is split smoke/ vs production/ (see run_complete_pipeline
+# and .claude/CLAUDE.md SS7). Smoke output churns constantly -- 62 tracked
+# files per run before this split -- and is never meant to be trusted or
+# kept, so none of it is tracked.
+thesis_results/smoke/
+
 # Trained generator weights (production runs only -- see run_complete_pipeline).
 # Per (market, seed): a handful of .pt files easily hundreds of MB each; not
 # reproducible-by-rerun in the sense of being small, and not something to
 # version. *.log below already covers reports/run_log_*.log.
-thesis_results/*/seed*/weights/
+thesis_results/production/*/seed*/weights/
 
 # mypy
 .mypy_cache/

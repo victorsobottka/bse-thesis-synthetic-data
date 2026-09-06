@@ -90,6 +90,12 @@ REQUIRED = [
      not any(k in ALL for k in ('"ae_epochs":', '"joint_epochs":', '"sup_epochs":'))),
     ("r28   stacked series rows",  "series_rows" in ALL),
     ("r28   no 2xN top grid",      "subgridspec(2, n_panels" not in EXEC),
+
+    ("r30   results split by run type",
+     'RESULTS / ("smoke" if SMOKE_TEST else "production")' in ALL),
+    ("r30   resume/skip logic present",
+     "_market_seed_status" in ALL and "FORCE_RERUN" in ALL
+     and "run_config.json" in ALL and "discover_market_seed_dirs" in ALL),
 ]
 
 PENDING = [
