@@ -1,3 +1,14 @@
+# PyTorch: pinned to an exact CUDA wheel, not left to resolve on its own.
+# A bare "torch" here can silently install a CPU-only wheel, which on a
+# rented GPU box turns a several-hour run into something far longer with no
+# error to notice. cu130 matches this project's verified working environment
+# (torch 2.13.0+cu130, driver 595.71.05, confirmed via
+# `python -c "import torch; torch.cuda.is_available()"`). If the RunPod
+# image ships an older CUDA driver, use the matching wheel from
+# https://download.pytorch.org/whl/ instead (e.g. cu121, cu124).
+--extra-index-url https://download.pytorch.org/whl/cu130
+torch==2.13.0+cu130
+
 numpy>=1.24,<3.0
 pandas>=2.0,<3.0
 pyarrow>=14.0

@@ -278,6 +278,13 @@ def _build_table3_rows(overall: pd.DataFrame) -> str:
     return "\n".join(lines)
 
 
+def _best_composite(overall: pd.DataFrame) -> str:
+    ranked = overall[~overall["model"].apply(_is_control)]
+    if ranked.empty:
+        return "---"
+    return _fnum(ranked["composite_rank"].min(), 3)
+
+
 def _build_budget_parity_rows(per_seed_market: pd.DataFrame) -> str:
     """One row per model, averaged across whatever (market, seed) runs are
     present: generator updates, critic updates, wall-clock, generator
@@ -523,6 +530,7 @@ def load_report_context(results_dir="thesis_results", reports_dir="reports",
         "table1_rows": _build_table1_rows(characteristics),
         "table1_prose": _build_table1_prose(characteristics),
         "table3_rows": _build_table3_rows(overall),
+        "best_composite": _best_composite(overall),
         "budget_parity_rows": _build_budget_parity_rows(per_seed_market),
         "downstream_utility_rows": _build_downstream_utility_rows(primary["pooled_utility"]),
         "walk_forward_rows": _build_walk_forward_rows(primary["walk_forward"]),

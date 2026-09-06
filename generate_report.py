@@ -414,22 +414,20 @@ No weighting scheme can prevent the shuffled control from winning on fidelity me
 The solution: compute ranks only among the three GAN generators. The shuffled control is appended to the results table with rank = NaN so readers can see what a marginal-only generator achieves --- and any generator that scores \emph{worse} than the control on temporal metrics has not learned anything about market dynamics.
 
 \medskip
-After these three changes, the final composite rankings are:
+After these three changes, the final composite rankings are (full breakdown in
+Table~3):
 
-\begin{tabular}{@{}lcc@{}}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{@{}lcccc@{}}
 \toprule
-Generator & fidelity\_rank & temporal\_rank \\
+Generator & composite\_rank & fidelity\_rank & temporal\_rank & avg\_rank \\
 \midrule
-real\_like (best)  & 1.44 & 1.29 \\
-gaussian (wide)    & 1.56 & 1.71 \\
-too\_wide          & 2.00 & 2.00 \\
-\midrule
-Control (reference) & --- & --- \\
+${RPT_TABLE3_ROWS}
 \bottomrule
-\end{tabular}
+\end{tabular}}
 
 \smallskip
-The best composite score is 1.421.}
+The best composite score is ${RPT_BEST_COMPOSITE}.}
 
 \columnbreak
 
@@ -1414,6 +1412,7 @@ def main():
         "RPT_TABLE1_RATIO_MIN": t1["ratio_min"],
         "RPT_TABLE1_RATIO_MAX": t1["ratio_max"],
         "RPT_TABLE3_ROWS": fmt["table3_rows"],
+        "RPT_BEST_COMPOSITE": fmt["best_composite"],
         "RPT_BUDGET_PARITY_ROWS": fmt["budget_parity_rows"],
         "RPT_DOWNSTREAM_UTILITY_ROWS": fmt["downstream_utility_rows"],
         "RPT_WALK_FORWARD_ROWS": fmt["walk_forward_rows"],

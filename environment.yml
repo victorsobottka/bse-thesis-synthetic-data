@@ -1,10 +1,20 @@
 name: thesis
 channels:
+  - pytorch
+  - nvidia
   - conda-forge
   - defaults
 dependencies:
+  # Python: must agree with requirements.txt / the venv used to verify it.
+  # A bare "conda-forge::pytorch" commonly resolves to a CPU-only build --
+  # pytorch-cuda from the pytorch/nvidia channels is what actually pulls the
+  # CUDA runtime. Check `conda search pytorch-cuda -c nvidia` at environment-
+  # creation time and adjust the version to whatever CUDA driver the target
+  # machine has; this should track requirements.txt's cu130 wheel where the
+  # conda channel has a matching build.
   - python=3.11
   - pytorch
+  - pytorch-cuda=12.4
   - numpy>=1.24,<3.0
   - pandas>=2.0,<3.0
   - pyarrow>=14.0
