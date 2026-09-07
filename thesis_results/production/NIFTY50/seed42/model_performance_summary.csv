@@ -1,0 +1,5 @@
+model,composite_rank,fidelity_rank,temporal_rank,avg_rank,wasserstein,energy_distance,quantile_mse,acf_absolute_mae,tail_index_diff,hurst_diff,resid_kurtosis_diff,discriminative_auc_dist,market,seed,train_seconds,generator_updates,critic_updates,n_params_g
+FinGAN,1.6429,2.0,1.2857,1.6429,0.0041,0.0006,0.0001,0.0555,1.786,0.0031,0.5582,0.3068,NIFTY50,42,176.15731492638588,9000.0,45000.0,55401.0
+TimeGAN,2.0357,1.6429,2.4286,2.0357,0.0038,0.0007,0.0,0.0798,1.2901,0.1124,1.2067,0.4038,NIFTY50,42,77.25589631963521,9000.0,9000.0,11400.0
+QuantGAN,2.3214,2.3571,2.2857,2.3214,0.0064,0.0006,0.0008,0.2057,1.2368,0.0203,4.8581,0.1278,NIFTY50,42,466.4528288086876,9000.0,45000.0,276481.0
+CONTROL: shuffled real,,,,,0.0,0.0,0.0,0.0866,0.0,0.0511,0.9973,0.0058,NIFTY50,42,,,,

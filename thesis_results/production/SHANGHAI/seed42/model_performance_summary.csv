@@ -1,0 +1,5 @@
+model,composite_rank,fidelity_rank,temporal_rank,avg_rank,wasserstein,energy_distance,quantile_mse,acf_absolute_mae,tail_index_diff,hurst_diff,resid_kurtosis_diff,discriminative_auc_dist,market,seed,train_seconds,generator_updates,critic_updates,n_params_g
+QuantGAN,1.3571,1.0,1.7143,1.3571,0.0022,0.0002,0.0,0.0619,0.3068,0.0505,11.2045,0.0908,SHANGHAI,42,471.2963609881699,9000.0,45000.0,276481.0
+TimeGAN,1.9286,2.0,1.8571,1.9286,0.004,0.0005,0.0001,0.0575,0.3277,0.0702,10.4674,0.3621,SHANGHAI,42,77.62689458206296,9000.0,9000.0,11400.0
+FinGAN,2.7143,3.0,2.4286,2.7143,0.0058,0.0011,0.0001,0.0971,1.865,0.1221,12.5174,0.343,SHANGHAI,42,176.00359047297388,9000.0,45000.0,55401.0
+CONTROL: shuffled real,,,,,0.0,0.0,0.0,0.076,0.0,0.0806,0.7718,0.0854,SHANGHAI,42,,,,

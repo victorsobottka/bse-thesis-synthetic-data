@@ -1,0 +1,5 @@
+model,composite_rank,fidelity_rank,temporal_rank,avg_rank,wasserstein,energy_distance,quantile_mse,acf_absolute_mae,tail_index_diff,hurst_diff,resid_kurtosis_diff,discriminative_auc_dist,market,seed,train_seconds,generator_updates,critic_updates,n_params_g
+TimeGAN,1.5,1.5714,1.4286,1.5,0.001,0.0,0.0,0.0557,0.3511,0.0076,1.2888,0.1402,FTSE,44,76.61538417078555,9000.0,9000.0,11400.0
+FinGAN,2.1429,2.1429,2.1429,2.1429,0.0009,0.0,0.0,0.069,3.4862,0.0026,1.9497,0.1607,FTSE,44,173.04023712594062,9000.0,45000.0,55401.0
+QuantGAN,2.3571,2.2857,2.4286,2.3571,0.0011,0.0,0.0,0.0657,0.4418,0.0323,1.8566,0.0258,FTSE,44,464.6731085823849,9000.0,45000.0,276481.0
+CONTROL: shuffled real,,,,,0.0,0.0,0.0,0.0861,0.0,0.1048,1.9809,0.2015,FTSE,44,,,,
