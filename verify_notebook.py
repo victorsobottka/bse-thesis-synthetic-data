@@ -53,7 +53,12 @@ REQUIRED = [
     ("r9    canonical return dict", "_EMPTY" in ALL),
     ("r9    WF on full series",     "full_series = np.concatenate" in ALL),
     ("r9    WF NOT on test split",  "cfg, test_flat, n_folds" not in EXEC),
-    ("r9    seq_len in config",     '"seq_len": 128' in ALL or "'seq_len': 128" in ALL),
+    # Whitespace-tolerant: the live models_config aligns keys with padding
+    # ("seq_len":      128), which this exact-substring check never matched --
+    # it was only ever passing because of a second, differently-formatted
+    # models_config in the now-deleted train_all_gans_pooled() dead code.
+    ("r9    seq_len in config",
+     bool(re.search(r'["\']seq_len["\']\s*:\s*128', ALL))),
     ("r9    zero-batch guard",      "would be evaluated untrained" in ALL),
     ("r9    no deprecated fillna",  "fillna(method=" not in EXEC),
 
@@ -96,6 +101,13 @@ REQUIRED = [
     ("r30   resume/skip logic present",
      "_market_seed_status" in ALL and "FORCE_RERUN" in ALL
      and "run_config.json" in ALL and "discover_market_seed_dirs" in ALL),
+
+    ("r31   exactly one models_config dict",
+     ALL.count("models_config = {") == 1),
+    ("r31   exactly one parity assertion",
+     ALL.count("Generator-update budgets must be equal") == 1),
+    ("r31   train_all_gans_pooled removed",
+     "train_all_gans_pooled" not in ALL),
 ]
 
 PENDING = [

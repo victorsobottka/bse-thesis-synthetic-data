@@ -93,6 +93,15 @@ CONFIGURATION** cell. Do not set them anywhere else. Scattered hyperparameters
 are what caused the 492× gap: a smoke-test override of `epochs` reached two
 models and not the third.
 
+**Per-market training, not cross-market pooling.** Each model trains on one
+market's own data; the pipeline never concatenates markets into a shared
+training series. Pooling was considered and rejected: concatenating all five
+markets end-to-end adds only ~4 cross-market transitions across ~3,900
+possible windows, which trades a small artefact for more training volume —
+but a single generator fit across five independent markets risks each
+market's dynamics contaminating the others' learned distribution, which
+per-market training avoids entirely.
+
 ---
 
 ## 4. `SMOKE_TEST` must be `False` in any commit that reports real results — unguarded, check manually
