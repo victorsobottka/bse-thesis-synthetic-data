@@ -148,13 +148,18 @@ venv.bak/
 papers/
 thesis_archive/
 knowledge_base/
-.claude/
+
 
 # thesis_results/ is split smoke/ vs production/ (see run_complete_pipeline
 # and .claude/CLAUDE.md SS7). Smoke output churns constantly -- 62 tracked
 # files per run before this split -- and is never meant to be trusted or
 # kept, so none of it is tracked.
 thesis_results/smoke/
+
+# reports/ is split the same way, for the same reason: a smoke run's
+# pipeline_run_metadata.json and metric_diagnostics/ must never be mistaken
+# for -- or committed alongside -- a production run's.
+reports/smoke/
 
 # Trained generator weights (production runs only -- see run_complete_pipeline).
 # Per (market, seed): a handful of .pt files easily hundreds of MB each; not

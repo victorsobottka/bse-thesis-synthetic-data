@@ -108,6 +108,15 @@ REQUIRED = [
      ALL.count("Generator-update budgets must be equal") == 1),
     ("r31   train_all_gans_pooled removed",
      "train_all_gans_pooled" not in ALL),
+
+    ("r32   GARCH + GJR-GARCH registered",
+     "GARCHModel" in ALL and "'GARCH':" in ALL and "'GJR-GARCH':" in ALL),
+    ("r32   parity assertion scoped to gradient family",
+     "cls.family == 'gradient'" in ALL),
+    ("r32   econometric family exempt from parity",
+     "cls.family == 'econometric'" in ALL),
+    ("r32   reports split by run type",
+     'REPORTS / ("smoke" if SMOKE_TEST else "production")' in ALL),
 ]
 
 PENDING = [

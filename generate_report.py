@@ -2,11 +2,12 @@
 LaTeX-based PDF report — Synthetic Financial Time Series Generation.
 Run from the project root:  python generate_report.py
 Requires pdflatex (TeX Live or MiKTeX).
-Output: reports/report_YYYY-MM-DD.pdf  and  reports/report_latest.tex
+Output: reports/production/report_YYYY-MM-DD.pdf  and  report_latest.tex
+(or reports/smoke/... with --results-dir/--reports-dir pointed at smoke/).
 
 Every number in the report is read from pipeline run artifacts via
 report_data.py -- see that module's docstring for the exact files. If
-reports/pipeline_run_metadata.json reports smoke_test=true, this script
+reports/production/pipeline_run_metadata.json reports smoke_test=true, this script
 refuses to build a report unless --allow-smoke is passed, in which case the
 output is stamped (banner + watermark) and named report_<DATE>_SMOKE.pdf so
 it cannot be mistaken for a production report on the filesystem.
@@ -19,8 +20,7 @@ import os, sys, datetime, subprocess, shutil
 import report_data
 
 DATE     = datetime.date.today().isoformat()
-OUT_DIR  = "reports"
-LATEST   = f"{OUT_DIR}/report_latest.tex"
+OUT_DIR  = "reports/production"
 
 SMOKE_WATERMARK_PACKAGE = r"""\usepackage{draftwatermark}
 \SetWatermarkText{SMOKE TEST}
@@ -1436,9 +1436,15 @@ def main():
         f.write(content)
     print(f"Wrote {tex_path}")
 
-    # Keep report_latest.tex in sync for the verify script
-    shutil.copy(tex_path, LATEST)
-    print(f"Wrote {LATEST}")
+    # Keep report_latest.tex in sync, in the SAME --reports-dir this run
+    # actually used -- a module-level constant here previously always
+    # pointed at the default reports dir regardless of --reports-dir,
+    # which would have copied a smoke report's .tex over a production
+    # report_latest.tex (or vice versa) the first time the two were ever
+    # pointed at different directories.
+    latest_path = f"{args.reports_dir}/report_latest.tex"
+    shutil.copy(tex_path, latest_path)
+    print(f"Wrote {latest_path}")
 
     for run in range(1, 3):
         print(f"pdflatex pass {run}/2 ...")
