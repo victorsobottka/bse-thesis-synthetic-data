@@ -148,6 +148,7 @@ venv.bak/
 papers/
 thesis_archive/
 knowledge_base/
+.claude/
 
 # thesis_results/ is split smoke/ vs production/ (see run_complete_pipeline
 # and .claude/CLAUDE.md SS7). Smoke output churns constantly -- 62 tracked
