@@ -5,5 +5,5 @@
   "seq_len": 128,
   "timegan_ae_steps": 3000,
   "timegan_sup_steps": 3000,
-  "git_commit": "582af17a9b8f8e57b0a6b5c580d983fdfdb10775"
+  "git_commit": "7352a023f85d7da8a5f36e1f7331d3afabbe902f"
 }
