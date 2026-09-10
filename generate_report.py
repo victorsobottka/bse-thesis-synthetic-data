@@ -162,7 +162,7 @@ ${RPT_SMOKE_BANNER}
 \begin{center}
 {\fontsize{26}{32}\selectfont\bfseries Synthetic Financial Time Series Generation\par}
 \vspace{0.4cm}
-{\Large GAN Benchmark:\quad TimeGAN\ \ $\cdot$\ \ QuantGAN\ \ $\cdot$\ \ FinGAN\par}
+{\Large Five Generators, Two Families:\quad GAN\ \ $\cdot$\ \ Econometric\par}
 \vspace{0.2cm}
 {\large BRICS Emerging Market Indices\par}
 \vspace{0.7cm}
@@ -170,10 +170,11 @@ ${RPT_SMOKE_BANNER}
 \vspace{0.7cm}
 
 \begin{tabular}{r@{\hspace{10pt}}l}
-  \textbf{Format}        & Dual-audience: Foundations (Part~I) $\cdot$ Technical (Part~II) \\[4pt]
+  \textbf{Format}        & Single technical document --- Results $\cdot$ Discussion $\cdot$ Methods $\cdot$ Extended Data \\[4pt]
   \textbf{Collaboration} & Universitat Polit\`{e}cnica de Catalunya (UPC) \\[4pt]
   \textbf{Document type} & Research draft --- prepared for Quantitative Finance / ACM ICAIF \\[4pt]
-  \textbf{Models}        & TimeGAN (GRU) $\cdot$ QuantGAN (TCN-WGAN-GP) $\cdot$ FinGAN (CNN-WGAN-GP) \\[4pt]
+  \textbf{Gradient-trained} & TimeGAN (GRU) $\cdot$ QuantGAN (TCN-WGAN-GP) $\cdot$ FinGAN (CNN-WGAN-GP) \\[4pt]
+  \textbf{Econometric}   & GARCH(1,1)-$t$ $\cdot$ GJR-GARCH(1,1)-$t$ \\[4pt]
   \textbf{Markets}       & BOVESPA $\cdot$ FTSE JSE $\cdot$ MOEX $\cdot$ NIFTY50 $\cdot$ SHANGHAI \\[4pt]
   \textbf{Generated}     & ${RPT_DATE} \\
 \end{tabular}
@@ -183,512 +184,320 @@ ${RPT_SMOKE_BANNER}
 %% ─── Provenance: which run this PDF was built from ─────────────────────────
 ${RPT_PROVENANCE_BOX}
 
-%% ═══════════════════════════════════════════════════════════════════════════════
-%% PART I — FOUNDATIONS
-%% Target reader: intelligent 13-year-old. Arithmetic only. No Greek letters
-%% without an everyday anchor. No forward references.
-%% ═══════════════════════════════════════════════════════════════════════════════
-
-%% ─── Page 2: Summary + Sections 1–2 ─────────────────────────────────────────
-\pagehead{Summary --- For All Readers}
-         {Non-specialist language $\cdot$ $\leq$200 words}
-
-\begin{tcolorbox}[enhanced,arc=4pt,boxrule=1pt,colframe=Teal,colback=TealBg,
-  top=6pt,bottom=6pt,left=8pt,right=8pt,before skip=4pt,after skip=8pt]
-\small
-Markets generate data about themselves every day --- prices rising and falling --- but this data is scarce, expensive, and legally sensitive.
-We trained three artificial-intelligence systems on five emerging financial markets (Brazil, South Africa, Russia, India, and China) to generate convincing fake market data.
-
-The core difficulty is that fake market data looks easy to evaluate but is not.
-We discovered that a simple shuffled copy of real data --- identical individual values, wrong ordering --- passed seven of our fourteen ranked tests with a perfect score.
-This finding reshaped our evaluation from a single score into two families: seven tests for whether the individual numbers look right, and seven tests for whether the ordering looks right.
-
-Across all three AI systems and five markets, the ordering tests proved the hardest to satisfy.
-No generator fully reproduced the tendency of turbulent days to cluster together --- a property that matters critically for risk management.
-
-We release all code and evaluation pipelines so others can apply the same tests to future generators on any market.
-\end{tcolorbox}
-
-\vspace{4pt}
-\begin{tcolorbox}[enhanced,arc=0pt,outer arc=0pt,boxrule=0pt,
-  colback=Navy!10,colframe=Navy!10,top=3pt,bottom=3pt,left=8pt,right=8pt]
-{\large\bfseries\color{Navy} PART I --- FOUNDATIONS}
-\hfill{\small\color{Navy!70} Sections 1--9\quad$\cdot$\quad No calculus\quad$\cdot$\quad Arithmetic only}
-\end{tcolorbox}
-
-\begin{multicols}{2}
-
-\navybox{1\quad What We Are Trying to Build}{%
-Imagine you work at a bank. You need to test your risk systems. Those systems are built to survive crashes --- the kind of day when markets fall 5\% or more. But crashes are rare by definition. Real history gives you only a handful of them.
-
-What you actually need is a machine that can generate \emph{thousands} of plausible market histories, including many crashes, so you can stress-test your systems properly.
-
-That machine is what this project builds. Specifically, we train three different artificial-intelligence programs to learn from twenty years of real daily market data (2006--2026) from five emerging economies. Each program learns what a realistic market day looks like --- how volatile, how skewed, how connected to the day before. Then it generates as many fake days as we need.
-
-The word for such a program is a \textbf{generative model}. The specific type we test is called a \textbf{Generative Adversarial Network} (GAN), first proposed by Goodfellow et al.\ (2014)\tcite{1}.
-
-\smallskip
-\textit{This analogy stops working when:} a bank stress-test is a controlled simulation; real markets respond to the tests themselves, which no generative model captures.}
-
-\columnbreak
-
-\navybox{2\quad Prices, and Why We Study Changes}{%
-A stock index on Monday might be 4{,}000. On Tuesday, 4{,}080. On Wednesday, 4{,}050. These raw numbers grow over decades and shrink during crashes. They are hard to compare across markets or time periods.
-
-Instead we compute the \textbf{log return} for each day:
-\begin{equation*}
-  r_t = \ln\!\left(\frac{P_t}{P_{t-1}}\right)
-\end{equation*}
-
-\textbf{Worked arithmetic.} Monday to Tuesday: $\ln(4080/4000) = \ln(1.02) \approx 0.0198$. That is a return of roughly $2\%$. Tuesday to Wednesday: $\ln(4050/4080) \approx -0.0074$, a drop of $0.74\%$.
-
-Two useful properties make log returns the standard choice.
-First, returns from different days can simply be added: a $2\%$ gain followed by a $-0.74\%$ drop gives a total of $1.26\%$, which is close to the actual $\ln(4050/4000) \approx 1.24\%$ (the small gap shrinks for smaller moves).
-Second, log returns fluctuate around zero with no long-run trend, which is what the AI systems need to learn from.
-
-\smallskip
-Going forward, every number we call a ``market value'' is a daily log return. The typical size of a daily return in our five markets is about $1\%$.}
-
-\end{multicols}
-
-\clearpage
-
-%% ─── Page 3: Sections 3–4 (the two worked examples) ────────────────────────
-\pagehead{Part I --- Foundations (continued)}
-         {The two properties of real markets that most generators fail to reproduce}
-
-\begin{multicols}{2}
-
-\redbox{3\quad The Bell Curve Fails}{%
-Suppose you measure the height of every student in a large school. Almost everyone lands near the average. A few are much taller, a few much shorter, and nobody is three metres tall. Heights follow the shape people call a \textbf{bell curve}: a big lump in the middle, thin tails at the edges.
-
-For two centuries, mathematicians assumed the ups and downs of stock prices behaved the same way. It is a reasonable guess. It is also wrong, and the way it is wrong matters enormously.
-
-\medskip
-\textbf{Here is the arithmetic.} In our five markets, a typical day moves the index by about $1\%$. Call that one ``step''. The bell curve makes a very specific promise about rare events: a day that moves five steps --- a $5\%$ jump or crash --- should happen roughly \textbf{once every 6,922 years}.
-
-We looked at five markets over twenty years. That is 24,758 market-days in total. The bell curve predicts we should see essentially zero such days.
-
-\medskip
-We found \textbf{76} --- the NIFTY50 index alone had 11.
-
-\medskip
-This is not a small error. It is not a matter of the model being slightly off. Reality delivered 76 extreme days across 24,758 market-days, thousands of times more often than the bell curve allows. MOEX alone had 21 such days, with the single day of the 2022 invasion ($-33.3\%$) the most extreme.
-
-That gap is why this project exists. If you are a bank estimating your worst plausible loss, and your model says a $5\%$ crash arrives once per 6,922 years while reality delivers one every few years, you are not slightly wrong. You are unprepared.
-
-Professionals call this property \textbf{heavy tails} --- the ``tails'' being the far edges of the curve, and ``heavy'' meaning there is more weight out there than the bell curve predicts. The number that measures it is called \textbf{kurtosis}. A bell curve scores~0. Our five markets score between 1.1 and 9.1, all above zero, all confirming the same thing.
-
-\smallskip
-\textit{Where this analogy stops working:} human heights genuinely do follow a bell curve, and no student will ever be three metres tall. Market returns have no such ceiling. That is precisely the difference.}
-
-\columnbreak
-
-\amberbox{4\quad Storms Cluster}{%
-Think about weather. Rainy days are not scattered randomly through the year. Rain comes in stretches. If it poured yesterday, it is more likely to pour today --- not certain, just more likely. Storms arrive in clusters.
-
-Markets do the same thing, and we can measure it exactly. Take the MSCI index. On any given day, there is a $5.0\%$ chance of a ``big move'' --- one at least twice the size of a typical day.
-
-Now ask a different question: given that yesterday \emph{was} a big move, what is the chance today is too?
-
-\medskip
-The answer is $\mathbf{22.9\%}$.
-
-\medskip
-That is \textbf{6.1 times higher}. Turbulence begets turbulence.
-
-This creates a trap for anyone building a fake market. You could construct a series that gets the bell-curve shape exactly right --- the correct number of calm days, the correct number of wild days, the correct heavy tails --- and still be completely wrong, because you scattered the wild days randomly instead of letting them cluster.
-
-We tested exactly this. We took real market data and shuffled it, like shuffling a deck of cards. Shuffling changes nothing about \emph{how many} big days there are --- every day is still there, just in a different order. It only destroys \emph{when} they happen.
-
-Then we ran our quality tests on the shuffled version. Four of our six main distributional tests gave it a \textbf{perfect score}.
-
-That result reshaped this project. It means the standard way of checking synthetic market data cannot tell the difference between a good model and a shuffled deck of cards. Most of our work has gone into fixing that.
-
-\smallskip
-\textit{Where this analogy stops working:} weather clustering is driven by physical systems moving across a map. Market clustering comes from human behaviour --- fear spreading, positions unwinding, margin calls. Same pattern, different engine.}
-
-\end{multicols}
-
-\clearpage
-
-%% ─── Page 4: Sections 5–7 ───────────────────────────────────────────────────
-\pagehead{Part I --- Foundations (continued)}
-         {Why synthetic data matters $\cdot$ why judging it is hard $\cdot$ the shuffled-deck discovery}
-
-\begin{multicols}{2}
-
-\skybox{5\quad Why Anyone Wants Synthetic Markets}{%
-If real data exists, why generate fake data? There are three reasons, each pointing at a different kind of problem.
-
-\medskip
-\textbf{Reason 1: not enough real crashes.} Deep learning systems need thousands of examples to learn reliably. Real markets produce roughly 250 trading days per year. Even twenty years of history gives only $\approx$4{,}960 days per market. A single crash, by definition, happens rarely --- so even at that length the system trains on almost none of them: the 76 extreme days found across the whole dataset (Section~3) cluster into a handful of episodes, not thousands of independent examples. A generative model can supply as many fake crash sequences as needed.
-
-\medskip
-\textbf{Reason 2: stress testing.} Banks and regulators must demonstrate that their risk systems survive scenarios that have not happened yet. ``What would a 2008-style crisis look like in the Brazilian market?'' Real history cannot answer that. A well-trained generator can produce thousands of plausible answers.
-
-\medskip
-\textbf{Reason 3: sharing without revealing secrets.} Real trading data is often proprietary. A hedge fund cannot share its positions. A central bank cannot share its internal stress scenarios. Synthetic data with the same statistical properties can be released freely, enabling research that would otherwise be impossible.
-
-\smallskip
-The challenge in all three cases is the same: the fake data must be \emph{good enough to use}. A model that produces the right average daily move but scatters the wild days randomly is useless for stress testing --- it has already failed the clustering test from Section~4.}
-
-\skybox{6\quad Why Judging It Is Hard}{%
-The obvious test is: ``does this look real?'' But ``looking real'' turns out to be surprisingly hard to measure.
-
-The most common test in statistics --- the Kolmogorov-Smirnov test --- was designed for situations where each measurement is independent of the others. Coin flips are independent. Market returns are not: today's volatility is correlated with yesterday's (Section~4). When you run the KS test on correlated data, it systematically over-rejects even good generators.
-
-Another common test --- mean squared error --- compares the $t$-th real return to the $t$-th synthetic return. But a real series and a synthetic series are independently generated. There is no reason why the 47th fake day should correspond to the 47th real day. Comparing them directly measures nothing meaningful.
-
-The metric that works better is the \textbf{Wasserstein distance}: imagine the real returns as a pile of sand and the synthetic returns as another pile. The Wasserstein distance is the minimum total work needed to reshape one pile into the other --- weight times distance, summed over every grain. Unlike the KS test, it remains meaningful even when the data is not independent.
-
-But even Wasserstein has a blind spot, which the next section reveals.}
-
-\columnbreak
-
-\redbox{7\quad The Shuffled Deck --- What We Discovered}{%
-We built a simple adversarial test. Take the real BRICS test data. Shuffle it randomly --- like shuffling a deck of cards, as described in Section~4. The shuffled version has \emph{identical} individual values: same histogram, same average, same heavy tails, same kurtosis. It destroys only the ordering.
-
-Then we ran every quality test on this shuffled control.
-
-\medskip
-\begin{tabular}{@{}lc@{}}
-\toprule
-Test & Shuffled control score \\
-\midrule
-KS statistic   & \textbf{0.000000} (perfect) \\
-Wasserstein    & \textbf{0.000e+00} (perfect) \\
-kurtosis diff  & \textbf{1.78e-15} (perfect) \\
-energy distance & \textbf{2.97e-05} (perfect) \\
-\midrule
-ACF clustering & 0.0758 (correctly penalised) \\
-Hurst diff     & 0.052 (correctly penalised) \\
-\bottomrule
-\end{tabular}
-
-\medskip
-Seven of the 14 ranked fidelity metrics returned a perfect or near-perfect score for the shuffled control. When we computed the composite ranking --- average rank across all metrics --- the shuffled control \textbf{ranked first}, with avg\_rank 1.24 versus 2.47 for a real-data generator.
-
-This result was not a bug. It was a diagnosis. It means that seven of our fourteen ranked metrics are \emph{permutation-invariant} --- they measure the individual values only, not their order. A shuffled deck of cards scores perfectly on those nine tests because shuffling does not change which cards are in the deck.
-
-Any composite score that mixes permutation-invariant and ordering-sensitive metrics without balancing the families will be dominated by the invariant ones. The control will always win on those metrics, because it \emph{is} the real data in a different order.
-
-\smallskip
-This finding is the central methodological contribution of this paper.}
-
-\end{multicols}
-
-\clearpage
-
-%% ─── Page 5: Sections 8–9 ───────────────────────────────────────────────────
-\pagehead{Part I --- Foundations (continued)}
-         {What we did about the shuffled-deck problem $\cdot$ what we still cannot do}
-
-\begin{multicols}{2}
-
-\tealbox{8\quad What We Did About It}{%
-The shuffled-deck finding required three changes to the evaluation.
-
-\medskip
-\textbf{Change 1: split the metrics into two families.}
-
-\textit{Fidelity metrics} (seven): these are the permutation-invariant tests that measure whether the individual values look right --- the right distribution, the right tails. Kurtosis and skewness are demoted to descriptive (see Part~II: heavy-tail moments are undefined for $\alpha < 4$ and $\alpha < 3$). A shuffled deck passes all seven.
-
-\textit{Temporal metrics} (seven): these are ordering-sensitive tests that measure whether the sequence behaves like a real market --- volatility clustering, long memory, conditional non-Gaussianity, and a classifier that tries to tell real from fake using the ordering of values. A shuffled deck fails all seven.
-
-\medskip
-\textbf{Change 2: give each family equal weight.}
-
-The composite score is:
-\begin{equation*}
-  \text{composite\_rank} = \frac{\text{fidelity\_rank} + \text{temporal\_rank}}{2}
-\end{equation*}
-
-Seven fidelity metrics and seven temporal metrics are weighted equally. The families are what is weighted, not the individual metrics.
-
-\medskip
-\textbf{Change 3: exclude the control from the competition.}
-
-No weighting scheme can prevent the shuffled control from winning on fidelity metrics. It is a permutation of the real data; it will always score perfectly on tests that ignore ordering.
-
-The solution: compute ranks only among the three GAN generators. The shuffled control is appended to the results table with rank = NaN so readers can see what a marginal-only generator achieves --- and any generator that scores \emph{worse} than the control on temporal metrics has not learned anything about market dynamics.
-
-\medskip
-After these three changes, the final composite rankings are (full breakdown in
-Table~3):
-
-\resizebox{\linewidth}{!}{%
-\begin{tabular}{@{}lcccc@{}}
-\toprule
-Generator & composite\_rank & fidelity\_rank & temporal\_rank & avg\_rank \\
-\midrule
-${RPT_TABLE3_ROWS}
-\bottomrule
-\end{tabular}}
-
-\smallskip
-The best composite score is ${RPT_BEST_COMPOSITE}.}
-
-\columnbreak
-
-\purplebox{9\quad What We Still Cannot Do}{%
-This project establishes a benchmark and evaluation framework. It does not solve the underlying problem completely. Four limitations matter for the paper.
-
-\medskip
-\textbf{Limitation 1: real crisis regimes remain rare, even at 20 years.}
-
-Twenty years of daily data (2006--2026, $\approx$4{,}960 observations per market, pooled test set $\approx$2{,}480) resolves the sample-size problem for stylized-fact estimation: Hill estimator standard deviation falls from $\approx$0.52 at $n=995$ (5-year data) to $\approx$0.035 at $n=4{,}960$, a 15-fold improvement, resolving the per-market QLIKE inversion and raising Kupiec power to $\approx$99\% pooled. It does not resolve the sparsity of independent crisis episodes: the 76 extreme days recorded (Section~3) cluster into a handful of regimes --- the 2008 financial crisis, the 2020 COVID crash, and the 2022 MOEX invasion shock. A benchmark validated against a few crisis episodes is validated against a few crisis episodes, however many market-days each one contributes. That is why synthetic crisis generation (Section~5) stays useful even at 20 years of real history.
-
-\medskip
-\textbf{Limitation 2: no diffusion model baseline.}
-
-Takahashi and Mizuno (2025)\tcite{29} showed that diffusion-based generators outperform GANs on several stylized-fact metrics. Our benchmark covers three GAN architectures; it does not include a diffusion baseline. Reviewers will ask. The answer is: not yet.
-
-\medskip
-\textbf{Limitation 3: no systematic hyperparameter search.}
-
-All three GAN architectures use reference-implementation defaults from their original papers. No search over learning rates, hidden dimensions, or noise dimensions has been run. Budgets are now equalised on generator updates across all three models (TimeGAN's four-phase pre-training is reported separately, per Yoon et al.\ 2019\tcite{4}), so TimeGAN's weak result is no longer attributable to an unequal training budget: at equal budget it gives excess kurtosis $-1.02$ against real $+1.34$, Hill $\hat\alpha=16.4$ against real $4.12$, $0.40\%$ extreme events against real $6.05\%$, and raw AUC $0.953$ --- bounded, platykurtic, and nearly tailless, consistent with tanh saturation in the Recovery network rather than an undertrained model.
-
-\medskip
-\textbf{Limitation 4: ARCH tests are unreliable across regimes.}
-
-The ARCH-LM test, the standard tool for detecting volatility clustering, saturates on real fat-tailed data (both real and shuffled series give $p$-value $= 0.0$, so the difference is $0.000000$). On simulated GARCH data it works well (99\% accuracy). But on real BRICS data it cannot distinguish a good generator from a shuffled deck. This limitation is itself a result, reported in Part~II.}
-
-\end{multicols}
-
-\clearpage
-
-%% ═══════════════════════════════════════════════════════════════════════════════
-%% PART II — TECHNICAL SPECIFICATION
-%% ═══════════════════════════════════════════════════════════════════════════════
-
-%% ─── Page 6: Abstract + Untitled Opening ─────────────────────────────────────
-
-\begin{tcolorbox}[enhanced,arc=0pt,outer arc=0pt,boxrule=0pt,
-  colback=Navy!10,colframe=Navy!10,top=3pt,bottom=3pt,left=8pt,right=8pt,
-  before skip=0pt,after skip=6pt]
-{\large\bfseries\color{Navy} PART II --- TECHNICAL SPECIFICATION}
-\hfill{\small\color{Navy!70} Abstract $\cdot$ Results $\cdot$ Discussion $\cdot$ References $\cdot$ Methods}
-\end{tcolorbox}
-
+%% ─── Abstract + opening ─────────────────────────────────────────────────────
 \begin{tcolorbox}[enhanced,arc=4pt,boxrule=1pt,colframe=Navy,colback=LBg,
   top=6pt,bottom=6pt,left=8pt,right=8pt,before skip=2pt,after skip=8pt,
-  title={\bfseries Abstract --- $\leq$150 words, unreferenced}]
+  title={\bfseries Abstract}]
 \small
-We benchmark three generative adversarial network architectures --- TimeGAN (GRU autoencoder), QuantGAN (causal dilated TCN), and FinGAN (CNN deconvolution) --- for synthetic financial time series generation on five BRICS emerging-market indices. Using walk-forward temporal validation and a 14-metric ranked evaluation suite split into seven fidelity metrics and seven temporal metrics, we show that a shuffled-control baseline (identical marginal distribution, zero temporal structure) defeats na\"{\i}ve composite scoring: it scores seven of fourteen ranked metrics at a near-perfect value, masking the absence of any temporal learning. After excluding the control from rank competition, QuantGAN achieves the best composite score across markets. Conditional heavy tails persist in all five markets after GARCH filtering (excess kurtosis 0.48--9.11), and ARCH-LM tests are unreliable across both simulated and real data regimes. QLIKE-based downstream utility, computed pooled ($n\approx2{,}480$, 20-year data) to avoid per-market inversion, confirms that synthetic GARCH parameters remain predictive on real data. Code and pipelines are released.
+We benchmark five generators of synthetic daily equity returns on five BRICS emerging-market indices, spanning two families: three gradient-trained GANs --- TimeGAN (GRU autoencoder), QuantGAN (causal dilated TCN) and FinGAN (CNN deconvolution), all at an enforced parity of ${RPT_PROV_GEN_UPDATES} generator updates --- and two econometric baselines, GARCH(1,1)-$t$ and GJR-GARCH(1,1)-$t$, fitted by maximum likelihood. Evaluation uses a 14-metric ranked suite split into seven permutation-invariant fidelity metrics and seven ordering-sensitive temporal metrics, with walk-forward temporal validation over ${RPT_N_FOLDS} folds per market and a shuffled-real control that is scored but excluded from rank competition. The headline result is not a GAN. A ${RPT_COMPUTE_BEST_PARAMS}-parameter ${RPT_COMPUTE_BEST_MODEL} model, fitted in ${RPT_COMPUTE_BEST_SECONDS}\,s, attains the best composite rank (${RPT_BEST_COMPOSITE}) against a ${RPT_COMPUTE_BIGGEST_PARAMS}-parameter ${RPT_COMPUTE_BIGGEST_MODEL} trained for ${RPT_COMPUTE_BIGGEST_SECONDS}\,s per market-seed. The split is systematic rather than incidental: the deep models lead on fidelity, which measures the marginal distribution, and the econometric models lead on temporal dynamics, taking ${RPT_WIN_TEMPORAL_ECON} of ${RPT_WIN_N_CELLS} per-market-seed wins on \texttt{temporal\_rank}. The shuffled control exposes why single-score evaluation fails: ${RPT_PERM_N_INVARIANT} of ${RPT_PERM_N_METRICS} computed metrics are permutation-invariant, and on the two most-cited volatility-clustering metrics the control still outscores several genuine generators. Code, artifacts and evaluation pipelines are released.
 \end{tcolorbox}
 
 \begin{multicols}{2}
 
 \small
-Generative adversarial networks have been applied to financial time series generation as a data augmentation and stress-testing tool, with TimeGAN, QuantGAN, and related architectures demonstrating qualitative improvements over parametric baselines on stylized-fact reproduction.\tcite{4,5} However, published benchmarks share two limitations: they focus on developed markets (S\&P~500, DAX), and they use evaluation metrics that are permutation-invariant --- metrics that cannot distinguish a model with correct temporal dynamics from a simple reordering of real data. BRICS emerging markets present a substantially harder test case, with systematically heavier tails ($\alpha \approx 2$--$3$ vs $3$--$4$ for developed markets) and stronger clustering that standard Gaussian generators cannot reproduce.
+Generative adversarial networks have been applied to financial time series as a data-augmentation and stress-testing tool, with TimeGAN\tcite{4} and QuantGAN\tcite{5} demonstrating qualitative gains over parametric baselines on stylized-fact reproduction. Published benchmarks in this line share three limitations. They concentrate on developed markets (S\&P~500, DAX). They evaluate with metric suites that are largely permutation-invariant --- unable, by construction, to separate a model with correct temporal dynamics from a reordering of real data. And they compare deep generators only with each other, or with a parametric baseline treated as a formality rather than as a competitor.
 
-We address both limitations. We train 15 models (3 GAN architectures $\times$ 5 BRICS markets, including MOEX replacing an index proxy) using per-market training and walk-forward evaluation (5 rolling folds per market, CTBench protocol\tcite{16}), following literature-anchored hyperparameter floors: $n_\text{critic}=5$ and $\lambda_\text{gp}=10$ (Gulrajani et al., 2017\tcite{3}). We conduct an adversarial audit using a shuffled-control baseline that shares the exact marginal distribution of real data but carries zero temporal structure. The audit reveals that 9 of 19 candidate metrics are permutation-invariant, and that any composite that mixes both families without balancing them will be dominated by the invariant subset. This finding motivates a three-score composite (fidelity rank, temporal rank, composite = average) and the exclusion of the control from rank competition.
+We address all three. We evaluate on five genuine BRICS indices, including MOEX, over a 20-year window; we audit the metric suite with a shuffled-real control and report the audit as a result; and we include two econometric baselines fitted on the same data and scored by the same pipeline, on the same footing as the GANs. The third choice is the one that changes the conclusion.
 
-We further demote ARCH-LM tests to a descriptive role after demonstrating a regime failure: on simulated GARCH data the $p$-value difference correctly identifies the better model 99\% of the time, but on real fat-tailed BRICS data both real and shuffled series produce LM $p$-values of 0.0, so $|\Delta p| = 0.000000$. ACF-MAE (mean absolute error of the autocorrelation function) serves as the primary temporal ranking signal: it is continuous, has no saturation regime, and achieves 88\% accuracy in the same Monte Carlo experiment where ARCH-LM achieves 99\% on clean GARCH but 0\% on real data.
+\textbf{The headline.} Across ${RPT_PROV_N_MARKETS} markets $\times$ ${RPT_PROV_N_SEEDS} seeds, the econometric family takes ${RPT_WIN_COMPOSITE_ECON} of ${RPT_WIN_N_CELLS} per-market-seed composite wins and ${RPT_WIN_TEMPORAL_ECON} of ${RPT_WIN_N_CELLS} temporal wins, and ${RPT_COMPUTE_BEST_MODEL} finishes first overall. This is not an argument that GANs do not work: ${RPT_FIDELITY_LEADER} leads the field on \texttt{fidelity\_rank}, and the gradient family takes ${RPT_WIN_FIDELITY_GRAD} of ${RPT_WIN_N_CELLS} fidelity wins. It is an argument that the property the deep models learn best --- the shape of the marginal distribution --- is the property that is cheapest to reproduce and least useful downstream, and that on the dynamics the ${RPT_TEMPORAL_LEADER_PARAMS}-parameter ${RPT_TEMPORAL_LEADER} still holds the field.
 
-\textbf{Contributions.} (1) First multi-architecture GAN benchmark on genuine BRICS data (including MOEX Russia) with CTBench-compliant walk-forward evaluation and 20-year history (2006--2026, $n\approx4{,}960$/market) --- 15 models, 5 markets, 5 folds per market. (2) A shuffled-control audit that identifies permutation-invariant fidelity metrics (7) and motivates a two-family composite design (7 fidelity + 7 temporal), with a shuffled control permanently in the results table as an adversarial baseline. (3) Empirical demotion of ARCH-LM as a cross-model ranking tool, with Monte Carlo evidence covering both simulated and real-data regimes. (4) A conditional heavy-tail metric (GARCH residual excess kurtosis under Gaussian QMLE), demotion of kurtosis/skewness differences to descriptive when Hill $\hat{\alpha} < 4$/$3$ (BRICS: 2.54--3.21), and a pooled TSTR downstream utility protocol ($n\approx2{,}480$) with Kupiec and Christoffersen backtests.
-
-\end{multicols}
-
-\clearpage
-
-%% ─── Pages 7–8: Results ─────────────────────────────────────────────────────
-\pagehead{Results}
-         {Pooled BRICS test set $\cdot$ $n\approx2{,}480$ (5 markets $\times$ 20 years, 2006--2026)}
-
-\begin{multicols}{2}
-
-\navybox{BRICS Data Characteristics (Table~1)}{%
-Daily log returns were computed from five closing-price series (20-year window, 2006--2026, $n\approx4{,}960$/market). MOEX includes the 2022-02-24 invasion ($-33.3\%$ single day) and 27-day suspension (2022-02-25 to 2022-03-24), a genuine structural break retained as is.
-
-\smallskip
-\begin{tabular}{@{}lrrr@{}}
-\toprule
-Market & $\sigma$ (\%/day) & Kurt. & Resid. kurt. \\
-\midrule
-${RPT_TABLE1_ROWS}
-\bottomrule
-\end{tabular}
-
-\smallskip
-\textit{$\sigma$}: daily volatility (annualised $\approx16\times$). \textit{Kurt.}: excess kurtosis of raw returns (Gaussian = 0), computed directly from the processed return series. MOEX kurtosis dominated by 2022 invasion outlier. Residual kurtosis (GARCH Gaussian QMLE) is a per-model \emph{difference} metric in this pipeline (\texttt{resid\_kurtosis\_diff}) rather than a standalone real-data statistic, so it is not shown here; awaits the full 20-year multi-market RunPod run.
-
-Across ${RPT_TABLE1_TOTAL_DAYS} market-days, the Gaussian benchmark predicts $<0.01$ days with $|r|>5\sigma$. We observed ${RPT_TABLE1_TOTAL_EXTREME} --- all five markets exceed the Gaussian prediction by a factor exceeding 10{,}000 (Gaussian: once per 6,922 years; observed: $\approx$once per year per market). ${RPT_TABLE1_MAX_EXTREME_MARKET} alone had ${RPT_TABLE1_MAX_EXTREME_COUNT}.
-
-${RPT_TABLE1_MAX_RATIO_MARKET} shows the strongest volatility clustering: $P(\text{big move}) = ${RPT_TABLE1_MAX_RATIO_P_BIG}\%$; $P(\text{big move}\,|\,\text{yesterday big}) = ${RPT_TABLE1_MAX_RATIO_P_BIG_GIVEN_BIG}\%$; ratio ${RPT_TABLE1_MAX_RATIO_VALUE}. All five markets show ratios between ${RPT_TABLE1_RATIO_MIN} and ${RPT_TABLE1_RATIO_MAX}.}
-
-\skybox{Shuffled-Control Audit (Table~2)}{%
-A shuffled-control series (real BRICS test returns, randomly permuted with seed 42) was constructed and evaluated alongside all GAN generators.
-
-\smallskip
-\textbf{Fidelity metrics} (permutation-invariant):
-\begin{tabular}{@{}lc@{}}
-\toprule
-Metric & Shuffled control \\
-\midrule
-KS statistic         & 0.000000 \\
-Wasserstein $W_1$    & 0.000e+00 \\
-kurtosis\_diff       & 1.78e-15 \\
-energy\_distance     & 2.97e-05 \\
-skewness\_diff       & $<1\text{e-14}$ \\
-quantile\_mse        & $<1\text{e-14}$ \\
-\bottomrule
-\end{tabular}
-
-\smallskip
-Under unweighted composite ranking (19 metrics), the control ranked first: avg\_rank 1.24 versus 2.47 for a real-data generator.
-
-\textbf{Root cause.} Nine of 19 metrics are permutation-invariant. Any composite mixing both families hands the shuffled control an unbeatable fidelity advantage, because it \emph{is} the real data in a different order.
-
-\textbf{Temporal metrics} (ordering-sensitive, correct penalty):
-\begin{tabular}{@{}lc@{}}
-\toprule
-Metric & Shuffled control \\
-\midrule
-ACF(returns) MAE    & 0.043 \\
-ACF($|r|$) MAE      & 0.076 \\
-ACF($r^2$) MAE      & 0.054 \\
-Hurst diff          & 0.052 \\
-resid\_kurtosis\_diff & 1.91 \\
-\bottomrule
-\end{tabular}
-
-The shuffled control is correctly penalised on all temporal metrics.}
-
-\columnbreak
-
-\tealbox{Metric Taxonomy}{%
-\textbf{Fidelity} (7 metrics, permutation-invariant, ranked within this family):
-\begin{itemize}[noitemsep,topsep=1pt]
-  \item mean\_diff, std\_diff
-  \item wasserstein, energy\_distance, quantile\_mse
-  \item tail\_index\_diff, extreme\_events\_diff
-\end{itemize}
-
-\textbf{Temporal} (7 metrics, ordering-sensitive, ranked within this family):
-\begin{itemize}[noitemsep,topsep=1pt]
-  \item acf\_returns\_mae, acf\_absolute\_mae, acf\_squared\_mae
-  \item hurst\_diff, resid\_kurtosis\_diff
-  \item discriminative\_auc\_dist, discriminative\_auc\_absz
-\end{itemize}
-
-\textbf{Descriptive} (7 metrics, computed but excluded from composite --- regime failures or non-existence):
-\begin{itemize}[noitemsep,topsep=1pt]
-  \item kurtosis\_diff, skewness\_diff --- moments undefined: Hill $\hat{\alpha}=2.54$--$3.21$; $\E|X|^4=\infty$ everywhere, $\E|X|^3=\infty$ in 4/5 markets
-  \item arch\_pvalue\_diff --- saturates on real data ($|\Delta p|=0.000000$)
-  \item arch\_stat\_diff --- null sd 46.4 on simulated GARCH; too noisy to rank
-  \item var\_coverage\_error --- Gaussian iid 0.0227, shuffled 0.0227, real 0.0259
-  \item garch\_persistence\_diff --- sd 0.31 across seeds; range 0.000--0.985
-  \item discriminative\_auc\_raw --- raw AUC, not used for ranking (use \_dist and \_absz variants)
-\end{itemize}
-
-\textbf{Composite score:}
-$\text{composite\_rank} = (\text{fidelity\_rank} + \text{temporal\_rank})\,/\,2$
-
-Equal weighting prevents the nine fidelity metrics from outvoting the seven temporal ones. The shuffled control is excluded from rank computation (rank\,=\,NaN) and appended as a reference line.}
-
-\navybox{ARCH-LM Regime Failure}{%
-An 80-replication Monte Carlo (GARCH(1,1), $n=1{,}200$, Gaussian innovations) showed:
-\begin{itemize}
-  \item \texttt{arch\_pvalue\_diff} correctly identifies the better-fitting model 99\% of the time.
-  \item \texttt{arch\_stat\_diff} succeeds 76\% of the time; null sd $\approx 46.4$ (two draws from the same process gave LM = 56.8 and 124.8).
-\end{itemize}
-On the real pooled BRICS test set ($n\approx2{,}480$, 20-year data): real LM and shuffled LM both produce $p$-values underflowing to 0.0 on all pooled runs tested. Both $p$-values underflow to 0.0, so $|\Delta p| = 0.000000$. The pvalue variant rates the adversarial control as a perfect match. The stat variant detects the control (difference = 16.38) but is too noisy for reliable ranking on simulated data.
-
-\textit{Conclusion:} neither ARCH-LM variant is reliable across both regimes. Both are retained in output for diagnostic transparency only. ACF-MAE is the primary volatility-clustering ranking signal.}
+\textbf{Contributions.} (1) A five-generator, two-family benchmark on genuine BRICS data with per-market training, enforced generator-update parity within the gradient family, and walk-forward evaluation --- ${RPT_PROV_N_MARKETS} markets $\times$ ${RPT_PROV_N_SEEDS} seeds $\times$ ${RPT_N_FOLDS} folds, all artifacts released. (2) A shuffled-control audit that counts ${RPT_PERM_N_INVARIANT} of ${RPT_PERM_N_METRICS} metrics as permutation-invariant in this run, and shows that permutation-invariance in practice is a property of the comparison set, not of a metric in isolation. (3) A compute-versus-performance accounting that a benchmark reporting rank alone cannot make. (4) Empirical demotion of both ARCH-LM variants, of \texttt{kurtosis\_diff} and \texttt{skewness\_diff} (population moments that do not exist at the measured tail indices), and of unconditional VaR, each with the measurement that motivated it.
 
 \end{multicols}
 
 \clearpage
 
-\pagehead{Results (continued)}
-         {Model composite rankings $\cdot$ discriminative AUC $\cdot$ downstream utility $\cdot$ run-to-run nondeterminism}
+%% ─── Results 1: headline ranking + compute ─────────────────────────────────
+\pagehead{Results --- Model Ranking Across Two Families}
+         {${RPT_PROV_N_MARKETS} markets $\times$ ${RPT_PROV_N_SEEDS} seeds $\times$ ${RPT_N_FOLDS} walk-forward folds $\cdot$ generator-update parity within the gradient family}
 
 \begin{multicols}{2}
 
-\navybox{Model Composite Rankings (Table~3)}{%
-Rankings are computed among the generators present in \texttt{overall\_performance.csv} for this run (markets: ${RPT_PROV_MARKETS}). The shuffled control is appended as a reference line with NaN ranks, shown as em-dashes.
+\navybox{Composite Ranking (Table~1)}{%
+Ranks are computed among the generators present in \texttt{overall\_performance.csv}; the shuffled control is scored on every metric but excluded from rank competition and reported separately. \texttt{Wins} counts the (market, seed) cells in which a model attains the lowest \texttt{composite\_rank}, out of ${RPT_WIN_N_CELLS}.
 
 \smallskip
 \resizebox{\linewidth}{!}{%
-\begin{tabular}{@{}lcccc@{}}
+\begin{tabular}{@{}llccccr@{}}
 \toprule
-Model & composite\_rank & fidelity\_rank & temporal\_rank & avg\_rank \\
+Model & Family & composite & fidelity & temporal & Wins & Fit (s) \\
 \midrule
-${RPT_TABLE3_ROWS}
+${RPT_HEADLINE_ROWS}
 \bottomrule
 \end{tabular}}
 
 \smallskip
-\texttt{avg\_rank} is the unweighted mean over all 14 ranked metrics, retained for comparability only; it is not the selection criterion (CLAUDE.md \S2 -- an unweighted mean is won by the shuffled control, 1.24 vs 2.47, because nine of the original metrics are permutation-invariant). Model selection uses \texttt{composite\_rank}.
+Composite wins: ${RPT_WIN_COMPOSITE_WINS}. The econometric family takes ${RPT_WIN_COMPOSITE_ECON} of ${RPT_WIN_N_CELLS}.
 
-\textbf{Walk-forward validation.} ${RPT_N_FOLDS} rolling fold(s) per market enable mean\,$\pm$\,std across folds rather than a single metric estimate. Budgets are equalised on generator updates across all three models (Yoon et al.'s four-phase pre-training is reported separately), so TimeGAN's temporal ranking reflects its architecture at parity, not an unequal training budget.
+Temporal wins: ${RPT_WIN_TEMPORAL_WINS} --- econometric ${RPT_WIN_TEMPORAL_ECON} of ${RPT_WIN_N_CELLS}.
+
+Fidelity wins: ${RPT_WIN_FIDELITY_WINS} --- gradient ${RPT_WIN_FIDELITY_GRAD} of ${RPT_WIN_N_CELLS}.
+
+\smallskip
+The two families separate along the two metric families, and in opposite directions. Deep generators lead on fidelity, which measures how closely the synthetic marginal distribution matches the real one. Econometric models lead on temporal, which measures whether the ordering behaves like a market. The composite is the equal-weighted mean of the two, and on that measure ${RPT_COMPUTE_BEST_MODEL} finishes first.
+
+\smallskip
+\texttt{avg\_rank} is the unweighted mean over all 14 ranked metrics. It is retained for comparability only and is never the selection criterion: an unweighted mean over metrics is won by the shuffled control, because ${RPT_PERM_N_INVARIANT} of the ${RPT_PERM_N_METRICS} computed metrics score a permutation of the real data perfectly by construction. Model selection uses \texttt{composite\_rank}.}
+
+\columnbreak
+
+\redbox{Compute Versus Performance (Table~2)}{%
+Nothing in a rank column carries the cost of obtaining it. Parameter counts are the fitted or trainable parameters actually recorded per run; wall-clock is the mean fit or train time for one (market, seed).
 
 \smallskip
 \resizebox{\linewidth}{!}{%
+\begin{tabular}{@{}llrrrc@{}}
+\toprule
+Model & Family & Params & Gen.\ updates & Fit (s) & composite \\
+\midrule
+${RPT_COMPUTE_ROWS}
+\bottomrule
+\end{tabular}}
+
+\smallskip
+The best-ranked model in this benchmark, ${RPT_COMPUTE_BEST_MODEL}, has ${RPT_COMPUTE_BEST_PARAMS} parameters and is fitted in ${RPT_COMPUTE_BEST_SECONDS}\,s. The largest, ${RPT_COMPUTE_BIGGEST_MODEL}, has ${RPT_COMPUTE_BIGGEST_PARAMS} --- a factor of ${RPT_COMPUTE_PARAM_RATIO} --- and takes ${RPT_COMPUTE_BIGGEST_SECONDS}\,s, a factor of ${RPT_COMPUTE_TIME_RATIO} in wall-clock. It ranks below the smaller model ${RPT_COMPUTE_BIGGEST_BELOW}.
+
+\smallskip
+Econometric rows carry \texttt{n/a} in the generator-updates column rather than a number. Maximum-likelihood fitting has no gradient-step analogue, and printing one would invent a quantity the run never produced. The parity assertion that binds the three GANs to a common budget is scoped to the gradient family for the same reason (Methods).
+
+\smallskip
+We state the ratio and leave it there. The measurement does not establish that parameter count is wasted in general, that the GANs would not overtake the baselines at a larger budget, or that these architectures are at their best configuration --- no hyperparameter search was run (Discussion). What it does establish is that on this data, at this budget, under this evaluation, the additional capacity did not buy additional rank.}
+
+\end{multicols}
+
+\clearpage
+
+%% ─── Results 2: the shuffled-control audit ─────────────────────────────────
+\pagehead{Results --- The Shuffled-Control Audit}
+         {What a permutation of the real data scores, and what that does and does not prove}
+
+\begin{multicols}{2}
+
+\skybox{Permutation-Invariance, Counted}{%
+The control is the pooled real test series in random order (\texttt{numpy.random.default\_rng(42).permutation}). It has the identical marginal distribution --- same values, same histogram, same moments, same tails --- and no temporal structure whatsoever. It is useless for every application synthetic market data is generated for, and it is scored by the full pipeline alongside every generator.
+
+\smallskip
+A metric is counted as permutation-invariant in practice when the control's mean value is negligible against the best real generator's on the same metric. On this run that criterion separates cleanly: every metric it selects has a ratio below ${RPT_PERM_GAP_HI}, and the smallest ratio among the metrics it does not select is ${RPT_PERM_GAP_LO}. There is nothing in the gap, so the cut is not a judgement call.
+
+\smallskip
+\textbf{${RPT_PERM_N_INVARIANT} of ${RPT_PERM_N_METRICS}} computed metrics are permutation-invariant:
+{\footnotesize\texttt{${RPT_PERM_INVARIANT_LIST}}}
+
+\smallskip
+Under an unweighted mean over all metrics, the control ranks first --- the finding that produced the two-family composite. That is a structural property of any metric defined on the marginal distribution alone, not a quirk of these choices: mean, variance, kurtosis, Wasserstein distance and energy distance all belong to that class. Any evaluation of synthetic financial data built only from distributional metrics cannot distinguish a working generator from a shuffled deck.}
+
+\amberbox{The Harder Finding (Table~3)}{%
+The count above is the part that is true by construction, and by itself it is not very interesting: those metrics are permutation-invariant because they are defined to be. The result that matters is what happens on the metrics that are \emph{ordering-sensitive} by construction --- the ones a shuffled deck is supposed to fail.
+
+\smallskip
+Mean over all ${RPT_WIN_N_CELLS} market-seeds. Bold marks the better value; models are bold where they beat the control.
+
+\smallskip
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{@{}lcccccc@{}}
+\toprule
+Metric & Control & FinGAN & GARCH & GJR & QuantGAN & TimeGAN \\
+\midrule
+${RPT_CONTROL_AUDIT_ROWS}
+\bottomrule
+\end{tabular}}
+
+\smallskip
+On \textbf{ACF$(r^2)$ MAE} --- the canonical volatility-clustering statistic --- the shuffled control beats \emph{all ${RPT_AUDIT_SQ_N_GANS_BEATEN} GANs}. Only ${RPT_AUDIT_SQ_CLEARS} clear it.
+
+On \textbf{ACF$(|r|)$ MAE} the control beats ${RPT_AUDIT_ABS_BEATEN}; ${RPT_AUDIT_ABS_CLEARS} clear it.
+
+On \textbf{ACF$(r)$ MAE} the control beats ${RPT_AUDIT_RET_BEATEN}, and the models that do clear it do so by ${RPT_AUDIT_RET_MARGIN_MIN} to ${RPT_AUDIT_RET_MARGIN_MAX} --- margins on the fourth decimal.
+
+On \textbf{Hurst diff} the control beats ${RPT_AUDIT_HURST_BEATEN} alone.
+
+\smallskip
+A shuffled copy of the real series, carrying no temporal information at all, outperforms state-of-the-art GAN architectures on the metrics those architectures exist to satisfy.}
+
+\columnbreak
+
+\purplebox{What This Does and Does Not License}{%
+It is tempting to conclude that these ACF metrics are ``really'' permutation-invariant too, and to move the headline count from ${RPT_PERM_N_INVARIANT} to a larger number. We do not, and the reason is the contribution.
+
+\smallskip
+\textbf{These metrics are not permutation-invariant.} They are functions of the ordering, and they separate the econometric models from the control on every row of Table~3. A metric that can make that separation is measuring temporal structure. It is doing its job.
+
+\smallskip
+\textbf{What fails is the comparison, not the metric.} A metric that separates GARCH from a shuffled deck but does not separate three GANs from it is telling us something about the GANs. Read the other way round, it is weak evidence about the metric.
+
+\smallskip
+\textbf{Therefore: permutation-invariance in practice is a property of the comparison set, not of a metric in isolation.} The same metric is discriminating against one model and uninformative against another, in the same run, on the same data. A count of ``how many metrics are permutation-invariant'' is only meaningful once the set of models being compared is fixed --- and reporting one without the other is how a suite comes to look more discriminating than it is.
+
+\smallskip
+We keep the headline at ${RPT_PERM_N_INVARIANT} of ${RPT_PERM_N_METRICS}: the metrics that are invariant by construction. The ACF results are reported as what they are --- a failure of three generators, on the metrics most often used to claim success --- and \texttt{FIDELITY\_COLS} and \texttt{TEMPORAL\_COLS} are unchanged.
+
+\smallskip
+The practical recommendation follows: a shuffled control belongs in every evaluation table for synthetic time series, permanently, in the role a positive control plays in a biology experiment. It costs one permutation and it is the only line in the table that cannot be gamed by learning the marginal.}
+
+\end{multicols}
+
+\clearpage
+
+%% ─── Results 3: walk-forward, tails, failure modes ─────────────────────────
+\pagehead{Results --- Walk-Forward Validation and Failure Modes}
+         {Discriminative AUC against the empirical null $\cdot$ tail-index dispersion $\cdot$ mode collapse $\cdot$ metric circularity}
+
+\begin{multicols}{2}
+
+\navybox{Discriminative AUC Against the Empirical Null (Table~4)}{%
+A logistic classifier on 20-day rolling windows (features: mean, sd, mean-abs, mean-sq) is trained to separate real from synthetic. AUC $=0.5$ would be indistinguishability --- but the null is not exactly $0.5$. Measured over 15 real-vs-real half-splits it is $\mathbf{0.506 \pm 0.084}$, and every AUC below is read against that.
+
+\smallskip
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{@{}lcccr@{}}
+\toprule
+Model & AUC (mean $\pm$ sd) & $|$AUC$-0.5|$ & $z$ vs null & Folds \\
+\midrule
+${RPT_WF_AUC_ROWS}
+\bottomrule
+\end{tabular}}
+
+\smallskip
+Measured against that null, ${RPT_WF_Z_BEYOND_N} of ${RPT_WF_Z_N_MODELS} models sit more than 1.96 null sd away (${RPT_WF_Z_BEYOND}). The remainder (${RPT_WF_Z_WITHIN}) lie within 1.96 null sd on the fold-averaged mean and cannot, on this metric alone, be distinguished from a perfect generator at the 5\% level. ${RPT_WF_Z_N_ABOVE} of ${RPT_WF_Z_N_MODELS} mean AUCs lie above the null mean. Ranking is on $|\text{AUC}-0.5|$, never on the raw value: under an ascending rank on raw AUC an anti-predictive classifier at $0.30$ would outrank an indistinguishable one at $0.50$, which inverts the meaning of the metric.
+
+\smallskip
+Cross-validation is not shuffled. The 20-day windows overlap by 19 observations, so \texttt{shuffle=True} places near-duplicates in both train and test; measured, that moves the null from $0.506$ to $0.584$. Unshuffled CV is the correct design here, and the shift is the evidence.}
+
+\amberbox{The Fold-Length Effect --- and Its Confound (Table~5)}{%
+Each walk-forward fold retrains from scratch on a longer training segment than the last.
+
+\smallskip
 \begin{tabular}{@{}lccc@{}}
 \toprule
-Model & Wasserstein & Hurst diff & Discriminative AUC \\
+Fold & Train length & Mean AUC & sd \\
 \midrule
-${RPT_WALK_FORWARD_ROWS}
+${RPT_FOLD_EFFECT_ROWS}
 \bottomrule
-\end{tabular}}
+\end{tabular}
 
 \smallskip
-{\small Mean $\pm$ sd across ${RPT_N_FOLDS} fold(s), market ${RPT_PRIMARY_MARKET} seed ${RPT_PRIMARY_SEED}.}}
+AUC falls as fold training length grows: ${RPT_FOLD_FIRST_AUC} at fold ${RPT_FOLD_FIRST_FOLD} (training on ${RPT_FOLD_FIRST_LEN} points) against ${RPT_FOLD_LAST_AUC} at fold ${RPT_FOLD_LAST_FOLD} (${RPT_FOLD_LAST_LEN}). The decline is \textbf{${RPT_FOLD_MONOTONIC}}: fold(s) ${RPT_FOLD_RISE_FOLDS} rise above the fold before. We report it as a trend, not a monotone relationship, because the folds do not support the stronger claim.
 
-\skybox{Discriminative AUC: Null Calibration and Direction Bug}{%
-A logistic classifier is trained on 20-day rolling windows (features: mean, std, mean-abs, mean-sq) to distinguish real from synthetic. AUC\,=\,0.5 is the desired outcome (indistinguishability). Two non-obvious implementation choices matter:
-
-\medskip
-\textbf{Direction bug.} Under ascending rank order, AUC\,=\,0.30 ranked above AUC\,=\,0.50. The optimum is 0.5, not 0. \textbf{Fix:} rank on $|\text{AUC} - 0.5|$ (distance from chance). This also enters the composite as \texttt{discriminative\_auc\_dist}.
-
-\medskip
-\textbf{Null calibration.} The empirical null (15 seeds, real vs.\ real half-splits) is $0.506 \pm 0.084$ --- not exactly 0.5. An observed AUC of 0.62 is entirely consistent with a perfect generator ($z = (0.62 - 0.506)/0.084 = 1.36$, $p = 0.17$). The z-score $|(\text{AUC} - 0.506)/0.084|$ is reported as a second ranking metric (\texttt{discriminative\_auc\_absz}).
-
-\medskip
-\textbf{No shuffle=True in CV.} Our 20-day windows overlap by 19 observations. Adding \texttt{shuffle=True} to the cross-validation folds places near-duplicate windows in both train and test, creating genuine look-ahead leakage. Measured: the null shifts from 0.506 to 0.584. Unshuffled CV is the correct design.}
+\smallskip
+\textbf{The confound is not separated.} Fold index, training-set length and the specific historical period a fold covers all advance together by construction of the walk-forward schedule. A later fold trains on more data \emph{and} on a different market regime. Nothing in this design distinguishes ``more training data helps'' from ``the later period is easier to imitate''. Separating them needs folds at fixed length on rolling windows, which this run does not have. We state the trend and the confound together; the trend alone would be a claim we have not earned.}
 
 \columnbreak
 
-\purplebox{Conditional Heavy Tails}{%
-Stylized fact 7 (Bollerslev 1987\tcite{36}): after fitting a GARCH(1,1) model and extracting standardised residuals $\varepsilon_t = r_t / \sigma_t$, the residuals remain leptokurtic. Gaussian QMLE is used deliberately: a Student-$t$ specification absorbs the kurtosis by construction, creating circularity.
+\tealbox{Tail-Index Dispersion (Table~6)}{%
+\texttt{tail\_index\_diff} is the ranked heavy-tail metric --- the absolute difference in Hill\tcite{38} $\hat\alpha$ between real and synthetic.
 
-The real series' own residual kurtosis, independent of any generator, is not currently persisted as a standalone artifact (see Methods). What the pipeline does persist and rank is the per-model difference, $|\text{resid\_kurtosis\_real} - \text{resid\_kurtosis\_syn}|$ (\texttt{resid\_kurtosis\_diff}), part of the Temporal family in Table 3. MOEX is expected to dominate any standalone real-kurtosis comparison because of the 2022 invasion ($-33.3\%$ single day).}
+\smallskip
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Model & Mean & sd & Observed range \\
+\midrule
+${RPT_TAIL_SPREAD_ROWS}
+\bottomrule
+\end{tabular}
 
-\navybox{Downstream Utility: TSTR Protocol}{%
-\textbf{Motivating finding.} Four of six distributional metrics score the shuffled control as perfect. These tests tell us the synthetic data \emph{looks} real. The TSTR test asks: can a practitioner \emph{build a working risk model} on it?
+\smallskip
+${RPT_TAIL_WORST_MODEL} sits at ${RPT_TAIL_WORST_MEAN} against ${RPT_TAIL_OTHERS_RANGE} for the other four --- a real and large gap.
 
-\textbf{Protocol.} (1) Fit GARCH(1,1) on the synthetic series $\to$ $(\mu, \omega, \alpha, \beta)$. (2) Filter those parameters over real test returns to get one-step-ahead $\sigma_t$. (3) $\text{VaR}_t = \mu + \sigma_t z_\alpha$. (4) Backtest via Kupiec (1995)\tcite{34} and Christoffersen (1998)\tcite{35}.
+\smallskip
+\textbf{But the dispersion swamps the comparison.} The spread between model means is ${RPT_TAIL_BETWEEN_SPREAD}; the largest within-model standard deviation across market-seeds is ${RPT_TAIL_WITHIN_MAX}, which ${RPT_TAIL_SPREAD_VERDICT} it. Every model's observed range overlaps every other model's except ${RPT_TAIL_WORST_MODEL}'s upper reach. Run-to-run and market-to-market variation on this metric is larger than most of the differences between models, so a single-run winner on \texttt{tail\_index\_diff} is not a finding, and none is reported.}
+
+\redbox{TimeGAN: Mode Collapse, Caught by the Guard}{%
+The pipeline's post-generation guard checks every generated series and prints a \texttt{[WARNING]} when the lag-1 autocorrelation exceeds $|0.1|$ --- a return series should have almost none, and a high value means a smooth path rather than returns.
+
+\smallskip
+In this run the guard fired \textbf{${RPT_GUARD_N} times}, all of them ${RPT_GUARD_MODELS_PLAIN}, and never for any other model. Mean \(|\text{ACF}(1)| = ${RPT_GUARD_ACF_ABS_MEAN}\), over the range \(${RPT_GUARD_ACF_MIN}\) to \(${RPT_GUARD_ACF_MAX}\); generated sd ${RPT_GUARD_STD_MIN}--${RPT_GUARD_STD_MAX}. Read from \texttt{${RPT_GUARD_PATH}}.
+
+\smallskip
+The ranking agrees. ${RPT_WORST_MODEL} is the worst of the five on \textbf{all ${RPT_WORST_N_TEMPORAL} of ${RPT_WORST_N_TEMPORAL_TOT} temporal metrics}, on ${RPT_WORST_N_FIDELITY} of ${RPT_WORST_N_FIDELITY_TOT} fidelity metrics, and on ${RPT_WORST_N_ALL} of the ${RPT_WORST_N_ALL_TOT} computed metrics overall. It is \emph{not} worst on ${RPT_WORST_NOT_WORST} --- the model in brackets is worse there --- so ``worst on every metric'' would be an overstatement, and the scope is stated instead.
+
+\smallskip
+\textbf{An earlier explanation is withdrawn.} A previous draft attributed this to tanh saturation in the Recovery network. This run's own \texttt{[DIAG]} latent instrumentation does not support that: across ${RPT_DIAG_N_LATENT} latent readings saturation never exceeds ${RPT_DIAG_SAT_MAX}\% against the 50\% threshold the diagnostic exists to detect, and across ${RPT_DIAG_N_RECON} reconstruction readings output sd never differs from target sd by more than ${RPT_DIAG_RECON_DIFF}, so the autoencoder is functioning. The collapse is real and the mechanism is open.}
+
+\indigobox{Metric Circularity: \texttt{resid\_kurtosis\_diff}}{%
+Stated before a referee states it. \texttt{resid\_kurtosis\_diff} fits a GARCH(1,1) to each series, extracts $\varepsilon_t = r_t/\sigma_t$, and compares the excess kurtosis of those residuals. Two of the five generators \emph{are} GARCH models, so they are being scored, in part, by their own model class.
+
+\smallskip
+This is not fatal, and the reason is what the metric asks. It does not ask ``does a GARCH fit this series'' --- that would be circular outright. It asks whether the tails remain heavy \emph{after} GARCH has removed what it can explain, which is Cont's stylized fact 7\tcite{7} and a property a GARCH-$t$ generator can fail. The measured values bear this out: the econometric models score ${RPT_RESID_ECON_VALUES}, against ${RPT_RESID_GAN_RANGE} for the GANs and ${RPT_RESID_CONTROL} for the shuffled control --- ${RPT_RESID_VS_CONTROL}.
+
+\smallskip
+It remains an advantage of degree, and it is one reason \texttt{composite\_rank} is reported alongside its two components rather than alone --- \texttt{resid\_kurtosis\_diff} is one of seven temporal metrics, and the temporal result does not rest on it. Gaussian QMLE is used for the fit rather than Student-$t$ precisely to avoid the stronger circularity: a $t$ specification absorbs the excess kurtosis by construction and makes the test uninformative for every model.}
+
+\end{multicols}
+
+\clearpage
+
+%% ─── Results 4: downstream utility, ARCH-LM, budget, determinism ───────────
+\pagehead{Results --- Downstream Utility, Budget Sensitivity and Reproducibility}
+         {TSTR risk models $\cdot$ ARCH-LM regime failure $\cdot$ what the budget choice cost $\cdot$ run-to-run drift}
+
+\begin{multicols}{2}
+
+\navybox{Downstream Utility: Train-Synthetic, Test-Real (Table~7)}{%
+Distributional metrics say whether synthetic data \emph{looks} real. This asks whether a practitioner can build a working risk model on it: fit GARCH(1,1) on the synthetic series, filter the fitted parameters over real test returns for one-step-ahead $\sigma_t$, set $\text{VaR}_t = \mu + \sigma_t z_\alpha$, and backtest with Kupiec\tcite{34} and Christoffersen\tcite{35}. Lower QLIKE\tcite{37} is better.
 
 \smallskip
 \resizebox{\linewidth}{!}{%
-\begin{tabular}{@{}lrrrrrr@{}}
+\begin{tabular}{@{}lrrrrrrc@{}}
 \toprule
-Model & QLIKE & VaR cov.\ err. & Kupiec $p$ & Christoffersen $p$ & Viol. & $n$ \\
+Model & QLIKE med & QLIKE mean & Cov.\ err & Kupiec $p$ & Viol. & $n$ & Fail \\
 \midrule
-${RPT_DOWNSTREAM_UTILITY_ROWS}
+${RPT_DOWNSTREAM_ROWS}
 \bottomrule
 \end{tabular}}
 
 \smallskip
-{\small From \texttt{pooled\_downstream\_utility.csv} (${RPT_PROV_MARKETS}, seed(s) ${RPT_PROV_SEEDS}). Lower QLIKE is better. An em-dash means Christoffersen's test was not computed (e.g.\ too few violations to fit the independence statistic).}
+\textbf{Median and mean are both shown, and they disagree.} ${RPT_DS_FAIL_N} of ${RPT_DS_FAIL_N_TOTAL} model-market-seed cells returned a positive QLIKE --- a degenerate downstream GARCH fit whose conditional variance collapsed toward zero, driving the $r_t^2/\sigma_t^2$ term to four or five figures:
 
-\textit{Why conditional, not unconditional VaR?} Tested first: gaussian iid scored identically to real data (coverage error both 0.0276), because unconditional quantiles probe only the marginal --- already covered by KS/Wasserstein. Conditional VaR probes whether the GARCH structure is transferable.
+\smallskip
+{\footnotesize
+\begin{tabular}{@{}llrrrr@{}}
+\toprule
+Model & Market & Seed & QLIKE & Viol. & $n$ \\
+\midrule
+${RPT_DS_FAIL_ROWS}
+\bottomrule
+\end{tabular}}
 
-\textbf{QLIKE (Patton 2011\tcite{37}).} $\text{QLIKE} = \E[\log\sigma_t^2 + r_t^2/\sigma_t^2]$. Reported pooled ($n\approx2{,}480$, 20-year test set). With 5-year data ($n=623$) the metric was stable pooled but inverted per-market ($n\approx126$); with 20-year data ($n\approx496$/market) per-market QLIKE is also stable. QLIKE is still reported pooled for maximum power.
+\smallskip
+These cells are reported, not removed: excluding them would change a measured result. The mean column carries them, which is why it is reported next to a median rather than instead of one. The failures are a defect in the downstream-utility stage, not a property of the generator being scored, and they are recorded here as an open issue.
 
-\textbf{Kupiec power.} At $n=496$ (per-market): $\approx$56\%. At $n=2{,}480$ (pooled): $\approx$99\%. Kupiec $p$-values are descriptive at per-market $n$ and informative at pooled $n$; the primary downstream ranking signal is QLIKE.
+\smallskip
+\textbf{On $n$.} The files are named \texttt{pooled\_downstream\_utility.csv}, but each carries one market's test set: $n$ ranges from ${RPT_DS_N_MIN} to ${RPT_DS_N_MAX} across ${RPT_DS_N_FILES} files, combining to ${RPT_DS_N_COMBINED} across the ${RPT_DS_N_MARKETS} markets. What is reported above is therefore a summary of ${RPT_DS_N_FILES} per-market backtests, \textbf{not} a single pooled backtest at the combined $n$. The distinction is not cosmetic: Kupiec power at $n\approx496$ is $\approx56\%$ against $\approx99\%$ at $n\approx2{,}480$, so the per-market $p$-values above are descriptive, and QLIKE is the primary downstream signal.}
 
-\textbf{Real coverage error.} Observed violation rate for real GARCH parameters on real data: $|0.0259 - 0.05| = 0.026$. Synthetic GARCH parameters that transfer well should approach this baseline.}
+\columnbreak
 
-\redbox{Run-to-Run Nondeterminism at Fixed Seed}{%
-At fixed seed and identical code, five repeated runs show sharply different stability across architectures. TimeGAN and the shuffled control are bit-identical across all five runs --- sd\,=\,0 on every metric, including every walk-forward fold. FinGAN drifts slightly: Wasserstein CV $1.6\%$, walk-forward AUC sd $0.009$. QuantGAN drifts substantially: Wasserstein CV $37\%$, \texttt{tail\_index\_diff} CV $79\%$, raw AUC ranging $0.551$--$0.734$.
+\amberbox{ARCH-LM: A Regime Failure, Reported as a Result}{%
+An 80-replication Monte Carlo (GARCH(1,1), $n=1{,}200$, Gaussian innovations) found \texttt{arch\_pvalue\_diff} identifies the better-fitting model $99\%$ of the time and \texttt{arch\_stat\_diff} $76\%$, the latter with null sd $\approx46.4$ --- two draws from the same process gave LM $56.8$ and $124.8$.
 
-This is not a seeding bug: loss traces agree to four significant figures at epoch 1 and separate by epoch 5. It is consistent with QuantGAN being the only model that combines WGAN-GP's double-backward gradient penalty with dilated convolutions. \texttt{torch.use\_deterministic\_algorithms(True)} and \texttt{cudnn.deterministic} remain deliberately unset; this makes the cost of that choice measured rather than assumed.
+\smallskip
+On real BRICS data the pvalue variant saturates completely: real and shuffled series both underflow to $p=0.0$, so $|\Delta p| = 0.000000$ and the metric rates the adversarial control as a perfect match. The stat variant detects the control but is too noisy to rank on.
 
-\texttt{composite\_rank} itself is stable across runs (QuantGAN wins all five, $1.429$--$1.500$; FinGAN $1.786$--$1.893$; TimeGAN $2.643$--$2.714$). But \texttt{tail\_index\_diff}, \texttt{hurst\_diff}, and \texttt{mean\_diff} change their winning model between runs. A single-run winner on \texttt{tail\_index\_diff} should never be reported: QuantGAN spans $0.065$--$1.707$ there, against FinGAN's $0.357$--$0.865$ --- ranges that overlap enough to hide the true comparison in any one run.}
+\smallskip
+Neither variant is reliable across both regimes, so both are descriptive-only. ACF-MAE is the primary volatility-clustering ranking signal: continuous, no saturation regime, $88\%$ accuracy in the same Monte Carlo. This is an empirical result about a standard test, not an implementation note.}
+
+\redbox{What the Budget Choice Cost}{%
+Budget parity fixes which models are compared fairly. It does not fix \emph{at what budget}, and that choice moves the answer.
+
+\smallskip
+At a smoke-test budget of 1{,}000 generator updates, QuantGAN won all five repeat runs on \texttt{composite\_rank} (1.429--1.500), with FinGAN at 1.786--1.893 --- a prior measurement recorded in the repository's standing constraints, not reproducible from this run's artifacts.
+
+\smallskip
+At ${RPT_PROV_GEN_UPDATES} generator updates, ordering the ${RPT_GAN_N_MODELS} gradient-trained models by \texttt{composite\_rank} within this five-model ranking gives ${RPT_GAN_COUNTS}. ${RPT_GAN_LEADER} leads.
+
+\smallskip
+\textbf{The winner changed.} Ranking at a smoke-test budget did not predict ranking at full budget. This is the budget-parity lesson one level up: even with parity correctly enforced, the budget you evaluate at determines the result.
+
+\smallskip
+Most papers in this literature report a single budget without justifying the choice. We report ours --- and state plainly that ${RPT_PROV_GEN_UPDATES} updates is itself a choice whose sensitivity we have only partially characterised. Two points on a budget curve is not a budget curve. A benchmark that reports one point is reporting a result conditional on an unstated hyperparameter.}
+
+\purplebox{Run-to-Run Nondeterminism at Fixed Seed}{%
+At fixed seed and identical code, five repeated runs show sharply different stability by architecture. TimeGAN and the shuffled control are bit-identical across all five --- sd $=0$ on every metric, every fold. FinGAN drifts slightly: Wasserstein CV $1.6\%$, walk-forward AUC sd $0.009$. QuantGAN drifts substantially: Wasserstein CV $37\%$, \texttt{tail\_index\_diff} CV $79\%$, raw AUC $0.551$--$0.734$.
+
+\smallskip
+This is not a seeding bug. Loss traces agree to four significant figures at epoch~1 and separate by epoch~5, consistent with QuantGAN being the only model combining WGAN-GP's double-backward gradient penalty with dilated convolutions.
+
+\smallskip
+\texttt{torch.use\_deterministic\_algorithms(True)} and \texttt{cudnn.deterministic} remain deliberately unset. The consequence is now measured rather than assumed, and that is the justification: \texttt{composite\_rank} is stable across runs, but \texttt{tail\_index\_diff}, \texttt{hurst\_diff} and \texttt{mean\_diff} change their winning model between identical repeat runs. That is why no single-run winner on those metrics appears anywhere in this report.}
 
 \end{multicols}
 
@@ -696,57 +505,62 @@ This is not a seeding bug: loss traces agree to four significant figures at epoc
 
 %% ─── Figures: this run's plots, included by reference ──────────────────────
 \pagehead{Figures --- ${RPT_PRIMARY_MARKET} (seed ${RPT_PRIMARY_SEED})}
-         {Generated by the notebook's plotting cell; included here, not redrawn}
+         {Seven stacked series rows --- real, five generators, shuffled control --- plus the log-log tail panel}
 
 ${RPT_FIGURES_BLOCK}
 
 \clearpage
 
-%% ─── Page 9: Discussion ─────────────────────────────────────────────────────
+%% ─── Discussion ────────────────────────────────────────────────────────────
 \pagehead{Discussion}
-         {Main findings $\cdot$ metric design contribution $\cdot$ limitations $\cdot$ future work}
+         {What the two-family result means $\cdot$ the audit as a contribution $\cdot$ limitations $\cdot$ future work}
 
 \begin{multicols}{2}
 
-\navybox{The Shuffled-Control Audit as a Methodological Contribution}{%
-The central finding of this paper is not which GAN architecture performs best. It is that the standard way of evaluating synthetic financial time series is broken.
+\navybox{A ${RPT_COMPUTE_BEST_PARAMS}-Parameter Model Wins, and Why That Is the Interesting Part}{%
+The result is not that deep generative models fail. ${RPT_FIDELITY_LEADER} leads the field on \texttt{fidelity\_rank} and the gradient family takes ${RPT_WIN_FIDELITY_GRAD} of ${RPT_WIN_N_CELLS} fidelity wins; these models reproduce the marginal distribution of BRICS returns well, including tails that defeat a Gaussian by orders of magnitude.
 
-Nine of nineteen metrics used in prior work are permutation-invariant. This means a shuffled copy of real data --- a sequence with correct marginal distribution but zero temporal structure, useless for any stress-testing application --- scores at or near the top of a na\"{\i}ve composite ranking.
+The result is that reproducing the marginal is not the hard part, and it is not the part that transfers. On \texttt{temporal\_rank} --- volatility clustering, long memory, conditional heavy tails, indistinguishability --- the econometric family takes ${RPT_WIN_TEMPORAL_ECON} of ${RPT_WIN_N_CELLS}, and ${RPT_COMPUTE_BEST_MODEL} finishes first overall on the equal-weighted composite.
 
-This is not a problem specific to our metric choices. It is a structural property of any metric that operates on the marginal distribution: kurtosis, mean, variance, Wasserstein distance, and energy distance all fall into this category. Any paper that evaluates synthetic financial data using only distributional metrics cannot distinguish a good model from a shuffled deck.
+Two readings are available and the data does not settle between them. Either the GAN architectures have not been given enough budget, capacity or tuning to reach their potential here --- no hyperparameter search was run, and the budget-sensitivity result shows the budget matters --- or conditional heteroskedasticity with a leverage term is simply a very good model of daily equity returns, and a general-purpose sequence generator learning it from scratch on $\approx$4{,}000 observations per market is at a structural disadvantage. Both are consistent with what we measured. What is not consistent with what we measured is a benchmark that omits the parametric baseline and reports the best GAN as the state of the art.
 
-The three-score fix (fidelity rank, temporal rank, composite = average) is a minimal correction. It does not require any additional computation --- it requires only that the existing metrics be taxonomised by their invariance properties, and that families rather than individual metrics be weighted equally in the composite.
+\smallskip
+This is why the econometric arm was added. A benchmark of GANs against GANs answers ``which GAN'', and produces a winner regardless of whether any entrant is useful.}
 
-We recommend this taxonomisation as a standard practice for synthetic time series evaluation. The shuffled control (seed 42, random permutation of the test set) should be a permanent entry in every evaluation table, serving the same diagnostic role as a positive control in a biology experiment.}
+\skybox{The Audit as a Methodological Contribution}{%
+The shuffled control is the cheapest useful thing in this pipeline: one permutation of the test set, scored by the same code as everything else.
 
-\skybox{Architecture Comparison and the TimeGAN Result}{%
-Under the current pipeline, QuantGAN achieves the best composite ranking. Training budgets are equalised on generator updates across all three models (TimeGAN's four-phase pre-training is reported separately, per Yoon et al.\ 2019\tcite{4}), so TimeGAN's weak result is no longer attributable to an unequal training budget. At equal budget it gives excess kurtosis $-1.02$ against real $+1.34$, Hill $\hat\alpha=16.4$ against real $4.12$, $0.40\%$ extreme events against real $6.05\%$, and raw AUC $0.953$ --- bounded, platykurtic, and nearly tailless, consistent with tanh saturation in the Recovery network rather than an undertrained model.
+It establishes two things. First, ${RPT_PERM_N_INVARIANT} of ${RPT_PERM_N_METRICS} computed metrics score it perfectly by construction, so any composite that mixes families without balancing them is won by a sequence with no temporal content. The fix --- taxonomise metrics by invariance, weight families rather than metrics, exclude the control from rank competition --- needs no additional computation.
 
-The QuantGAN result is consistent with the hypothesis that dilated temporal convolutions better capture the multi-scale clustering structure of BRICS markets --- volatility that operates simultaneously at intraday, weekly, and monthly timescales. TCN dilations cover all three scales in a single forward pass without the gradient issues that affect GRU-based training at longer horizons.
+Second, and less comfortably: on the ordering-sensitive metrics the control still outperforms genuine GAN generators. That is not a metric failure. It is a measurement of the generators, made possible only because a control was present to make it against.
 
-FinGAN's CNN deconvolution approach generates from a compressed noise vector and upsamples via transposed convolutions, a design borrowed from image GANs. Its performance gap relative to QuantGAN may reflect that market return sequences have weaker hierarchical structure than images, making the image-GAN inductive bias less appropriate.
-
-A complete comparison awaits: (1) systematic hyperparameter search over Tier-2 parameters (learning rate, hidden dimension, noise dimension); (2) reporting of mean\,$\pm$\,std across 3--5 seeds rather than a single seed result --- and, per the run-to-run nondeterminism findings below, that matters far more for QuantGAN than for TimeGAN.}
+\smallskip
+The general form of the caveat is the part we would ask others to adopt. \textbf{Whether a metric discriminates is a joint property of the metric and the model set.} The same statistic separates GARCH from a shuffled deck and fails to separate three GANs from it, in one run, on one dataset. Reporting a suite's discriminating power without naming the models it was measured against overstates it.}
 
 \columnbreak
 
-\redbox{Known Failure Modes and Limitations}{%
-\textbf{ARCH-LM reliability.} Both ARCH-LM variants fail in at least one regime. pvalue\_diff saturates on real fat-tailed data ($|\Delta p| = 0.000000$ for both real and shuffled). stat\_diff has null sd 46.4 on simulated GARCH (two draws from the same process: LM 56.8 and 124.8). Neither is reliable across both regimes. This is reported here as an empirical result, not merely an implementation note: ARCH-LM is poorly suited for cross-model ranking when the data has genuine fat tails.
+\redbox{Limitations}{%
+\textbf{No hyperparameter search.} All three GAN architectures use reference-implementation defaults from their original papers. No search over learning rate, hidden dimension or noise dimension has been run (Bergstra \& Bengio 2012\tcite{12} would be the protocol). The econometric baselines have no comparable free parameters, so this asymmetry favours the baselines and is stated as such. It is the largest single caveat on the headline result.
 
-\textbf{QLIKE per-market stability.} With 20-year data ($n\approx496$/market), per-market QLIKE is stable. The prior per-market inversion at $n\approx126$ (Gaussian $-6.888$ beat real $-6.876$, sd 3.354) is now resolved. Downstream utility can be reported both per market and pooled; pooled ($n\approx2{,}480$) is still preferred for Kupiec power ($\approx99\%$).
+\textbf{One budget, partially characterised.} See Results: the winner among the GANs changes between a smoke-test budget and ${RPT_PROV_GEN_UPDATES} updates. Two points do not characterise a curve.
 
-\textbf{garch\_persistence\_diff instability.} Across 12 seeds on the same generator, this metric has standard deviation 0.31 and range 0.000--0.985. GARCH(1,1) is weakly identified when the synthetic series lacks ARCH structure, producing near-arbitrary persistence estimates. Excluded from all composite scores.
+\textbf{No diffusion baseline.} Takahashi \& Mizuno (2025)\tcite{29} report diffusion-based generators outperforming GANs on several stylized-fact metrics. This benchmark does not include one. Reviewers will ask; the answer is not yet.
 
-\textbf{Static VaR.} An unconditional VaR based on the empirical quantile of the synthetic distribution adds no information beyond what distributional metrics already capture, and scores identically for Gaussian noise and real data (coverage error 0.0276 in both cases). Only conditional VaR (Section: Downstream Utility) probes the temporal structure.
+\textbf{Fold confound unseparated.} Fold index, training length and historical period advance together (Results, Table~5).
 
-\textbf{Data length.} Twenty years of daily data ($\approx$4{,}960 observations per market before splitting) resolves the small-sample estimator problem: Hill sd falls from $\approx$0.52 at $n=995$ (5-year data) to $\approx$0.035 at $n=4{,}960$, a 15-fold improvement, and the per-market QLIKE inversion (Gaussian beating real at $n\approx126$) no longer occurs. What remains limiting is not sample size but the number of independent crisis regimes: the 76 extreme days recorded (Section~3) cluster into a handful of episodes --- the 2008 financial crisis, the 2020 COVID crash, and the 2022 MOEX invasion shock --- not thousands of independent draws.}
+\textbf{Downstream-utility fit failures.} ${RPT_DS_FAIL_N} of ${RPT_DS_FAIL_N_TOTAL} cells produced a degenerate GARCH fit; reported, not repaired.
+
+\textbf{Crisis regimes remain few.} Twenty years resolves the estimator problem --- Hill sd falls from $\approx$0.52 at $n=995$ to $\approx$0.035 at $n\approx4{,}960$ --- but not the sparsity of independent crisis episodes. The extreme days in this dataset cluster into a handful of regimes: 2008, 2020, and the 2022 MOEX shock. A benchmark validated against a few crisis episodes is validated against a few crisis episodes, however many market-days each contributes.
+
+\textbf{Determinism unenforced.} Deliberate, and measured (Results); the consequence is that no single-run winner is reported on the three metrics whose winner changes between identical runs.}
 
 \amberbox{Future Work}{%
 \begin{itemize}
-  \item \textbf{20-year data is now in use.} History extended to 2006--2026 ($\approx4{,}960$/market). QLIKE per-market stable ($n\approx496$). Kupiec power pooled $\approx$99\% ($n\approx2{,}480$).
-  \item \textbf{Add a diffusion model baseline.} Takahashi \& Mizuno (2025)\tcite{29} showed diffusion-based generators outperform GANs on several stylized-fact metrics. This is the largest remaining reviewer risk.
-  \item \textbf{Systematic hyperparameter search.} 20--30 random-search candidates per architecture (Bergstra \& Bengio 2012\tcite{12}), scored with composite rank, winner retrained at full budget.
-  \item \textbf{Multi-market generalisation test.} Train on BRICS, evaluate on a non-BRICS emerging market (e.g.\ Turkey or Mexico) to test out-of-distribution generalisation.
+  \item \textbf{Budget curve.} Evaluate at several budgets rather than one, and report rank as a function of budget. The budget-sensitivity result makes this the highest-value next experiment, ahead of adding architectures.
+  \item \textbf{Hyperparameter search.} 20--30 random-search candidates per architecture\tcite{12}, scored on \texttt{composite\_rank}, winner retrained at full budget --- the direct test of whether the GANs' deficit is architectural or configurational.
+  \item \textbf{Diffusion baseline}\tcite{29}, and a conditional/LLM arm\tcite{30}\tcite{31}, scored by the same pipeline.
+  \item \textbf{Fixed-length rolling folds} to separate training length from historical period.
+  \item \textbf{Out-of-distribution generalisation}: train on BRICS, evaluate on a non-BRICS emerging market.
 \end{itemize}}
 
 \end{multicols}
@@ -877,78 +691,165 @@ A complete comparison awaits: (1) systematic hyperparameter search over Tier-2 p
 \item \hypertarget{R:37}{}%
   Patton, A.\ J.\ (2011). Volatility forecast comparison using imperfect volatility proxies. \textit{Journal of Econometrics} 160(1), 246--256.
 
+\item \hypertarget{R:38}{}%
+  Hill, B.\ M.\ (1975). A simple general approach to inference about the tail of a distribution. \textit{The Annals of Statistics} 3(5), 1163--1174.
+
+\item \hypertarget{R:39}{}%
+  Bollerslev, T.\ (1986). Generalized autoregressive conditional heteroskedasticity. \textit{Journal of Econometrics} 31(3), 307--327.
+
+\item \hypertarget{R:40}{}%
+  Glosten, L.\ R., Jagannathan, R., \& Runkle, D.\ E.\ (1993). On the relation between the expected value and the volatility of the nominal excess return on stocks. \textit{The Journal of Finance} 48(5), 1779--1801.
+
 \end{enumerate}
 }
 
 \clearpage
 
 %% ─────────────────────────────────────────────────────────────────────────────
-%% METHODS  (technical report: after references)
+%% METHODS
 %% ─────────────────────────────────────────────────────────────────────────────
 \begin{tcolorbox}[
   colback=NavyBg, colframe=NavyBg!60!black, arc=4pt,
   left=8pt, right=8pt, top=4pt, bottom=4pt,
   before skip=0pt, after skip=10pt]
 {\large\bfseries\color{Navy} Methods}
+\hfill{\small\color{Navy!70} Every design decision below states the evidence that drove it}
 \end{tcolorbox}
 
 \begin{multicols}{2}
 \small
 
 \textbf{Data sources and date range.}
-Five daily closing-price CSV files were obtained from public sources: BOVESPA (Ibovespa), FTSE/JSE All Share, MOEX (Moscow Exchange, the Russia leg of the BRICS basket), NIFTY 50, and Shanghai Composite. Each covers the 20-year window used for the benchmark (2006-08-30 to 2026-08-28). MOEX has a documented $-33.3\%$ single-day return on 2022-02-24, followed by a 27-trading-day suspension (2022-02-25 to 2022-03-24); this is recorded as a known gap in the series and is never interpolated.
+Five daily closing-price series: BOVESPA (Ibovespa), FTSE/JSE All Share, MOEX (Moscow Exchange), NIFTY 50 and Shanghai Composite, over 2006-08-30 to 2026-08-28.
 
-\textbf{Date parsing.}
-Source files use MM/DD/YYYY format. Lexicographic sorting of this format across year boundaries is incorrect (e.g.\ \texttt{01/01/2021} $<$ \texttt{12/31/2020} alphabetically). All date columns are parsed with \texttt{pd.to\_datetime(df["Date"], dayfirst=False)} and sorted chronologically before any subsequent operation. This fix was applied in \texttt{5\_Paper\_Calculate\_LogReturns.py}.
+\smallskip
+\textbf{Why MOEX, not MSCI World --- and what it costs.}
+An earlier version of this basket used MSCI World as the Russia leg. MSCI World is a developed-market global index and is not a BRICS market; using it made the ``BRICS emerging market'' framing false. MOEX replaces it. The cost is a genuine structural break: a $-33.3\%$ single-day return on 2022-02-24 followed by a 27-trading-day suspension (2022-02-25 to 2022-03-24). Both are recorded as a known gap and never interpolated --- interpolating would manufacture returns on days when no trading occurred, in exactly the regime the benchmark is meant to stress. MOEX consequently dominates several descriptive statistics, which is a property of the data, not an artefact.
 
-\textbf{Log returns.}
-$r_t = \ln(P_t / P_{t-1})$. No outlier clipping is applied to log returns. Clipping at 0.5th/99.5th percentiles would remove exactly the observations that determine kurtosis, tail index, and the extreme-events metric --- the three properties motivating the BRICS market choice. Adams et al.\ (2019)\tcite{6} show that winsorising can worsen distributional misfit.
+\smallskip
+\textbf{Data characteristics (Table~8).}
 
-\textbf{Train/test split.}
-Temporal 80/10/10 split (no shuffle). The 80\% training portion feeds GAN training; the 10\% test portion is the evaluation target. Walk-forward validation uses ${RPT_N_FOLDS} rolling fold(s) within the test portion; each fold retrains the model from scratch on the fold's training segment.
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Market & $\sigma$ (\%/day) & Kurt. & Resid. kurt. \\
+\midrule
+${RPT_TABLE1_ROWS}
+\bottomrule
+\end{tabular}
 
-\textbf{Window construction.}
-128-step sliding windows with stride 1. From $\approx$3{,}960 training days, each market yields $\approx$3{,}833 windows. Models train on one market's windows only; no cross-market data mixing.
+\smallskip
+Across ${RPT_TABLE1_TOTAL_DAYS} market-days a Gaussian predicts $<0.01$ days with $|r|>5\sigma$; we observe ${RPT_TABLE1_TOTAL_EXTREME}, with ${RPT_TABLE1_MAX_EXTREME_MARKET} alone contributing ${RPT_TABLE1_MAX_EXTREME_COUNT}. ${RPT_TABLE1_MAX_RATIO_MARKET} shows the strongest clustering: $P(\text{big})=${RPT_TABLE1_MAX_RATIO_P_BIG}\%$ against $P(\text{big}\mid\text{yesterday big})=${RPT_TABLE1_MAX_RATIO_P_BIG_GIVEN_BIG}\%$, a ratio of ${RPT_TABLE1_MAX_RATIO_VALUE}; all five markets fall between ${RPT_TABLE1_RATIO_MIN} and ${RPT_TABLE1_RATIO_MAX}.
 
-\textbf{GAN architectures and hyperparameters.}
-All three models use WGAN-GP with $n_\text{critic}=5$ (Gulrajani 2017\tcite{3} floor) and $\lambda_\text{gp}=10$. Adam optimiser with $\beta_1=0$, $\beta_2=0.9$ (Gulrajani 2017\tcite{3} recommendation; $\beta_1=0$ disables momentum, which destabilises adversarial training). Batch size 64. See Extended Data for per-architecture hyperparameter tables.
+\smallskip
+\textbf{Log returns, and no clipping.}
+$r_t = \ln(P_t/P_{t-1})$, dates parsed with an explicit format and sorted chronologically before any other operation (lexicographic sorting of MM/DD/YYYY is wrong across year boundaries). No outlier clipping. Clipping at the 0.5th/99.5th percentiles would remove precisely the observations that determine kurtosis, tail index and the extreme-events metric --- the three properties motivating the BRICS choice --- and Adams et al.\ (2019)\tcite{6} show winsorising worsens distributional misfit.
 
-\textbf{TimeGAN} (Yoon et al., 2019\tcite{4}): GRU backbone; hidden\_dim=24, num\_layers=3, lr=1e-3. Joint-phase generator updates are set equal to QuantGAN's and FinGAN's training steps (pipeline-asserted parity); \texttt{ae\_steps} and \texttt{sup\_steps} are separate four-phase pre-training, excluded from that parity and reported on their own.
+\smallskip
+\textbf{Splits, folds and windows.}
+Temporal 80/10/10, never shuffled. 128-step sliding windows, stride 1. Walk-forward validation uses ${RPT_N_FOLDS} rolling folds; each fold retrains from scratch on that fold's training segment.
 
-\textbf{QuantGAN} (Wiese et al., 2020\tcite{5}): TCN backbone; noise\_dim=100, lr=1e-4, 3 residual TCN blocks with dilations 1/2/4.
+\smallskip
+\textbf{Why walk-forward, not random CV.}
+Shuffled cross-validation leaks. Our 20-day evaluation windows overlap by 19 observations, so \texttt{shuffle=True} places near-duplicate windows in both train and test. Measured, this moves the discriminative-AUC null from $0.506$ to $0.584$ --- a spurious improvement of the same order as the differences between models (Tashman 2000\tcite{13}; Bergmeir \& Ben\'{\i}tez 2012\tcite{14}).
 
-\textbf{FinGAN} (this paper): CNN deconvolution; 3$\times$ ConvTranspose1d with stride 2, base\_channels=64, lr=1e-4. seq\_len must be divisible by 8.
+\smallskip
+\textbf{Why per-market training, not cross-market pooling.}
+Each model trains on one market's own data; markets are never concatenated. Pooling was considered: joining all five end-to-end introduces only $\approx$4 spurious cross-market transitions across $\approx$3{,}900 windows, a small artefact in exchange for more training volume. It was rejected because a single generator fitted across five independent markets risks each market's dynamics contaminating the others' learned distribution --- and the object of study is per-market stylized facts.
 
 \columnbreak
 
-\textbf{Seeds.}
-Global seed 42 for all numpy, torch, and random state initialisations. Walk-forward folds use deterministic fold indices. Shuffled control: \texttt{numpy.random.default\_rng(42).permutation}.
+\textbf{Why budgets are in gradient steps, never epochs.}
+An epoch is $\lfloor n_\text{windows}/\text{batch\_size}\rfloor$ steps --- a data-dependent unit disguised as a fixed one. Walk-forward folds differ in length by a factor of five (Results, Table~5), so a fixed epoch count silently gives later folds five times the training. \textit{Evidence:} specifying budgets in epochs once produced a $492\times$ asymmetry in generator updates between models in a single run, because a smoke-test override of \texttt{epochs} reached two models and not the third. The affected model looked like an architectural failure until the budget was actually measured. All budgets, seeds, markets and fold counts are therefore declared in one configuration cell and nowhere else.
 
-\textbf{Software versions.}
-Python 3.10; PyTorch 2.1; statsmodels 0.15.0 (pinned: \texttt{het\_arch} changes signature in 0.16.0); arch $\geq$7.0 (GARCH fitting); scipy 1.11; pandas 2.0; pyarrow (parquet I/O).
+\smallskip
+\textbf{Why parity is on generator updates, and scoped to the gradient family.}
+The pipeline asserts \texttt{TimeGAN.joint\_steps == QuantGAN.train\_steps == FinGAN.train\_steps} and refuses to run otherwise. TimeGAN's \texttt{ae\_steps} and \texttt{sup\_steps} are pre-training required by its four-phase algorithm (Yoon et al.\ 2019\tcite{4}); they are reported separately and excluded from parity, because counting them would penalise the algorithm for its own structure. QuantGAN and FinGAN take $n_\text{critic}=5$ discriminator updates per generator update (Gulrajani et al.\ 2017\tcite{3}), intrinsic to WGAN-GP rather than extra budget. The econometric models are exempt entirely: maximum-likelihood fitting has no gradient-step analogue, and any number entered in that column would be fabricated.
 
-\textbf{GARCH specification.}
-GARCH(1,1) with constant mean and Gaussian QMLE (quasi maximum likelihood estimation) is used for two purposes: (i) conditional heavy-tail metric (stylized fact 7) and (ii) downstream utility GARCH parameters. Gaussian QMLE is used in place of Student-$t$ QMLE to avoid circularity: a $t$-distribution specification absorbs the excess kurtosis by construction, making the residual kurtosis test uninformative. The \texttt{arch\_model(y, mean='Constant', vol='GARCH', p=1, q=1, dist='normal')} call is used throughout; inputs are scaled by 100 for numerical stability.
+\textit{Equal generator updates is not equal compute}, and both are reported because they are different claims. Measured at 1{,}000 generator steps over five runs: TimeGAN $\approx$20.5\,s, FinGAN $\approx$42.4\,s, QuantGAN $\approx$178\,s --- a $\approx$9$\times$ spread at identical budget. Full-run wall-clock is in Results, Table~2.
 
-\textbf{Fidelity ranking.}
-For each of the 7 fidelity metrics, models are ranked 1--3 (ascending; lower metric value is better). fidelity\_rank = mean of the 7 individual ranks. kurtosis\_diff and skewness\_diff are excluded: Hill $\hat{\alpha}=2.54$--$3.21$ across BRICS markets, so $\E|X|^4=\infty$ everywhere and $\E|X|^3=\infty$ in 4/5 markets; sample kurtosis diverges with $n$ rather than converging.
+\smallskip
+\textbf{Why z-score + $\tanh(z/3)$, not min-max.}
+All three GANs normalise with $\tanh(z/3)$ on the z-score, mapping to $[-1,+1]$ and inverting via $z = 3\operatorname{arctanh}(y)$. Min-max was rejected on measurement. At tail indices of 2.54--3.21 a single extreme day sets the whole scale: min-maxing ${RPT_MINMAX_MARKET} to $[-1,1]$ --- its extremes are \(${RPT_MINMAX_MIN_PCT}\%\) and \(+${RPT_MINMAX_MAX_PCT}\%\) --- leaves $98\%$ of the data occupying ${RPT_MINMAX_OCCUPIED}\% of the range with a median at \(+${RPT_MINMAX_MEDIAN}\), so the generator must learn an offset before it can learn any dynamics. \textit{Evidence:} changing only this moved QuantGAN's output standard deviation from $3.7\times$ real to $1.2\times$ real at identical budget. Sigmoid to $[0,1]$ is doubly wrong here --- it makes negative returns unrepresentable and $\operatorname{arctanh}$ explodes as $y\to1$.
 
-\textbf{Temporal ranking.}
-For each of the 7 temporal metrics, models are ranked 1--3 (ascending). temporal\_rank = mean of the 7 individual ranks. For discriminative AUC, ranking is on $|\text{AUC} - 0.5|$ (distance from chance); an ascending rank on raw AUC would rank AUC=0.30 above AUC=0.50, which is incorrect.
+\smallskip
+\textbf{Why GARCH is fitted on raw returns instead.}
+The econometric models are fitted on raw log returns scaled by 100, \emph{not} the project normalisation. The $\tanh$ squash compresses exactly the variance dynamics GARCH exists to model, so applying it would handicap the baseline on its own ground. The $\times100$ scaling is numerical: \texttt{arch}'s optimiser converges poorly at magnitudes near $10^{-2}$.
 
-\textbf{Composite score.}
-$\text{composite\_rank} = (\text{fidelity\_rank} + \text{temporal\_rank}) / 2$.
+\smallskip
+\textbf{Why two GARCH variants and not more.}
+GARCH(1,1)\tcite{39} is the universal baseline and the natural null. GJR-GARCH\tcite{40} adds one leverage term, capturing Cont's stylized fact 5 (gain/loss asymmetry)\tcite{7} --- which none of the GANs models explicitly, and which is the single most-cited deficiency of symmetric GARCH on equity data. Both use Student-$t$ innovations. Stopping at two keeps the baseline serious without turning a GAN benchmark into a GARCH paper; the composite ranking places ${RPT_ECON_POSITIONS}, ${RPT_LEVERAGE_VERDICT}.
 
-\textbf{Shuffled control construction.}
-\texttt{rng = numpy.random.default\_rng(42); shuffled = rng.permutation(pooled\_real\_array).copy()}. The pooled real array concatenates all five market test sets. The control is evaluated on all 16 metrics and appended to the results table with all rank columns set to NaN.
+\end{multicols}
 
-\textbf{Pooled downstream utility.}
-QLIKE, Kupiec, and Christoffersen statistics are computed on the pooled test set ($n\approx2{,}480$, five markets $\times\approx496$ observations). With 20-year data, per-market QLIKE is also stable ($n\approx496$), but pooled reporting is maintained for maximum power. Kupiec power pooled $\approx$99\% versus $\approx$56\% per market. With the prior 5-year data ($n=623$ pooled, $n\approx126$/market), per-market QLIKE inverted (Gaussian $-6.888$ beat real $-6.876$); 20-year data resolves this.
+\clearpage
 
-\textbf{Discriminative AUC implementation.}
-Logistic regression on 20-day rolling-window features (mean, std, mean of absolute values, mean of squared values). Five-fold cross-validation without temporal shuffling (shuffling introduces look-ahead leakage from overlapping windows; measured shift in null: $0.506 \to 0.584$). Empirical null estimated by 20 real-vs-real half-splits. AUC ranking metric: $|\text{AUC} - 0.506|$.
+\pagehead{Methods (continued) --- Metric Design Decisions}
+         {Each metric's role, and the measurement that put it there}
 
-\textbf{Hardware.} Evaluation metrics run on CPU (single machine). Training hardware is recorded per run in the provenance block (page 2). Budgets are specified in gradient steps with generator-update parity enforced across all three models (Extended Data Table 3); measured wall-clock for this run is in Extended Data Table 3b --- equal generator updates is not equal compute.
+\begin{multicols}{2}
+\small
+
+\textbf{Why the ranking splits fidelity from temporal.}
+\textit{Evidence:} an unweighted mean over all metrics was won by the shuffled-real control, \texttt{avg\_rank} 1.24 against 2.47 for a genuine generator. ${RPT_PERM_N_INVARIANT} of the ${RPT_PERM_N_METRICS} computed metrics are permutation-invariant, so they score a shuffled deck perfectly by construction, and no weighting of the remainder can overcome that. The composite is therefore
+\[ \text{composite\_rank} = \tfrac{1}{2}\left(\text{fidelity\_rank} + \text{temporal\_rank}\right), \]
+the equal-weighted mean of the two families --- families are weighted, not individual metrics. Model selection uses \texttt{composite\_rank}; \texttt{avg\_rank} is retained for comparability only and is never the selection criterion.
+
+\smallskip
+\textbf{Why the control does not compete for rank.}
+Its \texttt{fidelity\_rank} would be 1.000 by construction --- it \emph{is} the real data, reordered --- so no weighting scheme can prevent it winning that family. It is scored on every metric, its raw values are reported in full, and its rank columns are NaN. Any generator scoring worse than the control on temporal metrics has learned nothing about dynamics, which makes it a diagnostic rather than a competitor.
+
+\smallskip
+\textbf{Why NaN ranks last.}
+Ranking uses \texttt{na\_option='bottom'}, so a metric that fails to compute counts as the worst outcome rather than being silently dropped. Dropping it would reward a model for producing output degenerate enough to break an estimator.
+
+\smallskip
+\textbf{Why \texttt{kurtosis\_diff} and \texttt{skewness\_diff} are descriptive-only.}
+Hill $\hat\alpha$ is 2.54--3.21 across the five markets, so $\E|X|^k<\infty$ only for $k<\alpha$: variance exists everywhere, skewness is infinite in four of five markets, and \textbf{kurtosis is infinite in all five}. A sample statistic estimating a population quantity that does not exist has nothing to converge to --- it grows with the window instead.
+
+\textit{Evidence}, mean excess kurtosis over disjoint blocks of increasing length (disjoint, so each estimate is independent rather than reusing the shorter windows' data):
+
+\smallskip
+{\footnotesize
+\begin{tabular}{@{}l${RPT_KURT_COLSPEC}@{}}
+\toprule
+Market & ${RPT_KURT_HEADER} \\
+\midrule
+${RPT_KURT_ROWS}
+\bottomrule
+\end{tabular}}
+
+\smallskip
+The estimate grows with $n$ in ${RPT_KURT_N_GREW} of ${RPT_KURT_N_MARKETS} markets, by factors of \(${RPT_KURT_RATIO_MIN}\times\) to \(${RPT_KURT_RATIO_MAX}\times\) between blocks of ${RPT_KURT_N_MIN} and ${RPT_KURT_N_MAX} observations. Both metrics are computed and displayed; neither is ranked. \texttt{tail\_index\_diff}, the Hill estimator\tcite{38} on the top $5\%$ of $|r|$, is the ranked heavy-tail metric --- it estimates $\alpha$ itself, which does exist. Hill returns NaN above $\hat\alpha=20$, after a degenerate series once drove it to 31{,}581.
+
+\columnbreak
+
+\textbf{Why both ARCH-LM variants are descriptive-only.}
+\texttt{arch\_pvalue\_diff} identifies the better-fitting model $99\%$ of the time on simulated GARCH but saturates completely on real data: real and shuffled both underflow to $p=0.0$, giving $|\Delta p|=0.000000$ and rating the adversarial control a perfect match. \texttt{arch\_stat\_diff} scores $76\%$ with a null sd of $46.4$ --- two draws from the same process gave LM $56.8$ and $124.8$. Neither is reliable across both regimes. ACF-MAE replaces them as the primary volatility-clustering signal: continuous, no saturation, $88\%$ Monte Carlo accuracy.
+
+\smallskip
+\textbf{Why discriminative AUC is ranked on $|\text{AUC}-0.5|$.}
+\textit{Evidence:} under an ascending rank on the raw value, an anti-predictive AUC of $0.30$ outranked an indistinguishable $0.50$ --- the optimum is $0.5$, not $0$. The empirical null is $0.506\pm0.084$ over 15 real-vs-real half-splits, not exactly $0.5$, so a $z$-score against that null is reported as a second ranking metric and an observed $0.62$ is not by itself evidence of failure ($z=1.36$).
+
+\smallskip
+\textbf{Why downstream utility uses conditional VaR.}
+Unconditional VaR was tested first and added nothing: Gaussian iid noise scored identically to real data (coverage error 0.0276 for both), because an unconditional quantile probes only the marginal --- already covered by Wasserstein and the quantile MSE. Conditional VaR probes whether the GARCH structure itself transfers, which is the question TSTR is asking.
+
+\smallskip
+\textbf{Why QLIKE needs a large $n$, and what that means here.}
+QLIKE inverts at small samples: at $n\approx126$ Gaussian noise scored $-6.888$ against real data's $-6.876$, ranking noise above real. At $n=623$ pooled it ranks correctly with sd $0.000$. The design intent is therefore pooled computation. \textbf{As run, the artifacts are per-market} at $n$ of ${RPT_DS_N_MIN}--${RPT_DS_N_MAX} (Results, Table~7), below the $n\gtrsim600$ threshold, despite the file name. This is recorded as a discrepancy between intent and artifact, not presented as a pooled result. Kupiec power is $\approx56\%$ at $n\approx496$ against $\approx99\%$ at $n\approx2{,}480$, so per-market $p$-values are descriptive.
+
+\smallskip
+\textbf{Why Gaussian QMLE for the residual-kurtosis metric.}
+A Student-$t$ specification absorbs excess kurtosis by construction and makes the test uninformative for every model. Gaussian QMLE keeps it able to fail. Circularity with the GARCH generators is discussed in Results.
+
+\smallskip
+\textbf{Why determinism is not enforced.}
+\texttt{torch.use\_deterministic\_algorithms(True)} and \texttt{cudnn.deterministic} are deliberately unset; the cost is measured rather than assumed (Results). Consequence, stated as a rule: no single-run winner is reported on \texttt{tail\_index\_diff}, \texttt{hurst\_diff} or \texttt{mean\_diff}, because those three change their winner between identical repeat runs.
+
+\smallskip
+\textbf{Instrumentation retained.}
+The \texttt{[DIAG]} latent statistics, the \texttt{[WARNING]} post-generation guard and the step-count printout are kept in the pipeline permanently. Each fires rarely; between them they located latent collapse, mode collapse and the $492\times$ budget gap. The guard's firings in this run are a reported result (Results), not a debug artefact.
+
 
 \end{multicols}
 
@@ -971,7 +872,7 @@ Logistic regression on 20-day rolling-window features (mean, std, mean of absolu
 The five BRICS index price series (BOVESPA, FTSE/JSE, MOEX, NIFTY50, Shanghai) are sourced from public market-data providers (investing.com) and are not redistributed in this repository. Processed log-return files in CSV format are included in the repository under \texttt{data/processed\_files/}. Raw CSV files can be reproduced by running \texttt{5\_Paper\_Calculate\_LogReturns.py} on the source files.
 
 \textbf{Code availability.}
-All code is available at \texttt{victorsobottka/bse-thesis-synthetic-data}. The repository contains: (1) the integrated pipeline notebook \texttt{3\_4\_integrated\_pipeline.ipynb} with full GAN implementations, evaluation metrics, and ranking logic; (2) \texttt{generate\_report.py} producing this document; (3) \texttt{5\_Paper\_Calculate\_LogReturns.py} for data preprocessing. Environment: \texttt{requirements.txt} pinning all package versions. Seed 42 is used throughout for reproducibility.
+All code is available at \texttt{victorsobottka/bse-thesis-synthetic-data}. The repository contains: (1) the integrated pipeline notebook \texttt{3\_4\_integrated\_pipeline.ipynb} with all five generator implementations (three GAN, two econometric), evaluation metrics, and ranking logic; (2) \texttt{generate\_report.py} producing this document; (3) \texttt{5\_Paper\_Calculate\_LogReturns.py} for data preprocessing. Environment: \texttt{requirements.txt} pinning all package versions. Seeds ${RPT_PROV_SEEDS} are used across runs; walk-forward fold indices are deterministic, and the control is \texttt{numpy.random.default\_rng(42).permutation}. Software versions, CUDA device and platform are recorded per run in the provenance block on page~2; evaluation metrics run on CPU. Every figure in this document is read from \texttt{thesis\_results/production/}, and every number from the artifacts listed in \texttt{report\_data.py}; none is hand-entered. Run-to-run determinism is deliberately not enforced and its measured cost is reported in Results.
 
 \columnbreak
 
@@ -979,10 +880,10 @@ All code is available at \texttt{victorsobottka/bse-thesis-synthetic-data}. The 
 \begin{itemize}[noitemsep,topsep=1pt]
   \item \textbf{ED Table 1}: All 10 stylized facts with mathematical statements, plain-English descriptions, and metric mapping.
   \item \textbf{ED Table 2}: Code audit --- issues found, mathematical justification, and resolution status.
-  \item \textbf{ED Figure 1}: Complete pipeline diagram (data preprocessing $\to$ GAN training $\to$ evaluation $\to$ ranking).
-  \item \textbf{ED Table 3}: Architecture comparison (TimeGAN, QuantGAN, FinGAN) --- backbone, hyperparameters, training loss, inductive bias.
-  \item \textbf{ED Table 4}: Complete metric justifications --- formula, unique contribution, design decision and rejected alternative, empirical validation, known failure mode.
-  \item \textbf{ED Note 1}: Evaluation glossary --- every metric and test explained from first principles.
+  \item \textbf{ED Figure 1}: Complete pipeline diagram (preprocessing $\to$ per-market fitting, both families $\to$ evaluation $\to$ ranking).
+  \item \textbf{ED Table 3}: Architecture comparison across all five generators and both families --- backbone, fitting procedure, scaling, inductive bias, budget treatment.
+  \item \textbf{ED Table 3b}: Measured parameters, generator updates and wall-clock per model, with the econometric models marked exempt rather than zero.
+  \item \textbf{ED Table 4}: Metric justifications --- formula, unique contribution, design decision and rejected alternative, empirical validation, known failure mode.
 \end{itemize}
 
 \end{multicols}
@@ -1027,7 +928,7 @@ All code is available at \texttt{victorsobottka/bse-thesis-synthetic-data}. The 
 1 & Heavy tails &
   Extreme events occur far more often than a bell curve predicts. &
   $P(|r|>x) \sim x^{-\alpha}$, $\alpha \approx 2.5$--$3.2$ (BRICS Hill est.) &
-  tail\_index\_diff $\cdot$ \textsc{Fidelity}; kurtosis\_diff $\cdot$ \textsc{Descriptive} ($\E|X|^4=\infty$ for $\hat{\alpha}<4$) \\
+  tail\_index\_diff (Hill 1975\tcite{38}) $\cdot$ \textsc{Fidelity}; kurtosis\_diff $\cdot$ \textsc{Descriptive} ($\E|X|^4=\infty$ for $\hat{\alpha}<4$, so the sample statistic diverges with $n$ --- see Methods) \\
 
 2 & Near-zero autocorrelation &
   Knowing today's direction gives no useful information about tomorrow's. &
@@ -1049,7 +950,7 @@ All code is available at \texttt{victorsobottka/bse-thesis-synthetic-data}. The 
 5 & Gain/loss asymmetry &
   Crashes are sharper and more extreme than equivalent-size rallies. &
   skewness$(r) < 0$ for equity indices &
-  skewness\_diff $\cdot$ \textsc{Descriptive} ($\E|X|^3=\infty$ in 4/5 BRICS markets for $\hat{\alpha}<3$) \\
+  skewness\_diff $\cdot$ \textsc{Descriptive} ($\E|X|^3=\infty$ in 4/5 BRICS markets for $\hat{\alpha}<3$). Modelled explicitly only by GJR-GARCH\tcite{40}, via its leverage term; none of the three GANs models it explicitly \\
 
 6 & ARCH effects &
   Return variance changes over time; it is not constant. &
@@ -1060,7 +961,7 @@ All code is available at \texttt{victorsobottka/bse-thesis-synthetic-data}. The 
 7 & Conditional heavy tails &
   After removing time-varying variance, residuals are still non-Gaussian. &
   $\varepsilon_t = r_t/\sigma_t$ has kurtosis $> 0$ (GARCH residuals) &
-  resid\_kurtosis\_diff $\cdot$ \textsc{Temporal} \\
+  resid\_kurtosis\_diff $\cdot$ \textsc{Temporal} (Gaussian QMLE, to keep the test able to fail; circularity with the GARCH generators is discussed in Results) \\
 
 8 & Extreme events &
   Very large days occur more than 4.6\,\% of trading days. &
@@ -1084,54 +985,66 @@ All code is available at \texttt{victorsobottka/bse-thesis-synthetic-data}. The 
 \clearpage
 
 %% ─── ED Table 2: Code Audit ─────────────────────────────────────────────────
-\pagehead{Extended Data Table 2 --- Code Audit}
-         {\texttt{3\_4\_integrated\_pipeline.ipynb} --- reviewed and updated 2026}
+\pagehead{Extended Data Table 2 --- Code and Design Audit}
+         {\texttt{3\_4\_integrated\_pipeline.ipynb} --- issue, evidence, resolution}
 
 \vspace{4pt}
 
 \auditrow{FIXED}{DRed}{RBg}%
   {KS / Welch tests assumed i.i.d.\ --- CRITICAL}%
-  {$n_\text{eff} = n/(1+2\sum_k\rho_k) \ll n$ for financial series (ACF of $|r|$ sums to $\approx$5--15 for BRICS). KS statistic is inflated, $p$-values anti-conservative. \textbf{Fix:} added ARCH-LM, Hurst, energy distance, and discriminative AUC. Wasserstein used as primary distributional metric.}
+  {$n_\text{eff} = n/(1+2\sum_k\rho_k) \ll n$ for financial series (ACF of $|r|$ sums to $\approx$5--15 for BRICS), so the KS statistic is inflated and its $p$-values anti-conservative. \textbf{Fix:} Wasserstein as the primary distributional metric, plus ARCH-LM, Hurst, energy distance and discriminative AUC.}
 
 \auditrow{FIXED}{DRed}{RBg}%
   {Pointwise MSE/MAE had no semantic meaning}%
-  {MSE compared $r_\text{real}(t)$ to $r_\text{syn}(t)$, but real and synthetic are independently generated; no temporal alignment exists between their indices. \textbf{Fix:} replaced with Quantile MSE (compares sorted distributions) and Energy distance (Sz\'{e}kely \& Rizzo 2004\tcite{11}).}
-
-\auditrow{DECISION}{Indigo}{IBg}%
-  {No outlier clipping applied to log returns --- deliberate}%
-  {The preprocessing notebook had a clip line that was commented out and never applied. Kept intentionally. Clipping at 0.5th/99.5th percentiles removes the observations that determine kurtosis, tail index, and extreme-events metrics. Adams et al.\ (2019)\tcite{6} show winsorising worsens distributional misfit.}
+  {MSE compared $r_\text{real}(t)$ with $r_\text{syn}(t)$, but the two series are independently generated and no temporal alignment exists between their indices. \textbf{Fix:} quantile MSE (compares sorted distributions, i.e.\ by rank rather than by index) and energy distance (Sz\'{e}kely \& Rizzo 2004\tcite{11}).}
 
 \auditrow{FIXED}{Amber}{ABg}%
-  {Ljung-Box used deprecated statsmodels API}%
-  {\texttt{acorr\_ljungbox(..., return\_df=False)} returns a DataFrame in statsmodels $\geq$0.13, not a tuple. Accessing \texttt{lb[1][-1]} raised \texttt{TypeError}. \textbf{Fix:} \texttt{return\_df=True}, \texttt{lags=[n]}, accessed via \texttt{.iloc[-1]["lb\_pvalue"]}.}
+  {Composite ranking: fidelity/temporal split $+$ control exclusion}%
+  {The shuffled control won the unweighted composite, \texttt{avg\_rank} 1.24 against 2.47, because permutation-invariant metrics dominated. \textbf{Fix:} metrics split into FIDELITY (7) and TEMPORAL (7); \texttt{kurtosis\_diff} and \texttt{skewness\_diff} demoted to DESCRIPTIVE (population moments undefined at Hill $\hat\alpha$ 2.54--3.21); \texttt{composite\_rank} $=$ mean of the two family ranks; control excluded from rank competition (NaN ranks) and appended as a reference line.}
+
+\auditrow{FIXED}{Amber}{ABg}%
+  {Discriminative AUC: direction inverted, and no null calibration}%
+  {Ascending rank on raw AUC put $0.30$ above $0.50$; the optimum is $0.5$, not $0$. The null is not exactly $0.5$ either --- measured at $0.506\pm0.084$ over 15 real-vs-real half-splits, so an observed $0.62$ is consistent with a perfect generator. \textbf{Fix:} rank on $|\text{AUC}-0.5|$, report a $z$-score against the empirical null, and do not shuffle the CV folds (shuffling moves the null to $0.584$, because 20-day windows overlap by 19 observations).}
+
+\auditrow{FIXED}{Amber}{ABg}%
+  {Budgets specified in epochs rather than gradient steps}%
+  {An epoch is $\lfloor n_\text{windows}/\text{batch\_size}\rfloor$ steps --- data-dependent, and walk-forward folds differ in length by $5\times$. \textbf{Evidence:} this produced a $492\times$ asymmetry in generator updates in one run, when a smoke-test override of \texttt{epochs} reached two models and not the third; the affected model read as an architectural failure until the budget was measured. \textbf{Fix:} all budgets in gradient steps, declared in one configuration cell, with \texttt{TimeGAN.joint\_steps == QuantGAN.train\_steps == FinGAN.train\_steps} asserted at run time.}
 
 \auditrow{REVISED}{Amber}{ABg}%
-  {ARCH-LM: both variants demoted to Descriptive; neither reliable across regimes}%
-  {80-rep MC ($n=1{,}200$, GARCH(1,1), Gaussian): pvalue\_diff 99\% accurate vs 76\% for stat\_diff (null sd $\approx$46.4; two draws from same process gave LM 56.8 and 124.8). On real pooled BRICS data: real LM=50.76, shuffled LM=67.14, both $p$-values underflow to 0.0, so $|\Delta p|=0.000000$ --- control rated as perfect match. stat\_diff detects control (16.38) on real data but too noisy on simulated GARCH. \textbf{Resolution:} both reported for diagnostic transparency only; neither enters composite. ACF-MAE is the primary volatility-clustering ranking signal (continuous, no saturation, 88\% MC accuracy).}
+  {Both ARCH-LM variants demoted to descriptive; neither reliable across regimes}%
+  {80-replication MC ($n=1{,}200$, GARCH(1,1), Gaussian): \texttt{pvalue\_diff} $99\%$ accurate against $76\%$ for \texttt{stat\_diff}, whose null sd is $\approx46.4$ (two draws from the same process gave LM $56.8$ and $124.8$). On real BRICS data both real and shuffled $p$-values underflow to $0.0$, so $|\Delta p| = 0.000000$ and the control is rated a perfect match. \textbf{Resolution:} both reported for diagnostic transparency, neither ranked; ACF-MAE is the primary volatility-clustering signal ($88\%$ MC accuracy, continuous, no saturation regime).}
 
 \auditrow{FIXED}{Amber}{ABg}%
-  {Discriminative AUC direction bug + no null calibration}%
-  {Ascending rank on raw AUC put AUC=0.30 above AUC=0.50 --- direction reversed. Null AUC has $\sigma \approx 0.084$; an observed AUC of 0.62 is consistent with a perfect generator. \textbf{Fix:} rank on $|\text{AUC}-0.5|$; empirical null via 20 real-vs-real half-splits; z-score reported. CV shuffle=True not used (moves null from 0.506 to 0.584 due to overlapping windows).}
+  {Min-max normalisation gave the generator an offset to learn before any dynamics}%
+  {At Hill $\hat\alpha$ 2.54--3.21 one extreme day sets the whole scale. Min-maxing ${RPT_MINMAX_MARKET} to $[-1,1]$ leaves $98\%$ of the data in ${RPT_MINMAX_OCCUPIED}\% of the range with median \(+${RPT_MINMAX_MEDIAN}\). \textbf{Fix:} z-score $+\tanh(z/3)$, inverted by $z=3\operatorname{arctanh}(y)$. \textbf{Evidence:} changing only this moved QuantGAN's output sd from $3.7\times$ real to $1.2\times$ real at identical budget. Sigmoid to $[0,1]$ was also rejected: it makes negative returns unrepresentable and $\operatorname{arctanh}$ explodes as $y\to1$.}
 
-\auditrow{FIXED}{Amber}{ABg}%
-  {Composite ranking: fidelity/temporal split + shuffled-control exclusion}%
-  {Shuffled control won unweighted composite (avg\_rank 1.24 vs 2.47) because permutation-invariant metrics dominated. \textbf{Fix:} metrics split into FIDELITY (7) and TEMPORAL (7), with kurtosis\_diff and skewness\_diff demoted to DESCRIPTIVE (undefined for Hill $\hat{\alpha}<4$/$3$; BRICS: 2.54--3.21). composite\_rank = (fidelity\_rank + temporal\_rank) / 2. Control excluded from rank competition (NaN ranks), appended as reference.}
+\auditrow{DECISION}{Indigo}{IBg}%
+  {No outlier clipping on log returns --- deliberate}%
+  {A clip line existed in the preprocessing notebook, commented out, and was kept that way. Clipping at the 0.5th/99.5th percentiles removes exactly the observations that determine kurtosis, tail index and the extreme-events metric. Adams et al.\ (2019)\tcite{6} show winsorising worsens distributional misfit.}
+
+\auditrow{DECISION}{Indigo}{IBg}%
+  {Econometric models exempt from budget parity, and fitted on raw returns}%
+  {Maximum-likelihood fitting has no gradient-step analogue, so the parity assertion is scoped to the gradient family and the econometric rows carry \texttt{n/a} rather than a fabricated update count. They are also fitted on raw log returns $\times100$ rather than the project's $\tanh$ normalisation, which would compress the very variance dynamics GARCH exists to model; the $\times100$ scaling is numerical, since \texttt{arch}'s optimiser converges poorly near $10^{-2}$.}
 
 \auditrow{OK}{FGreen}{GBg}%
-  {WGAN-GP gradient penalty computation is correct (QuantGAN \& FinGAN)}%
-  {$\hat{x} = \varepsilon x_\text{real} + (1-\varepsilon)x_\text{fake}$; \texttt{requires\_grad\_(True)}; gradients via \texttt{torch.autograd.grad} with \texttt{create\_graph=True}. \texttt{fake.detach()} prevents spurious accumulation. Correctly implements Gulrajani et al.\ (2017)\tcite{3} Eq.~3.}
+  {WGAN-GP gradient penalty is correct (QuantGAN \& FinGAN)}%
+  {$\hat x = \varepsilon x_\text{real} + (1-\varepsilon)x_\text{fake}$; \texttt{requires\_grad\_(True)}; gradients via \texttt{torch.autograd.grad} with \texttt{create\_graph=True}; \texttt{fake.detach()} prevents spurious accumulation. Implements Gulrajani et al.\ (2017)\tcite{3} Eq.~3.}
 
-\auditrow{FIXED}{Amber}{ABg}%
-  {TimeGAN training budget equalised on generator updates; result reattributed to architecture}%
-  {Training budgets are specified in gradient steps, never epochs, and parity is enforced on generator updates: \texttt{TimeGAN.joint\_steps == QuantGAN.train\_steps == FinGAN.train\_steps}, asserted by the pipeline. TimeGAN's \texttt{ae\_steps}/\texttt{sup\_steps} are four-phase pre-training (Yoon et al.\ 2019\tcite{4}), reported separately and excluded from parity; QuantGAN and FinGAN take $n_\text{critic}=5$ discriminator updates per generator update (Gulrajani et al.\ 2017\tcite{3}), intrinsic to WGAN-GP, not extra budget. Equal generator updates is not equal compute: measured wall-clock at 1,000 generator steps is TimeGAN $\approx$20.5\,s, FinGAN $\approx$42.4\,s, QuantGAN $\approx$178\,s. At this parity, TimeGAN's weak result is no longer attributable to budget: excess kurtosis $-1.02$ against real $+1.34$, Hill $\hat\alpha=16.4$ against real $4.12$, $0.40\%$ extreme events against real $6.05\%$, raw AUC $0.953$ --- bounded, platykurtic, and nearly tailless, consistent with tanh saturation.}
+\auditrow{OPEN}{DRed}{RBg}%
+  {Downstream-utility GARCH fits degenerate in ${RPT_DS_FAIL_N} of ${RPT_DS_FAIL_N_TOTAL} cells}%
+  {${RPT_DS_FAIL_N} model-market-seed cells returned a positive QLIKE --- a conditional variance collapsing toward zero, driving $r_t^2/\sigma_t^2$ to four or five figures (affected: ${RPT_DS_FAIL_MODELS}). Also visible in walk-forward: ${RPT_WF_OUT_WORST_MODEL} on ${RPT_WF_OUT_WORST_MARKET} fold ${RPT_WF_OUT_WORST_FOLD} gives Wasserstein ${RPT_WF_OUT_WORST_VALUE} against a pooled median of ${RPT_WF_OUT_MEDIAN}, with discriminative AUC ${RPT_WF_OUT_WORST_AUC}. \textbf{Not repaired in this run.} Reported with both median and mean so the affected statistic is visible rather than absorbed; removing the cells would change a measured result. Diagnosing the fit failure is open work.}
 
-\auditrow{CONCERN}{Amber}{ABg}%
-  {A collapsed generator wins the volatility-clustering metrics}%
-  {Identical in all five runs, TimeGAN scores \texttt{acf\_absolute\_mae}~0.0421 and \texttt{acf\_squared\_mae}~0.0407 --- best of all four series, beating the shuffled control (0.0469 / 0.0456), QuantGAN (0.0517 / 0.0542), and FinGAN (0.0524 / 0.0453) --- while independently flagged for mode collapse: ACF(1)\,=\,0.429, Hill $\hat\alpha=16.4$ against real $4.12$, raw AUC $0.953$. Same failure mode as the Wasserstein floor (\S2): a degenerate, near-constant output games a distance metric rather than reproducing the property it is meant to measure.}
+\auditrow{OPEN}{DRed}{RBg}%
+  {\texttt{pooled\_downstream\_utility.csv} is not pooled}%
+  {Each file carries one market's test set ($n$ of ${RPT_DS_N_MIN}--${RPT_DS_N_MAX}, combining to ${RPT_DS_N_COMBINED} across ${RPT_DS_N_MARKETS} markets), so what the name promises and what the artifact contains differ. QLIKE's stability threshold is $n\gtrsim600$ and Kupiec power at $n\approx496$ is $\approx56\%$ against $\approx99\%$ pooled, so the distinction is material, not cosmetic. \textbf{Reported, not silently corrected:} the report describes these as per-market backtests throughout, and pooling them properly is open work.}
 
-\auditrow{OPEN QUESTION}{Indigo}{IBg}%
-  {Shuffled control wins \texttt{acf\_returns\_mae} outright}%
-  {The control scores 0.0528 against 0.0537 for the best generator on \texttt{acf\_returns\_mae}, despite the metric's TEMPORAL (ordering-sensitive) classification --- suggesting it may be permutation-invariant in practice for these series, even though it is not by construction. Recorded as an open question only: reclassifying it would move the headline permutation-invariant count from 9 of 19 to 10 of 19 metrics, and that reclassification is deferred to full-run data. \texttt{FIDELITY\_COLS} and \texttt{TEMPORAL\_COLS} are unchanged here.}
+\auditrow{OPEN}{Indigo}{IBg}%
+  {Shuffled control outperforms genuine GANs on ordering-sensitive metrics}%
+  {On ACF$(r^2)$ MAE the control beats all ${RPT_AUDIT_SQ_N_GANS_BEATEN} GANs, and on ACF$(r)$ MAE the models that clear it do so by ${RPT_AUDIT_RET_MARGIN_MIN}--${RPT_AUDIT_RET_MARGIN_MAX}. These metrics are \emph{not} permutation-invariant --- they separate the econometric models from the control cleanly --- so the headline count stays at ${RPT_PERM_N_INVARIANT} of ${RPT_PERM_N_METRICS} and \texttt{FIDELITY\_COLS}/\texttt{TEMPORAL\_COLS} are unchanged. Recorded as a result about the generators, and as evidence that permutation-invariance in practice is a property of the comparison set rather than of a metric alone.}
+
+\auditrow{WITHDRAWN}{Amber}{ABg}%
+  {Earlier attribution of TimeGAN's collapse to tanh saturation}%
+  {A previous draft explained TimeGAN's degenerate output as tanh saturation in the Recovery network. This run's \texttt{[DIAG]} latent instrumentation does not support that: saturation never exceeds ${RPT_DIAG_SAT_MAX}\% over ${RPT_DIAG_N_LATENT} readings against the 50\% threshold the diagnostic exists to detect, and reconstruction sd never differs from target by more than ${RPT_DIAG_RECON_DIFF}, so the autoencoder is functioning. The collapse is real --- the guard fired ${RPT_GUARD_N} times, all ${RPT_GUARD_MODELS_PLAIN}, mean $|\text{ACF}(1)| = ${RPT_GUARD_ACF_ABS_MEAN}$ --- but the mechanism is open. The earlier explanation is withdrawn rather than quietly dropped.}
 
 \clearpage
 
@@ -1169,8 +1082,14 @@ All code is available at \texttt{victorsobottka/bse-thesis-synthetic-data}. The 
 \node[rectangle,rounded corners=3pt,draw=FGcol,fill=GBg,
       text width=2.1cm,align=center,minimum height=0.85cm,inner sep=4pt]
      (fga) at (15.5, -0.3) {\textcolor{FGcol}{\bfseries FinGAN}\\CNN-based};
+\node[rectangle,rounded corners=3pt,draw=Purple,fill=LBg,
+      text width=2.1cm,align=center,minimum height=0.85cm,inner sep=4pt]
+     (gar) at (15.5, -1.5) {\textcolor{Purple}{\bfseries GARCH-$t$}\\MLE fit};
+\node[rectangle,rounded corners=3pt,draw=Indigo,fill=IBg,
+      text width=2.1cm,align=center,minimum height=0.85cm,inner sep=4pt]
+     (gjr) at (15.5, -2.7) {\textcolor{Indigo}{\bfseries GJR-GARCH-$t$}\\MLE fit};
 \node[sp] (syn)  at (19.0,  0.8) {Synthetic\\Returns};
-\node[ev] (sfm)  at (22.5,  1.6) {16 Metrics\\9 Fidelity + 7 Temporal};
+\node[ev] (sfm)  at (22.5,  1.6) {19 Metrics\\7 Fidelity + 7 Temporal\\+ 5 Descriptive};
 \node[ev] (wfv)  at (22.5, -0.8) {Walk-Forward\\(5 folds)};
 \node[rk] (rnk)  at (26.0,  0.4) {\textbf{Rankings}\\fidelity / temporal\\composite};
 \draw[arr] (csv.east) -- (lr.west);
@@ -1181,20 +1100,27 @@ All code is available at \texttt{victorsobottka/bse-thesis-synthetic-data}. The 
 \draw[arr] (poo.east) to[out= 30,in=180] (tga.west);
 \draw[arr] (poo.east) --                 (qga.west);
 \draw[arr] (poo.east) to[out=-20,in=180] (fga.west);
+%% The econometric arm is fed from the raw training returns, not the
+%% normalised 128-step windows: the tanh squash would compress exactly the
+%% variance dynamics GARCH exists to model (Methods).
+\draw[arr] (trn.south) to[out=-60,in=180] (gar.west);
+\draw[arr] (trn.south) to[out=-70,in=180] (gjr.west);
 \draw[arr] (tga.east) to[out=  0,in=120] (syn.north);
 \draw[arr] (qga.east) --                 (syn.west);
 \draw[arr] (fga.east) to[out=  0,in=240] (syn.south);
+\draw[arr] (gar.east) to[out=  0,in=250] (syn.south);
+\draw[arr] (gjr.east) to[out=  0,in=260] (syn.south);
 \draw[arr]  (syn.east) to[out= 30,in=180] (sfm.west);
 \draw[arr]  (syn.east) to[out=-30,in=180] (wfv.west);
 \draw[arr]  (tst.east) --                 (wfv.west);
 \draw[sarr] (tst.east) to[out=10,in=200]  (sfm.south);
 \draw[arr] (sfm.east) to[out=0,in=130] (rnk.north west);
 \draw[arr] (wfv.east) to[out=0,in=230] (rnk.south west);
-\node[font=\scriptsize\bfseries,text=Navy!80]  at ( 4.0,-2.0) {Stage 1 $\cdot$ Data Preprocessing};
-\node[font=\scriptsize\bfseries,text=Navy!80]  at (14.0,-2.0) {Stage 2 $\cdot$ GAN Training};
-\node[font=\scriptsize\bfseries,text=Teal]     at (23.5,-2.0) {Stage 3 $\cdot$ Evaluation};
-\draw[very thin,dashed,Navy!25] ( 8.0, 2.7) -- ( 8.0,-1.8);
-\draw[very thin,dashed,Navy!25] (17.8, 2.7) -- (17.8,-1.8);
+\node[font=\scriptsize\bfseries,text=Navy!80]  at ( 4.0,-3.6) {Stage 1 $\cdot$ Data Preprocessing};
+\node[font=\scriptsize\bfseries,text=Navy!80]  at (14.0,-3.6) {Stage 2 $\cdot$ Per-Market Fitting};
+\node[font=\scriptsize\bfseries,text=Teal]     at (23.5,-3.6) {Stage 3 $\cdot$ Evaluation};
+\draw[very thin,dashed,Navy!25] ( 8.0, 2.7) -- ( 8.0,-3.4);
+\draw[very thin,dashed,Navy!25] (17.8, 2.7) -- (17.8,-3.4);
 \end{tikzpicture}
 }
 \end{center}
@@ -1206,86 +1132,88 @@ All code is available at \texttt{victorsobottka/bse-thesis-synthetic-data}. The 
 \navybox{Stage 1 --- Data Preprocessing}{%
 Raw price CSVs are converted to daily log returns $r_t = \ln(P_t/P_{t-1})$. Dates are parsed and sorted chronologically. A strict temporal 80/10/10 split ensures no future data leaks into training. Files saved as Parquet for efficient I/O.}
 
-\skybox{Stage 2 --- GAN Training}{%
-Each 80\% training file is sliced into 128-step sliding windows. Three GAN families are each trained \emph{independently per market} (15 models: 3 GANs $\times$ 5 markets). No cross-market data mixing. The shuffled control is injected alongside model outputs at evaluation time.}
+\skybox{Stage 2 --- Per-Market Fitting (Both Families)}{%
+Each 80\% training file is sliced into 128-step sliding windows for the gradient models, which normalise with z-score $+\tanh(z/3)$ and train to an asserted parity of ${RPT_PROV_GEN_UPDATES} generator updates. The econometric models are fitted by maximum likelihood on the same market's \emph{raw} returns ($\times100$), bypassing both the windowing and the normalisation --- the $\tanh$ squash would compress the variance dynamics they exist to model. Every model is fitted \emph{independently per market}: ${RPT_PROV_N_MARKETS} markets $\times$ ${RPT_PROV_N_SEEDS} seeds $\times$ 5 generators, with no cross-market mixing. The shuffled control is injected alongside the model outputs at evaluation time.}
 
 \columnbreak
 
 \tealbox{Stage 3 --- Evaluation}{%
-Generated synthetic series are compared with real test-set returns on 16 stylized-fact metrics (9 Fidelity + 7 Temporal). Walk-forward re-trains each model on 5 rolling folds. Final output: fidelity\_rank, temporal\_rank, composite\_rank, and fold-level mean\,$\pm$\,std. Pooled downstream utility (QLIKE, Kupiec, Christoffersen) is computed once on the combined 5-market test set.}
+Generated series are compared with real test-set returns on 19 metrics: 7 Fidelity and 7 Temporal are ranked, 5 are computed and displayed but excluded from ranking (Methods). Walk-forward refits every model from scratch on ${RPT_N_FOLDS} rolling folds. Output: fidelity\_rank, temporal\_rank, composite\_rank, and fold-level mean\,$\pm$\,sd. Downstream utility (QLIKE, Kupiec, Christoffersen) is computed per market --- see Results for the discrepancy between that and the intended pooled protocol.}
 
 \end{multicols}
 
 \clearpage
 
-%% ─── ED Table 3: Architecture Comparison ────────────────────────────────────
+%% ─── ED Table 3: Architecture comparison, five models across two families ──
 \pagehead{Extended Data Table 3 --- Architecture Comparison}
-         {TimeGAN $\cdot$ QuantGAN $\cdot$ FinGAN side by side}
+         {Three gradient-trained generators and two econometric baselines, side by side}
 
 \vspace{4pt}
-{\small
-\begin{tabularx}{\linewidth}{@{}lXXX@{}}
+{\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\linewidth}{@{}lXXXXX@{}}
 \toprule
- & \textbf{\textcolor{TGcol}{TimeGAN}} & \textbf{\textcolor{QGcol}{QuantGAN}} & \textbf{\textcolor{FGcol}{FinGAN}} \\
+ & \textbf{\textcolor{TGcol}{TimeGAN}} & \textbf{\textcolor{QGcol}{QuantGAN}} & \textbf{\textcolor{FGcol}{FinGAN}} & \textbf{\textcolor{Purple}{GARCH(1,1)-$t$}} & \textbf{\textcolor{Indigo}{GJR-GARCH-$t$}} \\
 \midrule
-Core architecture & 4-phase (encoder + supervisor + GAN) using GRU & TCN-based WGAN-GP & CNN deconvolution WGAN-GP \\
-Temporal mechanism & Recurrent (GRU): processes each step in order, gating what to remember & Dilated convolutions: parallel look at all time scales simultaneously & Transposed convolutions: upsamples from short noise vector to full sequence \\
-Training loss & BCE + moment-matching; 4 separate training phases & WGAN-GP (single phase); $n_\text{critic}=5$, $\lambda_\text{gp}=10$ & WGAN-GP (single phase); $n_\text{critic}=5$, $\lambda_\text{gp}=10$ \\
-Literature reference & Yoon et al.\ (2019, NeurIPS)\tcite{4} & Wiese et al.\ (2020, \textit{Quant.\ Finance})\tcite{5} & This paper (custom) \\
-Key hyperparameters & hidden\_dim=24, num\_layers=3, lr=1e-3 & noise\_dim=100, lr=1e-4, 3 TCN blocks & base\_channels=64, lr=1e-4, 3 ConvTranspose1d \\
-seq\_len constraint & Any length & Any length & Must be divisible by 8 \\
-Inductive bias & Temporal ordering matters step-by-step; GARCH-like persistence via GRU hidden state & Multi-scale patterns (short + long memory); dilations cover intraday/weekly/monthly simultaneously & Generate from compressed noise like image GANs; hierarchical refinement from coarse to fine \\
-Normalisation & MinMax $[0,1]$ & MinMax $[-1,1]$ & MinMax $[-1,1]$ \\
-Generator-update budget & parity with QuantGAN, FinGAN (pipeline-asserted) & parity with TimeGAN, FinGAN & parity with TimeGAN, QuantGAN \\
+Family & gradient & gradient & gradient & econometric & econometric \\
+Core & 4-phase (embedder $+$ supervisor $+$ GAN), GRU backbone & TCN backbone, WGAN-GP & CNN deconvolution, WGAN-GP & Conditional variance, Student-$t$ innovations & GARCH $+$ leverage indicator \\
+Temporal mechanism & Recurrent: each step in order, gating what to remember & Dilated causal convolutions: all time scales in one pass & Transposed convolutions: upsample noise to full sequence & $\sigma_t^2=\omega+\alpha r_{t-1}^2+\beta\sigma_{t-1}^2$ & adds $\gamma r_{t-1}^2\mathbb{1}[r_{t-1}<0]$ \\
+Fitting & BCE $+$ moment matching, 4 phases & WGAN-GP, $n_\text{critic}=5$, $\lambda_\text{gp}=10$ & WGAN-GP, $n_\text{critic}=5$, $\lambda_\text{gp}=10$ & Maximum likelihood & Maximum likelihood \\
+Reference & Yoon et al.\ 2019\tcite{4} & Wiese et al.\ 2020\tcite{5} & This paper & Bollerslev 1986\tcite{39} & Glosten et al.\ 1993\tcite{40} \\
+Key settings & hidden\_dim 24, layers 3, lr 1e-3 & noise\_dim 100, lr 1e-4, 3 TCN blocks (dil.\ 1/2/4) & base\_channels 64, lr 1e-4, 3$\times$ConvTranspose1d & $p{=}1,q{=}1,o{=}0$, dist $t$, burn-in 500 & $p{=}1,q{=}1,o{=}1$, dist $t$, burn-in 500 \\
+Input scaling & z-score $+\tanh(z/3)\to[-1,1]$ & z-score $+\tanh(z/3)\to[-1,1]$ & z-score $+\tanh(z/3)\to[-1,1]$ & Raw returns $\times100$ & Raw returns $\times100$ \\
+seq\_len constraint & any & any & divisible by 8 & n/a & n/a \\
+Budget & generator-update parity (asserted) & parity & parity & \textbf{exempt} --- ML fit, no step analogue & \textbf{exempt} \\
+Inductive bias & Step-by-step ordering; persistence via GRU state & Multi-scale memory; dilations span short and long horizons & Coarse-to-fine hierarchical refinement, borrowed from image GANs & Conditional heteroskedasticity, symmetric response & As GARCH, plus asymmetric response to negative returns (Cont fact 5\tcite{7}) \\
 \bottomrule
 \end{tabularx}}
 
-\vspace{8pt}
-\pagehead{Extended Data Table 3b --- Measured Budget Parity (This Run)}
-         {From \texttt{per\_seed\_market\_performance.csv} --- equal generator updates is not equal compute}
+\vspace{6pt}
+\pagehead{Extended Data Table 3b --- Measured Budget and Cost (This Run)}
+         {From \texttt{per\_seed\_market\_performance.csv} --- econometric models are exempt, not zero}
 
 \vspace{4pt}
 {\small
-\begin{tabular}{@{}lrrrr@{}}
+\begin{tabular}{@{}llrrrc@{}}
 \toprule
-Model & Generator updates & Critic updates & Wall-clock (s) & Generator params \\
+Model & Family & Parameters & Generator updates & Fit (s) & composite \\
 \midrule
-${RPT_BUDGET_PARITY_ROWS}
+${RPT_COMPUTE_ROWS}
 \bottomrule
 \end{tabular}}
 
 \smallskip
-{\small Wall-clock is total training time for one (market, seed) run, averaged over every run present in this report. Generator-update parity does not imply equal compute: QuantGAN and FinGAN run \texttt{n\_critic=5} discriminator updates per generator update (Gulrajani et al.\ 2017\tcite{3}); TimeGAN's four-phase pre-training (\texttt{ae\_steps}/\texttt{sup\_steps}) is excluded from this table, reported separately in Extended Data Table 3 above.}
+{\small Parameters are the trainable generator parameters for the gradient models and the fitted parameter count for the econometric ones (GARCH(1,1)-$t$: $\mu,\omega,\alpha,\beta,\nu$; GJR adds $\gamma$). \textbf{Generator updates read \texttt{n/a} for the econometric rows and this is deliberate}: a maximum-likelihood fit has no gradient-step analogue, so any number there would be fabricated, and the parity assertion the pipeline enforces is scoped to the gradient family for the same reason. Fit seconds are the mean over every (market, seed) run present. Equal generator updates is not equal compute --- QuantGAN and FinGAN each take $n_\text{critic}=5$ critic updates per generator update (Gulrajani et al.\ 2017\tcite{3}), and TimeGAN's \texttt{ae\_steps}/\texttt{sup\_steps} pre-training is excluded from parity and reported separately (Yoon et al.\ 2019\tcite{4}).}
 
 \vspace{6pt}
 \begin{multicols}{2}
 \small
 
 \navybox{WGAN-GP shared settings (QuantGAN \& FinGAN)}{%
-\textbf{Why $n_\text{critic}=5$:} the critic must accurately estimate the Wasserstein distance before the generator uses the gradient signal. Fewer than 5 updates per generator step leaves the critic under-fitted, providing a biased gradient. Gulrajani et al.\ (2017)\tcite{3} establish this as a minimum; CTBench\tcite{16} and SFAG\tcite{28} fix it identically.
+\textbf{$n_\text{critic}=5$:} the critic must estimate the Wasserstein distance accurately before the generator uses its gradient; fewer updates leave it under-fitted and the gradient biased. Gulrajani et al.\ (2017)\tcite{3} establish this as a floor and CTBench\tcite{16} and SFAG\tcite{28} fix it identically.
 
-\textbf{Why $\lambda_\text{gp}=10$:} values $<5$ allow Lipschitz violations, invalidating the Kantorovich--Rubinstein duality on which WGAN training is based. The value 10 is the standard from Gulrajani et al.\ (2017)\tcite{3} and has not been improved upon in the literature.
+\textbf{$\lambda_\text{gp}=10$:} values below 5 permit Lipschitz violations, invalidating the Kantorovich--Rubinstein duality the training objective rests on. 10 is the standard from Gulrajani et al.\ and has not been improved on.
 
-\textbf{Why $\beta_1=0$ in Adam:} in adversarial training, the correct gradient direction for the generator reverses each time the critic is updated. Momentum ($\beta_1>0$) accumulates past-direction information and pushes in the wrong direction. Setting $\beta_1=0$ uses only the current gradient.
+\textbf{$\beta_1=0$ in Adam:} in adversarial training the correct generator direction reverses each time the critic updates, so momentum accumulates stale direction and pushes the wrong way. $\beta_1=0$ uses the current gradient only.
 
-\textbf{Why LayerNorm in FinGAN critic (not BatchNorm):} the gradient penalty $\mathcal{L}_\text{GP}$ requires the gradient norm of the critic at a \emph{single} interpolated point. BatchNorm normalises across the batch, introducing a dependency on other samples in the batch that corrupts the gradient norm calculation.}
+\textbf{LayerNorm, not BatchNorm, in the FinGAN critic:} the gradient penalty needs the critic's gradient norm at a \emph{single} interpolated point. BatchNorm makes that value depend on the other samples in the batch, corrupting the penalty.}
 
 \columnbreak
 
 \tealbox{TimeGAN four-phase training}{%
-\textbf{Phase 1 --- Autoencoder:} train Embedder $e: \mathcal{X} \to \mathcal{H}$ and Recovery $\hat{r}: \mathcal{H} \to \mathcal{X}$. Loss: $\|X - \hat{r}(e(X))\|^2$.
+\textbf{Phase 1 --- autoencoder:} train embedder $e:\mathcal{X}\to\mathcal{H}$ and recovery $\hat r:\mathcal{H}\to\mathcal{X}$ on $\|X-\hat r(e(X))\|^2$.
 
-\textbf{Phase 2 --- Supervisor:} train $s: \mathcal{H} \to \hat{\mathcal{H}}$ to predict next latent step. Loss: $\|H_{t+1} - s(H_t)\|^2$. Injects temporal causality into the latent space.
+\textbf{Phase 2 --- supervisor:} train $s:\mathcal{H}\to\hat{\mathcal{H}}$ on $\|H_{t+1}-s(H_t)\|^2$, injecting temporal causality into the latent space.
 
-\textbf{Phase 3 --- Joint adversarial:} $z \to G(z) \to s(G(z)) \to \hat{r}(\cdot) \to \tilde{X}$.
+\textbf{Phase 3 --- joint adversarial:} $z\to G(z)\to s(G(z))\to\hat r(\cdot)\to\tilde X$, with
 \begin{align*}
-  \mathcal{L}_G &= \mathcal{L}_U + 100\sqrt{\mathcal{L}_S} + 100\,\mathcal{L}_V \\
-  \mathcal{L}_V &= |\mu_H - \mu_{\hat{H}}| + |\sigma_H - \sigma_{\hat{H}}|
+\mathcal{L}_G &= \mathcal{L}_U + 100\sqrt{\mathcal{L}_S} + 100\,\mathcal{L}_V \\
+\mathcal{L}_V &= |\mu_H-\mu_{\hat H}| + |\sigma_H-\sigma_{\hat H}|
 \end{align*}
 
-\textbf{Phase 4 --- Fine-tuning:} fine-tune recovery $\hat{r}$ with generated sequences.
+\textbf{Phase 4 --- fine-tuning} of the recovery network on generated sequences.
 
-\textbf{Result at parity:} generator-update budget is equal to QuantGAN and FinGAN (pipeline-asserted); \texttt{ae\_steps}/\texttt{sup\_steps} are separate four-phase pre-training, excluded from that parity. At this budget TimeGAN gives excess kurtosis $-1.02$ against real $+1.34$, Hill $\hat\alpha=16.4$ against real $4.12$, and raw AUC $0.953$ --- consistent with tanh saturation in the Recovery network, not an undertrained GRU.}
+Phases 1--2 are pre-training and are excluded from budget parity; only phase-3 joint steps are counted, matching QuantGAN's and FinGAN's \texttt{train\_steps}. In this run the pre-training budget was ${RPT_PROV_AE_STEPS} autoencoder and ${RPT_PROV_SUP_STEPS} supervisor steps, reported here rather than folded into the parity figure.}
 
 \end{multicols}
 
@@ -1308,27 +1236,29 @@ ${RPT_BUDGET_PARITY_ROWS}
 \textbf{Quantile MSE.} $\text{QMSE} = K^{-1}\sum_{k=1}^K [Q_\text{real}(\alpha_k) - Q_\text{syn}(\alpha_k)]^2$, $K=99$. Unique contribution: the only meaningful pointwise comparison between two unaligned distributions (compare by rank, not by index). Captures tail differences at the 1st and 99th percentiles critical for VaR. \textit{Rejected alternative:} pointwise MSE on time-indexed values --- real and synthetic are independently generated; no temporal alignment exists.
 
 \smallskip
-\textbf{Moment diffs.} kurtosis\_diff, skewness\_diff, mean\_diff, std\_diff: absolute differences of empirical moments. Included to diagnose which aspect of the marginal a model fails on. All permutation-invariant.
+\textbf{Moment diffs.} mean\_diff and std\_diff are ranked within Fidelity; kurtosis\_diff and skewness\_diff are computed and displayed but never ranked (see Tail index diff below, and Methods). All four are permutation-invariant --- the shuffled control scores every one of them at the optimum --- which is part of why an unweighted mean over all metrics is won by the control.
 
 \smallskip
-\textbf{Tail index diff.} Hill estimator on the top 5\% of $|r|$: $\hat{\alpha} = k/\sum \log(|r|_{(n-i)}/|r|_{(n-k)})$. Failure mode: Hill estimator has sd 0.52 at $n=995$, falling to 0.035 at $n=4{,}000$ --- the strongest argument for extending the data history.}
+\textbf{Tail index diff.} Hill estimator (Hill 1975\tcite{38}) on the top 5\% of $|r|$: $\hat{\alpha} = k/\sum \log(|r|_{(n-i)}/|r|_{(n-k)})$. This is the \emph{ranked} heavy-tail metric, because $\alpha$ exists where the fourth moment does not. \textit{Design decision:} \texttt{kurtosis\_diff} and \texttt{skewness\_diff} are computed and displayed but never ranked --- at $\hat\alpha$ 2.54--3.21 the population kurtosis is infinite in all five markets and the skewness in four, so the sample statistics diverge with $n$ rather than converging (Methods gives the measured divergence). \textit{Failure modes:} Hill sd is 0.52 at $n=995$, falling to 0.035 at $n=4{,}000$; it returns NaN above $\hat\alpha=20$ after a degenerate series once drove it to 31{,}581; and its across-run dispersion here ${RPT_TAIL_SPREAD_VERDICT} the spread between model means (Results, Table~6), so no single-run winner on it is reported.}
 
 \columnbreak
 
 \purplebox{Temporal Group: ACF-MAE Triple}{%
 For log-returns $r_t$, compute the sample ACF of $r_t$, $|r_t|$, and $r_t^2$ up to lag 20. Metric: mean absolute error between real and synthetic ACF vectors.
 
-ACF(returns) MAE tests absence of linear predictability (fact 2). ACF($|r|$) and ACF($r^2$) MAE test volatility clustering (Mandelbrot 1963\tcite{9}, fact 3). Shuffled control: 0.043, 0.076, 0.054 --- correctly penalised.
+ACF(returns) MAE tests absence of linear predictability (fact 2). ACF($|r|$) and ACF($r^2$) MAE test volatility clustering (Mandelbrot 1963\tcite{9}, fact 3).
+
+\textit{Failure mode, measured:} these metrics are ordering-sensitive by construction and do separate the econometric models from the shuffled control --- but they do \emph{not} separate the three GANs from it. Averaged over all ${RPT_WIN_N_CELLS} market-seeds the control scores ${RPT_AUDIT_SQ_CONTROL} on ACF$(r^2)$ MAE, beating every GAN, and only ${RPT_AUDIT_SQ_CLEARS} clear it (Results, Table~3). Reported as a result about the generators, not as grounds for reclassifying the metric.
 
 \textit{Why not ARCH-LM?} ACF-MAE is continuous with no saturation regime. ARCH-LM saturates on real data ($|\Delta p| = 0.000000$). ACF-MAE achieves 88\% MC accuracy on simulated GARCH; ARCH-LM achieves 99\% on simulated GARCH but 0\% (ratings the shuffled control as a perfect match) on real data.}
 
 \navybox{Temporal Group: Hurst and Residual Kurtosis}{%
 \textbf{Hurst exponent.} $\E[R_n/S_n] \sim c\cdot n^H$, applied to $|r_t|$ (not raw $r_t$; sign flips destroy long memory on raw returns). $H>0.5$: long memory. Metric: $|H_\text{real} - H_\text{syn}|$. Estimated by R/S (Hurst 1951\tcite{23}). Failure mode: sd 0.022 at $n=1{,}000$, 0.004 at $n=4{,}000$.
 
-\textbf{Residual kurtosis.} Fit GARCH(1,1) Gaussian QMLE, extract $\varepsilon_t = r_t/\sigma_t$, report excess kurtosis. Tests fact 7 (Bollerslev 1987\tcite{36}). Gaussian QMLE avoids circularity. Reported per model as \texttt{resid\_kurtosis\_diff} (a real-vs-synthetic difference, part of the temporal metric family in Table 3); the real series' own residual kurtosis, independent of any generator, is not currently persisted as a standalone artifact.}
+\textbf{Residual kurtosis.} Fit GARCH(1,1) by Gaussian QMLE, extract $\varepsilon_t = r_t/\sigma_t$, report excess kurtosis; reported per model as the real-vs-synthetic difference \texttt{resid\_kurtosis\_diff}. Tests fact 7 (Bollerslev 1987\tcite{36}). \textit{Design decision:} Gaussian rather than Student-$t$ QMLE, because a $t$ specification absorbs the excess kurtosis by construction and makes the test uninformative for every model. \textit{Known limitation:} two of the five generators are themselves GARCH models, so they are scored partly by their own model class. The metric asks whether tails remain heavy \emph{after} GARCH has explained what it can --- which a GARCH-$t$ generator can fail, and on the measured values ${RPT_RESID_VS_CONTROL} --- but it remains an advantage of degree, and it is one of seven temporal metrics rather than the temporal result on its own (Results).}
 
 \tealbox{Temporal Group: Discriminative AUC}{%
-Logistic classifier on 20-day rolling windows. AUC = 0.5 is the optimum (indistinguishability). Ranking metric: $|\text{AUC} - 0.5|$ (not raw AUC). Empirical null: $0.506 \pm 0.084$ (15 seeds, real vs real half-splits). z-score: $(\text{AUC} - 0.506)/0.084$.
+Logistic classifier on 20-day rolling windows. AUC = 0.5 is the optimum (indistinguishability). Ranking metric: $|\text{AUC} - 0.5|$ (not raw AUC). Empirical null: $0.506 \pm 0.084$ (15 seeds, real vs real half-splits). z-score: $(\text{AUC} - 0.506)/0.084$. Measured per model across every walk-forward fold in Results, Table~4; ${RPT_WF_Z_BEYOND_N} of ${RPT_WF_Z_N_MODELS} generators sit more than 1.96 null sd from it; ${RPT_WF_Z_WITHIN} do not.
 
 \textit{Direction bug found:} ascending rank on raw AUC put 0.30 above 0.50. Fixed by ranking on distance from chance.
 
@@ -1394,14 +1324,189 @@ def main():
 
     fmt = ctx["formatted"]
     t1 = fmt["table1_prose"]
+    win = fmt["win_prose"]
+    comp = fmt["compute_prose"]
+    perm = fmt["perm_invariance"]
+    audit = fmt["control_audit_prose"]
+    fold = fmt["fold_effect_prose"]
+    tail = fmt["tail_spread_prose"]
+    worst = fmt["worst_model_prose"]
+    guard = fmt["guard"]
+    kurt = fmt["kurtosis_divergence"]
+    mm = fmt["minmax_evidence"]
+    ds = fmt["downstream_prose"]
+    dsf = fmt["downstream_failures"]
+    wfo = fmt["wf_outliers"]
+    gan = fmt["gan_only_prose"]
+
+    # The post-generation guard is read from the run log, which -- unlike the
+    # metrics CSVs -- is not tracked in git. On a fresh clone it can be absent,
+    # and the report must then say so rather than print a plausible number.
+    if guard.get("available"):
+        guard_cells = {
+            "RPT_GUARD_N": guard["n"],
+            "RPT_GUARD_MODELS_PLAIN": guard["models"],
+            "RPT_GUARD_ACF_ABS_MEAN": guard["acf_abs_mean"],
+            "RPT_GUARD_ACF_MIN": guard["acf_min"],
+            "RPT_GUARD_ACF_MAX": guard["acf_max"],
+            "RPT_GUARD_STD_MIN": guard["std_min"],
+            "RPT_GUARD_STD_MAX": guard["std_max"],
+            "RPT_GUARD_PATH": guard["path"],
+            "RPT_DIAG_N_LATENT": guard["diag_n_latent"],
+            "RPT_DIAG_SAT_MAX": guard["diag_sat_max"],
+            "RPT_DIAG_N_RECON": guard["diag_n_recon"],
+            "RPT_DIAG_RECON_DIFF": guard["diag_recon_max_diff"],
+        }
+    else:
+        print(f"WARNING: no run log found under {args.reports_dir}; the "
+              "mode-collapse guard section will say so rather than report "
+              "numbers it cannot read.")
+        guard_cells = {k: "[unavailable]" for k in (
+            "RPT_GUARD_N", "RPT_GUARD_MODELS_PLAIN", "RPT_GUARD_ACF_ABS_MEAN",
+            "RPT_GUARD_ACF_MIN", "RPT_GUARD_ACF_MAX", "RPT_GUARD_STD_MIN",
+            "RPT_GUARD_STD_MAX", "RPT_DIAG_N_LATENT", "RPT_DIAG_SAT_MAX",
+            "RPT_DIAG_N_RECON", "RPT_DIAG_RECON_DIFF")}
+        guard_cells["RPT_GUARD_PATH"] = guard["path"] + " (not found)"
+
     mapping = {
         "RPT_DATE": DATE,
         "RPT_PROVENANCE_BOX": _build_provenance_box(prov),
         "RPT_SMOKE_WATERMARK_PACKAGE": SMOKE_WATERMARK_PACKAGE if is_smoke else "",
         "RPT_SMOKE_BANNER": _build_smoke_banner(prov) if is_smoke else "",
+
+        # Provenance
         "RPT_N_FOLDS": prov["n_folds"],
         "RPT_PROV_MARKETS": prov["markets"],
         "RPT_PROV_SEEDS": prov["seeds"],
+        "RPT_PROV_N_MARKETS": prov["n_markets"],
+        "RPT_PROV_N_SEEDS": prov["n_seeds"],
+        "RPT_PROV_GEN_UPDATES": prov["generator_updates"],
+        "RPT_PROV_AE_STEPS": prov["ae_steps"],
+        "RPT_PROV_SUP_STEPS": prov["sup_steps"],
+
+        # Headline ranking and family split
+        "RPT_HEADLINE_ROWS": fmt["headline_rows"],
+        "RPT_BEST_COMPOSITE": fmt["best_composite"],
+        "RPT_WIN_N_CELLS": win["n_cells"],
+        "RPT_WIN_COMPOSITE_WINS": win["composite_wins"],
+        "RPT_WIN_COMPOSITE_ECON": win["composite_econ"],
+        "RPT_WIN_TEMPORAL_WINS": win["temporal_wins"],
+        "RPT_WIN_TEMPORAL_ECON": win["temporal_econ"],
+        "RPT_WIN_FIDELITY_WINS": win["fidelity_wins"],
+        "RPT_WIN_FIDELITY_GRAD": win["fidelity_grad"],
+
+        # Compute versus performance
+        "RPT_COMPUTE_ROWS": fmt["compute_rows"],
+        "RPT_COMPUTE_BEST_MODEL": comp["best_model"],
+        "RPT_COMPUTE_BEST_PARAMS": comp["best_params"],
+        "RPT_COMPUTE_BEST_SECONDS": comp["best_seconds"],
+        "RPT_COMPUTE_BIGGEST_MODEL": comp["biggest_model"],
+        "RPT_COMPUTE_BIGGEST_PARAMS": comp["biggest_params"],
+        "RPT_COMPUTE_BIGGEST_SECONDS": comp["biggest_seconds"],
+        "RPT_COMPUTE_BIGGEST_BELOW": comp["biggest_below"],
+        "RPT_FIDELITY_LEADER": comp["fidelity_leader"],
+        "RPT_TEMPORAL_LEADER": comp["temporal_leader"],
+        "RPT_TEMPORAL_LEADER_PARAMS": comp["temporal_leader_params"],
+        "RPT_ECON_POSITIONS": comp["econ_positions"],
+        "RPT_LEVERAGE_VERDICT": comp["leverage_verdict"],
+        "RPT_WF_Z_N_MODELS": fmt["wf_auc_prose"]["n_models"],
+        "RPT_WF_Z_BEYOND_N": fmt["wf_auc_prose"]["n_beyond"],
+        "RPT_WF_Z_BEYOND": fmt["wf_auc_prose"]["beyond"],
+        "RPT_WF_Z_WITHIN": fmt["wf_auc_prose"]["within"],
+        "RPT_WF_Z_N_ABOVE": fmt["wf_auc_prose"]["n_above"],
+        "RPT_RESID_ECON_VALUES": fmt["resid_kurt_prose"]["econ_values"],
+        "RPT_RESID_GAN_RANGE": fmt["resid_kurt_prose"]["gan_range"],
+        "RPT_RESID_CONTROL": fmt["resid_kurt_prose"]["control"],
+        "RPT_RESID_VS_CONTROL": fmt["resid_kurt_prose"]["vs_control"],
+        "RPT_COMPUTE_PARAM_RATIO": comp["param_ratio"],
+        "RPT_COMPUTE_TIME_RATIO": comp["time_ratio"],
+
+        # Shuffled-control audit
+        "RPT_PERM_N_INVARIANT": perm["n_invariant"],
+        "RPT_PERM_N_METRICS": perm["n_metrics"],
+        "RPT_PERM_INVARIANT_LIST": perm["invariant_list"],
+        "RPT_PERM_GAP_HI": perm["gap_hi"],
+        "RPT_PERM_GAP_LO": perm["gap_lo"],
+        "RPT_CONTROL_AUDIT_ROWS": fmt["control_audit_rows"],
+        "RPT_AUDIT_SQ_CONTROL": audit["acf_squared_mae"]["control"],
+        "RPT_AUDIT_SQ_CLEARS": audit["acf_squared_mae"]["clears"],
+        "RPT_AUDIT_SQ_N_GANS_BEATEN": audit["acf_squared_mae"]["n_gans_beaten"],
+        "RPT_AUDIT_ABS_BEATEN": audit["acf_absolute_mae"]["beaten"],
+        "RPT_AUDIT_ABS_CLEARS": audit["acf_absolute_mae"]["clears"],
+        "RPT_AUDIT_RET_BEATEN": audit["acf_returns_mae"]["beaten"],
+        "RPT_AUDIT_RET_MARGIN_MIN": audit["acf_returns_mae"]["margin_min"],
+        "RPT_AUDIT_RET_MARGIN_MAX": audit["acf_returns_mae"]["margin_max"],
+        "RPT_AUDIT_HURST_BEATEN": audit["hurst_diff"]["beaten"],
+
+        # Walk-forward
+        "RPT_WF_AUC_ROWS": fmt["wf_auc_rows"],
+        "RPT_FOLD_EFFECT_ROWS": fmt["fold_effect_rows"],
+        "RPT_FOLD_FIRST_FOLD": fold["first_fold"],
+        "RPT_FOLD_LAST_FOLD": fold["last_fold"],
+        "RPT_FOLD_FIRST_AUC": fold["first_auc"],
+        "RPT_FOLD_LAST_AUC": fold["last_auc"],
+        "RPT_FOLD_FIRST_LEN": fold["first_len"],
+        "RPT_FOLD_LAST_LEN": fold["last_len"],
+        "RPT_FOLD_MONOTONIC": fold["monotonic"],
+        "RPT_FOLD_RISE_FOLDS": fold["rise_folds"],
+        "RPT_WF_OUT_MEDIAN": wfo["median"],
+        "RPT_WF_OUT_WORST_MODEL": wfo["worst_model"],
+        "RPT_WF_OUT_WORST_MARKET": wfo["worst_market"],
+        "RPT_WF_OUT_WORST_FOLD": wfo["worst_fold"],
+        "RPT_WF_OUT_WORST_VALUE": wfo["worst_value"],
+        "RPT_WF_OUT_WORST_AUC": wfo["worst_auc"],
+
+        # Tail index and the bottom-ranked model
+        "RPT_TAIL_SPREAD_ROWS": fmt["tail_spread_rows"],
+        "RPT_TAIL_WORST_MODEL": tail["worst_model"],
+        "RPT_TAIL_WORST_MEAN": tail["worst_mean"],
+        "RPT_TAIL_OTHERS_RANGE": tail["others_range"],
+        "RPT_TAIL_BETWEEN_SPREAD": tail["between_spread"],
+        "RPT_TAIL_WITHIN_MAX": tail["within_max"],
+        "RPT_TAIL_SPREAD_VERDICT": tail["spread_verdict"],
+        "RPT_WORST_MODEL": worst["model"],
+        "RPT_WORST_N_ALL": worst["n_worst_all"],
+        "RPT_WORST_N_ALL_TOT": worst["n_all"],
+        "RPT_WORST_N_TEMPORAL": worst["n_worst_temporal"],
+        "RPT_WORST_N_TEMPORAL_TOT": worst["n_temporal"],
+        "RPT_WORST_N_FIDELITY": worst["n_worst_fidelity"],
+        "RPT_WORST_N_FIDELITY_TOT": worst["n_fidelity"],
+        "RPT_WORST_NOT_WORST": worst["not_worst"],
+
+        # Budget sensitivity
+        "RPT_GAN_COUNTS": gan["counts"],
+        "RPT_GAN_LEADER": gan["leader"],
+        "RPT_GAN_N_MODELS": gan["n_models"],
+
+        # Downstream utility
+        "RPT_DOWNSTREAM_ROWS": fmt["downstream_rows"],
+        "RPT_DS_FAIL_ROWS": dsf["rows"],
+        "RPT_DS_FAIL_N": dsf["n"],
+        "RPT_DS_FAIL_N_TOTAL": dsf["n_total"],
+        "RPT_DS_FAIL_MODELS": dsf["models"],
+        "RPT_DS_N_MIN": ds["n_test_min"],
+        "RPT_DS_N_MAX": ds["n_test_max"],
+        "RPT_DS_N_FILES": ds["n_files"],
+        "RPT_DS_N_COMBINED": ds["n_test_combined"],
+        "RPT_DS_N_MARKETS": ds["n_markets"],
+
+        # Design-decision evidence from the raw series
+        "RPT_KURT_ROWS": kurt["rows"],
+        "RPT_KURT_HEADER": kurt["header"],
+        "RPT_KURT_COLSPEC": kurt["colspec"],
+        "RPT_KURT_N_MIN": kurt["n_min"],
+        "RPT_KURT_N_MAX": kurt["n_max"],
+        "RPT_KURT_N_GREW": kurt["n_grew"],
+        "RPT_KURT_N_MARKETS": kurt["n_markets"],
+        "RPT_KURT_RATIO_MIN": kurt["ratio_min"],
+        "RPT_KURT_RATIO_MAX": kurt["ratio_max"],
+        "RPT_MINMAX_MARKET": mm["market"],
+        "RPT_MINMAX_MEDIAN": mm["median"],
+        "RPT_MINMAX_OCCUPIED": mm["occupied_pct"],
+        "RPT_MINMAX_MIN_PCT": mm["min_ret_pct"],
+        "RPT_MINMAX_MAX_PCT": mm["max_ret_pct"],
+
+        # Real-market description (Methods, Table 8)
         "RPT_TABLE1_ROWS": fmt["table1_rows"],
         "RPT_TABLE1_TOTAL_DAYS": t1["total_days"],
         "RPT_TABLE1_TOTAL_EXTREME": t1["total_extreme"],
@@ -1413,15 +1518,24 @@ def main():
         "RPT_TABLE1_MAX_RATIO_VALUE": t1["max_ratio_value"],
         "RPT_TABLE1_RATIO_MIN": t1["ratio_min"],
         "RPT_TABLE1_RATIO_MAX": t1["ratio_max"],
-        "RPT_TABLE3_ROWS": fmt["table3_rows"],
-        "RPT_BEST_COMPOSITE": fmt["best_composite"],
-        "RPT_BUDGET_PARITY_ROWS": fmt["budget_parity_rows"],
-        "RPT_DOWNSTREAM_UTILITY_ROWS": fmt["downstream_utility_rows"],
-        "RPT_WALK_FORWARD_ROWS": fmt["walk_forward_rows"],
+
+        # Figures
         "RPT_PRIMARY_MARKET": fmt["primary_market"],
         "RPT_PRIMARY_SEED": fmt["primary_seed"],
         "RPT_FIGURES_BLOCK": fmt["figures_block"],
     }
+    mapping.update(guard_cells)
+
+    # A placeholder left unsubstituted renders as a literal "${RPT_...}" in the
+    # PDF, which is exactly the silent-failure mode this data layer exists to
+    # prevent. Check before writing rather than after reading the proof.
+    import re as _re
+    in_tex = set(_re.findall(r"\$\{(RPT_[A-Z0-9_]+)\}", TEX))
+    unmapped = sorted(in_tex - set(mapping))
+    if unmapped:
+        print("ERROR: TEX placeholders with no value in the mapping: "
+              + ", ".join(unmapped))
+        sys.exit(1)
 
     os.makedirs(args.reports_dir, exist_ok=True)
     # safe_substitute (not substitute): the document is full of bare "$...$"
