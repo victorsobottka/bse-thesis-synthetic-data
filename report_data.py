@@ -485,6 +485,9 @@ def _build_figures_block(figures: dict) -> str:
     return "\n\n".join(parts)
 
 
+_LIBRARIES = ("arch", "statsmodels", "scipy", "numpy", "pandas")
+
+
 def _build_provenance(metadata: dict) -> dict:
     # timestamp/commit/seeds/n_folds/generator_updates are digits, colons,
     # dashes and commas -- never need escaping. python/torch/device/platform
@@ -506,6 +509,11 @@ def _build_provenance(metadata: dict) -> dict:
         "device": _escape_latex(metadata.get("device", "---")),
         "platform": _escape_latex(metadata.get("platform", "---")),
         "smoke_test": bool(metadata.get("smoke_test", False)),
+        # Numerical libraries: recorded because the GARCH boundary knife-edge
+        # flipped between environments. Runs before 2026-09-10 lack them.
+        "libraries": (" $\\cdot$ ".join(
+            f"{lib} {_escape_latex(metadata[lib])}" for lib in _LIBRARIES if metadata.get(lib))
+            or "not recorded in this run's metadata"),
         "n_markets": str(len(metadata.get("markets", []))),
         "n_seeds": str(len(metadata.get("seeds", []))),
         # TimeGAN pre-training is reported separately from the parity budget,
@@ -1459,7 +1467,7 @@ def _build_downstream_pooled_rows(downstream: dict) -> str:
     return "\n".join(lines)
 
 
-def _build_downstream_text(downstream: dict, wfo: dict) -> dict:
+def _build_downstream_text(downstream: dict, wfo: dict, garch_audit_row: str) -> dict:
     """Every sentence about downstream utility whose truth depends on the
     layout on disk or on what the rows contain: the degenerate-cell block,
     the note on n, the Methods sentence, the Extended Data audit rows and the
@@ -1468,6 +1476,21 @@ def _build_downstream_text(downstream: dict, wfo: dict) -> dict:
     """
     du, pooled = downstream["frame"], downstream["mode"] == "pooled"
     unit = "model-seed" if pooled else "model-market-seed"
+
+    # How often the shuffled control's QLIKE beats a genuine generator's,
+    # within each backtest (one per seed pooled, one per market-seed per-market).
+    # Counted over control-versus-generator pairs, not over all model pairs.
+    _beats = _pairs = 0
+    for _, _g in du.groupby(["seed"] if pooled else ["market", "seed"]):
+        _c = _g[_g["model"].apply(_is_control)]["qlike"].dropna()
+        _o = _g[~_g["model"].apply(_is_control)]["qlike"].dropna()
+        if len(_c):
+            _pairs += len(_o)
+            _beats += int((float(_c.iloc[0]) < _o).sum())
+    ctrl_sentence = (
+        f"The shuffled control's QLIKE beats a genuine generator's in {_beats} of {_pairs} "
+        f"control-versus-generator comparisons ({(100 * _beats / _pairs) if _pairs else 0:.0f}\\%)."
+        if _pairs else "")
     bad = du[du["qlike"] > _QLIKE_DEGENERATE].sort_values("qlike", ascending=False)
     n_bad, n_total = len(bad), len(du)
 
@@ -1521,14 +1544,16 @@ def _build_downstream_text(downstream: dict, wfo: dict) -> dict:
                     if "markets" in du.columns else "---")
         n_sd = int(du["seed"].nunique())
         s_ = "s" if n_sd != 1 else ""
+        bnd = max(n_mk - 1, 0)
+        caveat = (f"Concatenating {n_mk} markets means one GARCH filter crosses {bnd} market "
+                  f"boundar{'y' if bnd == 1 else 'ies'} within {n_txt} pooled observations.")
         out["n_note"] = (
             f"Each backtest runs once per seed over the pooled test set: the real test series of "
             f"all {n_mk} markets ({mk_names}) concatenated in market order, with each model's "
             f"per-market synthetic draws concatenated in the same order. $n$ is {n_txt} per "
             f"backtest, over {n_sd} seed{s_}, so each row above summarises {n_sd} pooled "
             f"backtest{s_}. That $n$ {meets} the " r"$n\gtrsim600$" " at which QLIKE ranks "
-            f"stably, and is " + power + ".")
-        bnd = max(n_mk - 1, 0)
+            f"stably, and is " + power + ". " + caveat + " " + ctrl_sentence)
         # Kept shorter than the per-market variant: the Methods continuation page
         # has no slack, and this sentence is the one whose length varies by layout.
         out["methods_note"] = (
@@ -1547,17 +1572,8 @@ def _build_downstream_text(downstream: dict, wfo: dict) -> dict:
             f"  {{One file, one backtest per model per seed, $n$ of {n_txt} over {n_mk} markets. "
             r"Before 2026-09-10 the pipeline wrote one file per market-seed under this name, at "
             r"that market's $n$ (486--501) --- below QLIKE's $n\gtrsim600$ stability threshold, "
-            r"where it can rank noise above real data.}")
-        garch_row = (
-            r"\auditrow{GUARDED}{Amber}{ABg}%" "\n"
-            r"  {GARCH fits on the stationarity boundary rejected}%" "\n"
-            r"  {Maximum likelihood can converge normally (\texttt{convergence\_flag}=0) to "
-            r"persistence on the covariance-stationarity boundary, from which simulated paths can "
-            r"explode; standard convergence diagnostics do not detect it. \texttt{GARCHModel.train()} "
-            r"raises when persistence ($\alpha+\beta$, plus $\gamma/2$ for GJR) is within $10^{-6}$ "
-            r"of 1, and \texttt{generate()} raises when output sd is more than $10\times$ from the "
-            r"training sd; the pipeline re-raises rather than skipping the fold. Both guards were "
-            r"active for this run.}")
+            r"where the shuffled control's QLIKE beat a genuine generator's in 33 of 75 "
+            r"control-versus-generator comparisons (44\%) --- a prior measurement on those files.}")
     else:
         per_market = du.groupby("market")["n_test"].max()
         n_files = int(du.groupby(["market", "seed"]).ngroups)
@@ -1569,7 +1585,7 @@ def _build_downstream_text(downstream: dict, wfo: dict) -> dict:
             r"\textbf{not} a single pooled backtest at the combined $n$ --- these artifacts predate "
             r"the pipeline's pooled computation. The distinction is not cosmetic: the per-market $n$ "
             r"is " + power + r", so the per-market $p$-values above are descriptive, and QLIKE is the "
-            r"primary downstream signal.")
+            r"primary downstream signal. " + ctrl_sentence)
         out["methods_note"] = (
             r"The design intent is therefore pooled computation. The pipeline now does this --- "
             r"once per seed over every market's concatenated test set --- but \textbf{these "
@@ -1591,23 +1607,9 @@ def _build_downstream_text(downstream: dict, wfo: dict) -> dict:
             f"{len(per_market)} markets), because the evaluation function that wrote it only ever "
             r"sees one market. QLIKE's stability threshold is $n\gtrsim600$ and Kupiec power at "
             r"$n\approx496$ is $\approx56\%$ against $\approx99\%$ pooled, so the difference is "
-            r"material. \textbf{Fix:} the pipeline now records each market-seed's inputs and pools "
+            r"material: " + ctrl_sentence + r" \textbf{Fix:} the pipeline now records each market-seed's inputs and pools "
             r"them across markets once per seed into a single file. These artifacts predate it and "
             r"are described as per-market throughout.}")
-        garch_row = (
-            r"\auditrow{FIXED IN PIPELINE}{Amber}{ABg}%" "\n"
-            r"  {GARCH fits converged to non-stationary parameters and generated explosive paths}%" "\n"
-            f"  {{In these artifacts {wfo['worst_model']} on {wfo['worst_market']} walk-forward fold "
-            f"{wfo['worst_fold']} gives Wasserstein {wfo['worst_value']} against a pooled median of "
-            f"{wfo['median']}, with discriminative AUC {wfo['worst_auc']}. Refitting that window "
-            r"shows the cause: maximum likelihood converged normally (\texttt{convergence\_flag}=0) "
-            r"to persistence on the covariance-stationarity boundary, so the non-convergence guard "
-            r"never fired and simulated paths could explode. \textbf{Fix:} \texttt{GARCHModel.train()} "
-            r"now raises when persistence ($\alpha+\beta$, plus $\gamma/2$ for GJR) is within "
-            r"$10^{-6}$ of 1, and \texttt{generate()} raises when output sd is more than $10\times$ "
-            r"from the training sd; the pipeline re-raises rather than skipping the fold. These "
-            r"artifacts predate both guards; the refit parameters are recorded in the repository's "
-            r"standing constraints, not in a run artifact.}")
 
     qlike_row = (
         (r"\auditrow{REPORTED}{Indigo}{IBg}%" "\n"
@@ -1623,8 +1625,156 @@ def _build_downstream_text(downstream: dict, wfo: dict) -> dict:
          r"  {Downstream QLIKE: no degenerate cells}%" "\n"
          f"  {{No {unit} cell returned a positive QLIKE in this run; median and mean are both "
          r"reported regardless.}"))
-    out["audit_rows"] = "\n\n".join([garch_row, qlike_row, pool_row])
+    out["audit_rows"] = "\n\n".join([garch_audit_row, qlike_row, pool_row])
     return out
+
+
+def _sci(x: float, digits: int = 1) -> str:
+    """Scientific notation for LaTeX math, e.g. $1.7\\times10^{-13}$. A Python
+    '1.7e-13' set inside $...$ turns the exponent's hyphen into a binary minus
+    with operator spacing ('1.7e − 13')."""
+    if x == 0:
+        return "$0$"
+    mant, exp = f"{x:.{digits}e}".split("e")
+    return f"${mant}\\times10^{{{int(exp)}}}$"
+
+
+def _window_key(w: str):
+    """Sort 'main' before 'fold 0', 'fold 1', ... numerically."""
+    m = re.match(r"fold (\d+)$", str(w))
+    return (1, int(m.group(1))) if m else (0, 0)
+
+
+def _build_persistence(runs: list, wfo: dict) -> dict:
+    """The integrated-boundary finding: how many econometric fits reached
+    persistence 1, where, and that the constraint was applied to exactly those.
+
+    Read from <MARKET>/seed<N>/garch_persistence.csv (one row per econometric
+    fit: the main fit and every walk-forward fold). The consistency of
+    constraint_applied with the recorded unconstrained persistence is checked,
+    not assumed -- a disagreement means the artifact cannot support the
+    sentence "applied to exactly those", and the build stops.
+    """
+    frames = [r["persistence"] for r in runs if r.get("persistence") is not None]
+    why = (
+        r"Near-unit persistence in daily equity returns is a documented consequence of structural "
+        r"breaks in the unconditional variance being absorbed as persistence (Lamoureux \& "
+        r"Lastrapes 1990\tcite{42}; Mikosch \& St\u{a}ric\u{a} 2004\tcite{43}). SHANGHAI over "
+        r"2006--2026 spans the 2007 bubble and crash, 2015 and COVID: three volatility regimes in one "
+        r"training window. At $\alpha+\beta=1$ the conditional variance is a martingale with no "
+        r"unconditional variance to revert to, so simulated paths random-walk without an anchor --- "
+        r"the mechanism behind a walk-forward Wasserstein of 74.8 against a run median of 0.0025 on "
+        r"SHANGHAI fold~3 in the run that preceded this procedure."
+        "\n\n\\smallskip\n"
+        r"\textbf{Two-stage fit.} Stage~1 fits by maximum likelihood without further constraint and "
+        r"always records persistence ($\alpha+\beta$, plus $\gamma/2$ for GJR-GARCH --- \texttt{arch}'s "
+        r"own definition). Stage~2 runs only when stage~1 lands within $10^{-6}$ of 1: it refits under "
+        r"persistence $\le 1-\delta$, $\delta=10^{-4}$, and output is generated from the constrained "
+        r"parameters; both parameter sets are stored with the fit. The refit tightens the right-hand "
+        r"side of \texttt{arch}'s own stationarity constraint and re-optimises \texttt{arch}'s own "
+        r"likelihood, so nothing is reimplemented, and on stationary windows it reproduces the "
+        r"unconstrained fit. $\delta$ sits in an observed gap: across 110 refits, 6 were within "
+        r"$1.7\times10^{-13}$ of 1 and every other fit at least $1.23\times10^{-4}$ below it, so the "
+        r"bound binds only on fits that were already at the boundary."
+        "\n\n\\smallskip\n"
+        r"\textbf{Why at fit time.} Whether a boundary fit explodes is arbitrary. In the preceding run, "
+        r"GARCH exploded on SHANGHAI fold~3 for all three seeds while GJR-GARCH, on the same window, did "
+        r"not; local refits reversed it, 200 of 200 simulated paths against 0 of 200. Rejecting "
+        r"explosive draws after generation would keep whichever draws happened to survive; "
+        r"constraining the fit removes the knife-edge. A post-generation guard still raises if "
+        r"output sd leaves $1/10$--$10\times$ the training sd. It is not guaranteed silent: at "
+        r"persistence 0.9999 one simulated path in 200 per boundary window exceeded $10\times$ in "
+        r"local refits (max $20.8\times$), though the pipeline's seeds stayed within $1.7\times$. "
+        r"The refit counts and the knife-edge are prior measurements recorded in the repository's "
+        r"standing constraints, not artifacts of this run.")
+
+    if not frames:
+        left = (r"Persistence was not recorded in these artifacts: they predate two-stage fitting, "
+                r"so the number of fits that reached the integrated boundary cannot be read from them.")
+        audit = (
+            r"\auditrow{FIXED IN PIPELINE}{Amber}{ABg}%" "\n"
+            r"  {GARCH fits at the integrated boundary generated explosive paths}%" "\n"
+            f"  {{In these artifacts {wfo['worst_model']} on {wfo['worst_market']} walk-forward fold "
+            f"{wfo['worst_fold']} gives Wasserstein {wfo['worst_value']} against a pooled median of "
+            f"{wfo['median']}, with discriminative AUC {wfo['worst_auc']}. Cause: maximum likelihood "
+            r"converged normally to persistence on the stationarity boundary, where the conditional "
+            r"variance is a martingale. \textbf{Fix:} two-stage fitting --- persistence recorded "
+            r"unconstrained, a constrained refit (persistence $\le1-10^{-4}$) only when it reaches 1 to "
+            r"within $10^{-6}$, output generated from the constrained parameters --- plus a "
+            r"post-generation guard. These artifacts predate both.}")
+        return {"available": False, "left": left, "right": why, "audit_row": audit}
+
+    df = pd.concat(frames, ignore_index=True)
+    need = ["market", "seed", "window", "model", "unconstrained_persistence",
+            "constraint_applied", "constrained_persistence"]
+    missing = [c for c in need if c not in df.columns]
+    if missing:
+        raise ReportDataError(f"garch_persistence.csv missing column(s) {missing}")
+    tol = float(df["stationarity_tol"].iloc[0]) if "stationarity_tol" in df.columns else 1e-6
+    applied = df["constraint_applied"].astype(str).str.lower().isin(["true", "1"])
+    hit = df["unconstrained_persistence"] >= 1.0 - tol
+    if int((hit != applied).sum()):
+        raise ReportDataError(
+            f"garch_persistence.csv: constraint_applied disagrees with unconstrained persistence "
+            f"(tolerance {tol:g}) in {int((hit != applied).sum())} row(s); the report cannot state "
+            f"that the constraint was applied to exactly the boundary fits")
+
+    keys = ["market", "window", "model"]
+    n_rows, n_distinct, n_seeds = len(df), df.groupby(keys).ngroups, df["seed"].nunique()
+    n_hit, hit_df = int(hit.sum()), df[hit]
+    n_hit_distinct = hit_df.groupby(keys).ngroups if n_hit else 0
+    s_ = "s" if n_seeds != 1 else ""
+    left = (
+        r"Every econometric fit records its unconstrained persistence as a result: the main fit on "
+        r"each training split and one per walk-forward fold, for both GARCH variants. "
+        f"Across {n_rows} fits ({n_distinct} market--window--model combinations $\\times$ {n_seeds} "
+        f"seed{s_}; a fit does not depend on the seed), ")
+    if n_hit:
+        rows = []
+        for (mk, w, mdl), g in sorted(hit_df.groupby(keys), key=lambda kv: (kv[0][0], _window_key(kv[0][1]), kv[0][2])):
+            rows.append(
+                f"{_escape_latex(mk)} & {_escape_latex(w)} & {_escape_latex(mdl)} & "
+                f"{g['unconstrained_persistence'].iloc[0]:.10f} & "
+                f"{g['constrained_persistence'].iloc[0]:.10f} & {g['seed'].nunique()} \\\\")
+        mk_hit = ", ".join(_escape_latex(m) for m in sorted(hit_df["market"].unique()))
+        rest = df[~hit]["unconstrained_persistence"]
+        gap_hit = float((1.0 - hit_df["unconstrained_persistence"]).abs().max())
+        pc = hit_df["constrained_persistence"].astype(float)
+        llc = hit_df["loglikelihood_change"].astype(float) if "loglikelihood_change" in df.columns else None
+        left += (
+            f"\\textbf{{{n_hit} reached the integrated boundary}} --- persistence within $10^{{-6}}$ of 1 "
+            f"--- in {n_hit_distinct} combination{'s' if n_hit_distinct != 1 else ''}, on {mk_hit}. "
+            r"The constraint was applied to exactly those fits and to no other."
+            "\n\n\\smallskip\n{\\footnotesize\n\\begin{tabular}{@{}lllrrc@{}}\n\\toprule\n"
+            "Market & Window & Model & Unconstrained & Constrained & Seeds \\\\\n\\midrule\n"
+            + "\n".join(rows) + "\n\\bottomrule\n\\end{tabular}}\n\n\\smallskip\n"
+            f"Boundary fits sit within {_sci(gap_hit)} of 1"
+            + (f"; the largest persistence among the other {len(rest)} fits is {rest.max():.8f} "
+               f"($1-p$ = {_sci(1 - rest.max(), 2)})" if len(rest) else "")
+            + f". Constrained persistence is {pc.min():.10f}--{pc.max():.10f}"
+            + (f", at a log-likelihood change of {llc.min():+.4f} to {llc.max():+.4f}" if llc is not None else "")
+            + ".")
+        hit_list = "; ".join(
+            f"{_escape_latex(mk)} {_escape_latex(w)} {_escape_latex(mdl)}"
+            for (mk, w, mdl), _ in sorted(hit_df.groupby(keys), key=lambda kv: (kv[0][0], _window_key(kv[0][1]), kv[0][2])))
+        audit_body = (
+            f"{n_hit} of {n_rows} econometric fits in this run reached persistence within $10^{{-6}}$ of 1 "
+            f"({hit_list}) and were refit under persistence $\\le1-10^{{-4}}$; output was generated from "
+            r"the constrained parameters and both parameter sets are stored (Results, Table~8).")
+    else:
+        left += (r"\textbf{none reached the integrated boundary}, and the constraint was applied to no "
+                 f"fit. The largest unconstrained persistence is {df['unconstrained_persistence'].max():.8f}.")
+        audit_body = (f"None of the {n_rows} econometric fits in this run reached the integrated "
+                      r"boundary, so no constrained refit was needed.")
+    audit = (
+        r"\auditrow{FIXED}{Amber}{ABg}%" "\n"
+        r"  {GARCH fits at the integrated boundary: two-stage fitting}%" "\n"
+        "  {" + audit_body + r" An earlier version raised and stopped the run on such fits, which would "
+        r"have kept SHANGHAI from completing on any seed; it was replaced because stopping the "
+        r"benchmark is not a treatment of the fit. The post-generation guard still raises outside "
+        r"$1/10$--$10\times$ the training sd.}")
+    return {"available": True, "left": left, "right": why, "audit_row": audit,
+            "n_rows": n_rows, "n_hit": n_hit}
 
 
 def _build_control_audit_header(models: list) -> dict:
@@ -1664,6 +1814,8 @@ def load_report_context(results_dir="thesis_results/production",
         # Pre-2026-09-10 layout only; newer runs write one pooled file at the root.
         _legacy_du = seed_dir / "pooled_downstream_utility.csv"
         pooled_utility = _read_csv(_legacy_du) if _legacy_du.exists() else None
+        _persist_path = seed_dir / "garch_persistence.csv"
+        persistence = _read_csv(_persist_path) if _persist_path.exists() else None
         walk_forward = _discover_walk_forward(results_dir, market, seed,
                                               set(metrics["model"]), stale_walk_forward)
         figures = {
@@ -1676,6 +1828,7 @@ def load_report_context(results_dir="thesis_results/production",
             "seed": seed,
             "metrics": metrics,
             "pooled_utility": pooled_utility,
+            "persistence": persistence,
             "walk_forward": walk_forward,
             "figures": figures,
         })
@@ -1733,6 +1886,7 @@ def load_report_context(results_dir="thesis_results/production",
     primary = runs[0]
     wf_outliers = _build_wf_outliers(wf)
     downstream = _load_downstream(results_dir, runs)
+    persistence = _build_persistence(runs, wf_outliers)
 
     ctx["formatted"] = {
         "provenance": _build_provenance(metadata),
@@ -1786,7 +1940,8 @@ def load_report_context(results_dir="thesis_results/production",
         # legacy per-market files, described as such (see _load_downstream)
         "downstream_mode": downstream["mode"],
         "downstream_rows": _build_downstream_pooled_rows(downstream),
-        "downstream_text": _build_downstream_text(downstream, wf_outliers),
+        "persistence": persistence,
+        "downstream_text": _build_downstream_text(downstream, wf_outliers, persistence["audit_row"]),
 
         "walk_forward_rows": _build_walk_forward_rows(primary["walk_forward"]),
         "walk_forward_summary": _build_walk_forward_summary(primary["walk_forward"]),
