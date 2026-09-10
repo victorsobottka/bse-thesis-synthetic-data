@@ -190,3 +190,12 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# LaTeX build intermediates under reports/ -- regenerated on every build.
+# generate_report.py removes .aux/.log/.out after a clean pdflatex run, but a
+# failed build, or a latexmk/editor build, leaves these behind.
+reports/**/*.aux
+reports/**/*.fls
+reports/**/*.fdb_latexmk
+reports/**/*.out
+reports/**/*.synctex.gz
