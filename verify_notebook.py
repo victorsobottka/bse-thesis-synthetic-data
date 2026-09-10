@@ -117,6 +117,41 @@ REQUIRED = [
      "cls.family == 'econometric'" in ALL),
     ("r32   reports split by run type",
      'REPORTS / ("smoke" if SMOKE_TEST else "production")' in ALL),
+
+    # r33 -- maximum-likelihood GARCH converged (convergence_flag=0) to
+    # persistence exactly on the stationarity boundary on SHANGHAI walk-forward
+    # fold 3 and generated returns with Wasserstein ~75 against a run median of
+    # 0.0025. The non-convergence guard never fired. See .claude/CLAUDE.md SS6.
+    ("r33   GARCH post-fit stationarity guard",
+     "class NonStationaryFitError" in ALL and "raise NonStationaryFitError" in EXEC
+     and "STATIONARITY_TOL" in EXEC),
+    # A strict `>= 1.0` misses a boundary fit that lands 1.7e-13 below 1.
+    ("r33   stationarity check uses a tolerance, not >= 1.0",
+     bool(re.search(r"pers\s*>=\s*1\.0\s*-\s*STATIONARITY_TOL", ALL))),
+    ("r33   GJR persistence includes gamma/2",
+     bool(re.search(r"gamma\[1\]['\"]\]\s*/\s*2", ALL))),
+    ("r33   GARCH post-generation guard raises",
+     "raise GenerationSanityError" in EXEC and "GENERATION_SD_RATIO_MAX" in EXEC),
+    # Every generation call site that skips a failed fold must re-raise the
+    # guard, or an explosive series becomes a silently missing fold.
+    ("r33   generation guard not swallowed (3 call sites)",
+     EXEC.count("except GenerationSanityError") >= 3),
+
+    # r34 -- the published Fin-GAN (Vuletic, Prenzel & Cucuringu 2024,
+    # Quantitative Finance) is a different model; ours is named for its
+    # architecture. Checked in every cell, markdown included.
+    ("r34   CNN-WGAN-GP registered",
+     "'CNN-WGAN-GP':" in ALL and "class CNN_WGAN_GP(BaseGAN)" in ALL),
+    ("r34   previous model name absent from every cell",
+     not any(re.search(r"\bFinGAN|FINGAN", "".join(c["source"]))
+             for c in nb["cells"])),
+
+    # r35 -- downstream utility was written per market-seed (n 486-501) under a
+    # name promising the pooled test set. Now pooled across markets, once.
+    ("r35   downstream utility pooled across markets",
+     "def compute_pooled_downstream_utility" in ALL
+     and "compute_pooled_downstream_utility(RESULTS, markets, SEEDS)" in EXEC
+     and "{output_dir}/pooled_downstream_utility.csv" not in ALL),
 ]
 
 PENDING = [

@@ -173,7 +173,7 @@ ${RPT_SMOKE_BANNER}
   \textbf{Format}        & Single technical document --- Results $\cdot$ Discussion $\cdot$ Methods $\cdot$ Extended Data \\[4pt]
   \textbf{Collaboration} & Universitat Polit\`{e}cnica de Catalunya (UPC) \\[4pt]
   \textbf{Document type} & Research draft --- prepared for Quantitative Finance / ACM ICAIF \\[4pt]
-  \textbf{Gradient-trained} & TimeGAN (GRU) $\cdot$ QuantGAN (TCN-WGAN-GP) $\cdot$ FinGAN (CNN-WGAN-GP) \\[4pt]
+  \textbf{Gradient-trained} & TimeGAN (GRU) $\cdot$ QuantGAN (TCN-WGAN-GP) $\cdot$ CNN-WGAN-GP (CNN deconvolution) \\[4pt]
   \textbf{Econometric}   & GARCH(1,1)-$t$ $\cdot$ GJR-GARCH(1,1)-$t$ \\[4pt]
   \textbf{Markets}       & BOVESPA $\cdot$ FTSE JSE $\cdot$ MOEX $\cdot$ NIFTY50 $\cdot$ SHANGHAI \\[4pt]
   \textbf{Generated}     & ${RPT_DATE} \\
@@ -189,13 +189,13 @@ ${RPT_PROVENANCE_BOX}
   top=6pt,bottom=6pt,left=8pt,right=8pt,before skip=2pt,after skip=8pt,
   title={\bfseries Abstract}]
 \small
-We benchmark five generators of synthetic daily equity returns on five BRICS emerging-market indices, spanning two families: three gradient-trained GANs --- TimeGAN (GRU autoencoder), QuantGAN (causal dilated TCN) and FinGAN (CNN deconvolution), all at an enforced parity of ${RPT_PROV_GEN_UPDATES} generator updates --- and two econometric baselines, GARCH(1,1)-$t$ and GJR-GARCH(1,1)-$t$, fitted by maximum likelihood. Evaluation uses a 14-metric ranked suite split into seven permutation-invariant fidelity metrics and seven ordering-sensitive temporal metrics, with walk-forward temporal validation over ${RPT_N_FOLDS} folds per market and a shuffled-real control that is scored but excluded from rank competition. The headline result is not a GAN. A ${RPT_COMPUTE_BEST_PARAMS}-parameter ${RPT_COMPUTE_BEST_MODEL} model, fitted in ${RPT_COMPUTE_BEST_SECONDS}\,s, attains the best composite rank (${RPT_BEST_COMPOSITE}) against a ${RPT_COMPUTE_BIGGEST_PARAMS}-parameter ${RPT_COMPUTE_BIGGEST_MODEL} trained for ${RPT_COMPUTE_BIGGEST_SECONDS}\,s per market-seed. The split is systematic rather than incidental: the deep models lead on fidelity, which measures the marginal distribution, and the econometric models lead on temporal dynamics, taking ${RPT_WIN_TEMPORAL_ECON} of ${RPT_WIN_N_CELLS} per-market-seed wins on \texttt{temporal\_rank}. The shuffled control exposes why single-score evaluation fails: ${RPT_PERM_N_INVARIANT} of ${RPT_PERM_N_METRICS} computed metrics are permutation-invariant, and on the two most-cited volatility-clustering metrics the control still outscores several genuine generators. Code, artifacts and evaluation pipelines are released.
+We benchmark five generators of synthetic daily equity returns on five BRICS emerging-market indices, spanning two families: three gradient-trained GANs --- TimeGAN (GRU autoencoder), QuantGAN (causal dilated TCN) and CNN-WGAN-GP (CNN deconvolution), all at an enforced parity of ${RPT_PROV_GEN_UPDATES} generator updates --- and two econometric baselines, GARCH(1,1)-$t$ and GJR-GARCH(1,1)-$t$, fitted by maximum likelihood. Evaluation uses a 14-metric ranked suite split into seven permutation-invariant fidelity metrics and seven ordering-sensitive temporal metrics, with walk-forward temporal validation over ${RPT_N_FOLDS} folds per market and a shuffled-real control that is scored but excluded from rank competition. The headline result is not a GAN. A ${RPT_COMPUTE_BEST_PARAMS}-parameter ${RPT_COMPUTE_BEST_MODEL} model, fitted in ${RPT_COMPUTE_BEST_SECONDS}\,s, attains the best composite rank (${RPT_BEST_COMPOSITE}) against a ${RPT_COMPUTE_BIGGEST_PARAMS}-parameter ${RPT_COMPUTE_BIGGEST_MODEL} trained for ${RPT_COMPUTE_BIGGEST_SECONDS}\,s per market-seed. The split is systematic rather than incidental: the deep models lead on fidelity, which measures the marginal distribution, and the econometric models lead on temporal dynamics, taking ${RPT_WIN_TEMPORAL_ECON} of ${RPT_WIN_N_CELLS} per-market-seed wins on \texttt{temporal\_rank}. The shuffled control exposes why single-score evaluation fails: ${RPT_PERM_N_INVARIANT} of ${RPT_PERM_N_METRICS} computed metrics are permutation-invariant, and on the two most-cited volatility-clustering metrics the control still outscores several genuine generators. Code, artifacts and evaluation pipelines are released.
 \end{tcolorbox}
 
 \begin{multicols}{2}
 
 \small
-Generative adversarial networks have been applied to financial time series as a data-augmentation and stress-testing tool, with TimeGAN\tcite{4} and QuantGAN\tcite{5} demonstrating qualitative gains over parametric baselines on stylized-fact reproduction. Published benchmarks in this line share three limitations. They concentrate on developed markets (S\&P~500, DAX). They evaluate with metric suites that are largely permutation-invariant --- unable, by construction, to separate a model with correct temporal dynamics from a reordering of real data. And they compare deep generators only with each other, or with a parametric baseline treated as a formality rather than as a competitor.
+Generative adversarial networks have been applied to financial time series as a data-augmentation and stress-testing tool, with TimeGAN\tcite{4} and QuantGAN\tcite{5} demonstrating qualitative gains over parametric baselines on stylized-fact reproduction. Published benchmarks in this line share three limitations. They concentrate on developed markets (S\&P~500, DAX). They evaluate with metric suites that are largely permutation-invariant --- unable, by construction, to separate a model with correct temporal dynamics from a reordering of real data. And they compare deep generators only with each other, or with a parametric baseline treated as a formality rather than as a competitor. The CNN-WGAN-GP evaluated here is named for its architecture and is distinct from Fin-GAN (Vuleti\'{c}, Prenzel \& Cucuringu 2024)\tcite{41}, which forecasts and classifies returns with an economics-driven loss; ours is an unconditional generator trained with WGAN-GP and makes no forecasts.
 
 We address all three. We evaluate on five genuine BRICS indices, including MOEX, over a 20-year window; we audit the metric suite with a shuffled-real control and report the audit as a result; and we include two econometric baselines fitted on the same data and scored by the same pipeline, on the same footing as the GANs. The third choice is the one that changes the conclusion.
 
@@ -294,9 +294,9 @@ Mean over all ${RPT_WIN_N_CELLS} market-seeds. Bold marks the better value; mode
 
 \smallskip
 \resizebox{\linewidth}{!}{%
-\begin{tabular}{@{}lcccccc@{}}
+\begin{tabular}{@{}${RPT_CONTROL_AUDIT_COLSPEC}@{}}
 \toprule
-Metric & Control & FinGAN & GARCH & GJR & QuantGAN & TimeGAN \\
+${RPT_CONTROL_AUDIT_HEADER} \\
 \midrule
 ${RPT_CONTROL_AUDIT_ROWS}
 \bottomrule
@@ -446,23 +446,10 @@ ${RPT_DOWNSTREAM_ROWS}
 \end{tabular}}
 
 \smallskip
-\textbf{Median and mean are both shown, and they disagree.} ${RPT_DS_FAIL_N} of ${RPT_DS_FAIL_N_TOTAL} model-market-seed cells returned a positive QLIKE --- a degenerate downstream GARCH fit whose conditional variance collapsed toward zero, driving the $r_t^2/\sigma_t^2$ term to four or five figures:
+${RPT_DS_FAIL_BLOCK}
 
 \smallskip
-{\footnotesize
-\begin{tabular}{@{}llrrrr@{}}
-\toprule
-Model & Market & Seed & QLIKE & Viol. & $n$ \\
-\midrule
-${RPT_DS_FAIL_ROWS}
-\bottomrule
-\end{tabular}}
-
-\smallskip
-These cells are reported, not removed: excluding them would change a measured result. The mean column carries them, which is why it is reported next to a median rather than instead of one. The failures are a defect in the downstream-utility stage, not a property of the generator being scored, and they are recorded here as an open issue.
-
-\smallskip
-\textbf{On $n$.} The files are named \texttt{pooled\_downstream\_utility.csv}, but each carries one market's test set: $n$ ranges from ${RPT_DS_N_MIN} to ${RPT_DS_N_MAX} across ${RPT_DS_N_FILES} files, combining to ${RPT_DS_N_COMBINED} across the ${RPT_DS_N_MARKETS} markets. What is reported above is therefore a summary of ${RPT_DS_N_FILES} per-market backtests, \textbf{not} a single pooled backtest at the combined $n$. The distinction is not cosmetic: Kupiec power at $n\approx496$ is $\approx56\%$ against $\approx99\%$ at $n\approx2{,}480$, so the per-market $p$-values above are descriptive, and QLIKE is the primary downstream signal.}
+\textbf{On $n$.} ${RPT_DS_N_NOTE}}
 
 \columnbreak
 
@@ -479,7 +466,7 @@ Neither variant is reliable across both regimes, so both are descriptive-only. A
 Budget parity fixes which models are compared fairly. It does not fix \emph{at what budget}, and that choice moves the answer.
 
 \smallskip
-At a smoke-test budget of 1{,}000 generator updates, QuantGAN won all five repeat runs on \texttt{composite\_rank} (1.429--1.500), with FinGAN at 1.786--1.893 --- a prior measurement recorded in the repository's standing constraints, not reproducible from this run's artifacts.
+At a smoke-test budget of 1{,}000 generator updates, QuantGAN won all five repeat runs on \texttt{composite\_rank} (1.429--1.500), with CNN-WGAN-GP at 1.786--1.893 --- a prior measurement recorded in the repository's standing constraints, not reproducible from this run's artifacts.
 
 \smallskip
 At ${RPT_PROV_GEN_UPDATES} generator updates, ordering the ${RPT_GAN_N_MODELS} gradient-trained models by \texttt{composite\_rank} within this five-model ranking gives ${RPT_GAN_COUNTS}. ${RPT_GAN_LEADER} leads.
@@ -491,7 +478,7 @@ At ${RPT_PROV_GEN_UPDATES} generator updates, ordering the ${RPT_GAN_N_MODELS} g
 Most papers in this literature report a single budget without justifying the choice. We report ours --- and state plainly that ${RPT_PROV_GEN_UPDATES} updates is itself a choice whose sensitivity we have only partially characterised. Two points on a budget curve is not a budget curve. A benchmark that reports one point is reporting a result conditional on an unstated hyperparameter.}
 
 \purplebox{Run-to-Run Nondeterminism at Fixed Seed}{%
-At fixed seed and identical code, five repeated runs show sharply different stability by architecture. TimeGAN and the shuffled control are bit-identical across all five --- sd $=0$ on every metric, every fold. FinGAN drifts slightly: Wasserstein CV $1.6\%$, walk-forward AUC sd $0.009$. QuantGAN drifts substantially: Wasserstein CV $37\%$, \texttt{tail\_index\_diff} CV $79\%$, raw AUC $0.551$--$0.734$.
+At fixed seed and identical code, five repeated runs show sharply different stability by architecture. TimeGAN and the shuffled control are bit-identical across all five --- sd $=0$ on every metric, every fold. CNN-WGAN-GP drifts slightly: Wasserstein CV $1.6\%$, walk-forward AUC sd $0.009$. QuantGAN drifts substantially: Wasserstein CV $37\%$, \texttt{tail\_index\_diff} CV $79\%$, raw AUC $0.551$--$0.734$.
 
 \smallskip
 This is not a seeding bug. Loss traces agree to four significant figures at epoch~1 and separate by epoch~5, consistent with QuantGAN being the only model combining WGAN-GP's double-backward gradient penalty with dilated convolutions.
@@ -548,7 +535,7 @@ The general form of the caveat is the part we would ask others to adopt. \textbf
 
 \textbf{Fold confound unseparated.} Fold index, training length and historical period advance together (Results, Table~5).
 
-\textbf{Downstream-utility fit failures.} ${RPT_DS_FAIL_N} of ${RPT_DS_FAIL_N_TOTAL} cells produced a degenerate GARCH fit; reported, not repaired.
+${RPT_DS_LIMITATION}
 
 \textbf{Crisis regimes remain few.} Twenty years resolves the estimator problem --- Hill sd falls from $\approx$0.52 at $n=995$ to $\approx$0.035 at $n\approx4{,}960$ --- but not the sparsity of independent crisis episodes. The extreme days in this dataset cluster into a handful of regimes: 2008, 2020, and the 2022 MOEX shock. A benchmark validated against a few crisis episodes is validated against a few crisis episodes, however many market-days each contributes.
 
@@ -700,6 +687,9 @@ The general form of the caveat is the part we would ask others to adopt. \textbf
 \item \hypertarget{R:40}{}%
   Glosten, L.\ R., Jagannathan, R., \& Runkle, D.\ E.\ (1993). On the relation between the expected value and the volatility of the nominal excess return on stocks. \textit{The Journal of Finance} 48(5), 1779--1801.
 
+\item \hypertarget{R:41}{}%
+  Vuleti\'{c}, M., Prenzel, F., \& Cucuringu, M.\ (2024). Fin-GAN: forecasting and classifying financial time series via generative adversarial networks. \textit{Quantitative Finance} 24(2), 175--199. Related work: a conditional GAN for return forecasting and classification with an economics-driven loss --- a different model from the unconditional CNN-WGAN-GP generator benchmarked here, despite the similar name.
+
 \end{enumerate}
 }
 
@@ -763,9 +753,9 @@ An epoch is $\lfloor n_\text{windows}/\text{batch\_size}\rfloor$ steps --- a dat
 
 \smallskip
 \textbf{Why parity is on generator updates, and scoped to the gradient family.}
-The pipeline asserts \texttt{TimeGAN.joint\_steps == QuantGAN.train\_steps == FinGAN.train\_steps} and refuses to run otherwise. TimeGAN's \texttt{ae\_steps} and \texttt{sup\_steps} are pre-training required by its four-phase algorithm (Yoon et al.\ 2019\tcite{4}); they are reported separately and excluded from parity, because counting them would penalise the algorithm for its own structure. QuantGAN and FinGAN take $n_\text{critic}=5$ discriminator updates per generator update (Gulrajani et al.\ 2017\tcite{3}), intrinsic to WGAN-GP rather than extra budget. The econometric models are exempt entirely: maximum-likelihood fitting has no gradient-step analogue, and any number entered in that column would be fabricated.
+The pipeline asserts \texttt{TimeGAN.joint\_steps == QuantGAN.train\_steps == CNN-WGAN-GP.train\_steps} and refuses to run otherwise. TimeGAN's \texttt{ae\_steps} and \texttt{sup\_steps} are pre-training required by its four-phase algorithm (Yoon et al.\ 2019\tcite{4}); they are reported separately and excluded from parity, because counting them would penalise the algorithm for its own structure. QuantGAN and CNN-WGAN-GP take $n_\text{critic}=5$ discriminator updates per generator update (Gulrajani et al.\ 2017\tcite{3}), intrinsic to WGAN-GP rather than extra budget. The econometric models are exempt entirely: maximum-likelihood fitting has no gradient-step analogue, and any number entered in that column would be fabricated.
 
-\textit{Equal generator updates is not equal compute}, and both are reported because they are different claims. Measured at 1{,}000 generator steps over five runs: TimeGAN $\approx$20.5\,s, FinGAN $\approx$42.4\,s, QuantGAN $\approx$178\,s --- a $\approx$9$\times$ spread at identical budget. Full-run wall-clock is in Results, Table~2.
+\textit{Equal generator updates is not equal compute}, and both are reported because they are different claims. Measured at 1{,}000 generator steps over five runs: TimeGAN $\approx$20.5\,s, CNN-WGAN-GP $\approx$42.4\,s, QuantGAN $\approx$178\,s --- a $\approx$9$\times$ spread at identical budget. Full-run wall-clock is in Results, Table~2.
 
 \smallskip
 \textbf{Why z-score + $\tanh(z/3)$, not min-max.}
@@ -836,7 +826,7 @@ Unconditional VaR was tested first and added nothing: Gaussian iid noise scored 
 
 \smallskip
 \textbf{Why QLIKE needs a large $n$, and what that means here.}
-QLIKE inverts at small samples: at $n\approx126$ Gaussian noise scored $-6.888$ against real data's $-6.876$, ranking noise above real. At $n=623$ pooled it ranks correctly with sd $0.000$. The design intent is therefore pooled computation. \textbf{As run, the artifacts are per-market} at $n$ of ${RPT_DS_N_MIN}--${RPT_DS_N_MAX} (Results, Table~7), below the $n\gtrsim600$ threshold, despite the file name. This is recorded as a discrepancy between intent and artifact, not presented as a pooled result. Kupiec power is $\approx56\%$ at $n\approx496$ against $\approx99\%$ at $n\approx2{,}480$, so per-market $p$-values are descriptive.
+QLIKE inverts at small samples: at $n\approx126$ Gaussian noise scored $-6.888$ against real data's $-6.876$, ranking noise above real. At $n=623$ pooled it ranks correctly with sd $0.000$. ${RPT_DS_METHODS_NOTE}
 
 \smallskip
 \textbf{Why Gaussian QMLE for the residual-kurtosis metric.}
@@ -1008,7 +998,7 @@ All code is available at \texttt{victorsobottka/bse-thesis-synthetic-data}. The 
 
 \auditrow{FIXED}{Amber}{ABg}%
   {Budgets specified in epochs rather than gradient steps}%
-  {An epoch is $\lfloor n_\text{windows}/\text{batch\_size}\rfloor$ steps --- data-dependent, and walk-forward folds differ in length by $5\times$. \textbf{Evidence:} this produced a $492\times$ asymmetry in generator updates in one run, when a smoke-test override of \texttt{epochs} reached two models and not the third; the affected model read as an architectural failure until the budget was measured. \textbf{Fix:} all budgets in gradient steps, declared in one configuration cell, with \texttt{TimeGAN.joint\_steps == QuantGAN.train\_steps == FinGAN.train\_steps} asserted at run time.}
+  {An epoch is $\lfloor n_\text{windows}/\text{batch\_size}\rfloor$ steps --- data-dependent, and walk-forward folds differ in length by $5\times$. \textbf{Evidence:} this produced a $492\times$ asymmetry in generator updates in one run, when a smoke-test override of \texttt{epochs} reached two models and not the third; the affected model read as an architectural failure until the budget was measured. \textbf{Fix:} all budgets in gradient steps, declared in one configuration cell, with \texttt{TimeGAN.joint\_steps == QuantGAN.train\_steps == CNN-WGAN-GP.train\_steps} asserted at run time.}
 
 \auditrow{REVISED}{Amber}{ABg}%
   {Both ARCH-LM variants demoted to descriptive; neither reliable across regimes}%
@@ -1027,16 +1017,10 @@ All code is available at \texttt{victorsobottka/bse-thesis-synthetic-data}. The 
   {Maximum-likelihood fitting has no gradient-step analogue, so the parity assertion is scoped to the gradient family and the econometric rows carry \texttt{n/a} rather than a fabricated update count. They are also fitted on raw log returns $\times100$ rather than the project's $\tanh$ normalisation, which would compress the very variance dynamics GARCH exists to model; the $\times100$ scaling is numerical, since \texttt{arch}'s optimiser converges poorly near $10^{-2}$.}
 
 \auditrow{OK}{FGreen}{GBg}%
-  {WGAN-GP gradient penalty is correct (QuantGAN \& FinGAN)}%
+  {WGAN-GP gradient penalty is correct (QuantGAN \& CNN-WGAN-GP)}%
   {$\hat x = \varepsilon x_\text{real} + (1-\varepsilon)x_\text{fake}$; \texttt{requires\_grad\_(True)}; gradients via \texttt{torch.autograd.grad} with \texttt{create\_graph=True}; \texttt{fake.detach()} prevents spurious accumulation. Implements Gulrajani et al.\ (2017)\tcite{3} Eq.~3.}
 
-\auditrow{OPEN}{DRed}{RBg}%
-  {Downstream-utility GARCH fits degenerate in ${RPT_DS_FAIL_N} of ${RPT_DS_FAIL_N_TOTAL} cells}%
-  {${RPT_DS_FAIL_N} model-market-seed cells returned a positive QLIKE --- a conditional variance collapsing toward zero, driving $r_t^2/\sigma_t^2$ to four or five figures (affected: ${RPT_DS_FAIL_MODELS}). Also visible in walk-forward: ${RPT_WF_OUT_WORST_MODEL} on ${RPT_WF_OUT_WORST_MARKET} fold ${RPT_WF_OUT_WORST_FOLD} gives Wasserstein ${RPT_WF_OUT_WORST_VALUE} against a pooled median of ${RPT_WF_OUT_MEDIAN}, with discriminative AUC ${RPT_WF_OUT_WORST_AUC}. \textbf{Not repaired in this run.} Reported with both median and mean so the affected statistic is visible rather than absorbed; removing the cells would change a measured result. Diagnosing the fit failure is open work.}
-
-\auditrow{OPEN}{DRed}{RBg}%
-  {\texttt{pooled\_downstream\_utility.csv} is not pooled}%
-  {Each file carries one market's test set ($n$ of ${RPT_DS_N_MIN}--${RPT_DS_N_MAX}, combining to ${RPT_DS_N_COMBINED} across ${RPT_DS_N_MARKETS} markets), so what the name promises and what the artifact contains differ. QLIKE's stability threshold is $n\gtrsim600$ and Kupiec power at $n\approx496$ is $\approx56\%$ against $\approx99\%$ pooled, so the distinction is material, not cosmetic. \textbf{Reported, not silently corrected:} the report describes these as per-market backtests throughout, and pooling them properly is open work.}
+${RPT_DS_AUDIT_ROWS}
 
 \auditrow{OPEN}{Indigo}{IBg}%
   {Shuffled control outperforms genuine GANs on ordering-sensitive metrics}%
@@ -1081,7 +1065,7 @@ All code is available at \texttt{victorsobottka/bse-thesis-synthetic-data}. The 
      (qga) at (15.5,  0.8) {\textcolor{QGcol}{\bfseries QuantGAN}\\TCN-based};
 \node[rectangle,rounded corners=3pt,draw=FGcol,fill=GBg,
       text width=2.1cm,align=center,minimum height=0.85cm,inner sep=4pt]
-     (fga) at (15.5, -0.3) {\textcolor{FGcol}{\bfseries FinGAN}\\CNN-based};
+     (fga) at (15.5, -0.3) {\textcolor{FGcol}{\bfseries CNN-WGAN-GP}\\CNN-based};
 \node[rectangle,rounded corners=3pt,draw=Purple,fill=LBg,
       text width=2.1cm,align=center,minimum height=0.85cm,inner sep=4pt]
      (gar) at (15.5, -1.5) {\textcolor{Purple}{\bfseries GARCH-$t$}\\MLE fit};
@@ -1153,13 +1137,13 @@ Generated series are compared with real test-set returns on 19 metrics: 7 Fideli
 \setlength{\tabcolsep}{4pt}
 \begin{tabularx}{\linewidth}{@{}lXXXXX@{}}
 \toprule
- & \textbf{\textcolor{TGcol}{TimeGAN}} & \textbf{\textcolor{QGcol}{QuantGAN}} & \textbf{\textcolor{FGcol}{FinGAN}} & \textbf{\textcolor{Purple}{GARCH(1,1)-$t$}} & \textbf{\textcolor{Indigo}{GJR-GARCH-$t$}} \\
+ & \textbf{\textcolor{TGcol}{TimeGAN}} & \textbf{\textcolor{QGcol}{QuantGAN}} & \textbf{\textcolor{FGcol}{CNN-WGAN-GP}} & \textbf{\textcolor{Purple}{GARCH(1,1)-$t$}} & \textbf{\textcolor{Indigo}{GJR-GARCH-$t$}} \\
 \midrule
 Family & gradient & gradient & gradient & econometric & econometric \\
 Core & 4-phase (embedder $+$ supervisor $+$ GAN), GRU backbone & TCN backbone, WGAN-GP & CNN deconvolution, WGAN-GP & Conditional variance, Student-$t$ innovations & GARCH $+$ leverage indicator \\
 Temporal mechanism & Recurrent: each step in order, gating what to remember & Dilated causal convolutions: all time scales in one pass & Transposed convolutions: upsample noise to full sequence & $\sigma_t^2=\omega+\alpha r_{t-1}^2+\beta\sigma_{t-1}^2$ & adds $\gamma r_{t-1}^2\mathbb{1}[r_{t-1}<0]$ \\
 Fitting & BCE $+$ moment matching, 4 phases & WGAN-GP, $n_\text{critic}=5$, $\lambda_\text{gp}=10$ & WGAN-GP, $n_\text{critic}=5$, $\lambda_\text{gp}=10$ & Maximum likelihood & Maximum likelihood \\
-Reference & Yoon et al.\ 2019\tcite{4} & Wiese et al.\ 2020\tcite{5} & This paper & Bollerslev 1986\tcite{39} & Glosten et al.\ 1993\tcite{40} \\
+Reference & Yoon et al.\ 2019\tcite{4} & Wiese et al.\ 2020\tcite{5} & This paper; not Fin-GAN\tcite{41} & Bollerslev 1986\tcite{39} & Glosten et al.\ 1993\tcite{40} \\
 Key settings & hidden\_dim 24, layers 3, lr 1e-3 & noise\_dim 100, lr 1e-4, 3 TCN blocks (dil.\ 1/2/4) & base\_channels 64, lr 1e-4, 3$\times$ConvTranspose1d & $p{=}1,q{=}1,o{=}0$, dist $t$, burn-in 500 & $p{=}1,q{=}1,o{=}1$, dist $t$, burn-in 500 \\
 Input scaling & z-score $+\tanh(z/3)\to[-1,1]$ & z-score $+\tanh(z/3)\to[-1,1]$ & z-score $+\tanh(z/3)\to[-1,1]$ & Raw returns $\times100$ & Raw returns $\times100$ \\
 seq\_len constraint & any & any & divisible by 8 & n/a & n/a \\
@@ -1183,20 +1167,20 @@ ${RPT_COMPUTE_ROWS}
 \end{tabular}}
 
 \smallskip
-{\small Parameters are the trainable generator parameters for the gradient models and the fitted parameter count for the econometric ones (GARCH(1,1)-$t$: $\mu,\omega,\alpha,\beta,\nu$; GJR adds $\gamma$). \textbf{Generator updates read \texttt{n/a} for the econometric rows and this is deliberate}: a maximum-likelihood fit has no gradient-step analogue, so any number there would be fabricated, and the parity assertion the pipeline enforces is scoped to the gradient family for the same reason. Fit seconds are the mean over every (market, seed) run present. Equal generator updates is not equal compute --- QuantGAN and FinGAN each take $n_\text{critic}=5$ critic updates per generator update (Gulrajani et al.\ 2017\tcite{3}), and TimeGAN's \texttt{ae\_steps}/\texttt{sup\_steps} pre-training is excluded from parity and reported separately (Yoon et al.\ 2019\tcite{4}).}
+{\small Parameters are the trainable generator parameters for the gradient models and the fitted parameter count for the econometric ones (GARCH(1,1)-$t$: $\mu,\omega,\alpha,\beta,\nu$; GJR adds $\gamma$). \textbf{Generator updates read \texttt{n/a} for the econometric rows and this is deliberate}: a maximum-likelihood fit has no gradient-step analogue, so any number there would be fabricated, and the parity assertion the pipeline enforces is scoped to the gradient family for the same reason. Fit seconds are the mean over every (market, seed) run present. Equal generator updates is not equal compute --- QuantGAN and CNN-WGAN-GP each take $n_\text{critic}=5$ critic updates per generator update (Gulrajani et al.\ 2017\tcite{3}), and TimeGAN's \texttt{ae\_steps}/\texttt{sup\_steps} pre-training is excluded from parity and reported separately (Yoon et al.\ 2019\tcite{4}).}
 
 \vspace{6pt}
 \begin{multicols}{2}
 \small
 
-\navybox{WGAN-GP shared settings (QuantGAN \& FinGAN)}{%
+\navybox{WGAN-GP shared settings (QuantGAN \& CNN-WGAN-GP)}{%
 \textbf{$n_\text{critic}=5$:} the critic must estimate the Wasserstein distance accurately before the generator uses its gradient; fewer updates leave it under-fitted and the gradient biased. Gulrajani et al.\ (2017)\tcite{3} establish this as a floor and CTBench\tcite{16} and SFAG\tcite{28} fix it identically.
 
 \textbf{$\lambda_\text{gp}=10$:} values below 5 permit Lipschitz violations, invalidating the Kantorovich--Rubinstein duality the training objective rests on. 10 is the standard from Gulrajani et al.\ and has not been improved on.
 
 \textbf{$\beta_1=0$ in Adam:} in adversarial training the correct generator direction reverses each time the critic updates, so momentum accumulates stale direction and pushes the wrong way. $\beta_1=0$ uses the current gradient only.
 
-\textbf{LayerNorm, not BatchNorm, in the FinGAN critic:} the gradient penalty needs the critic's gradient norm at a \emph{single} interpolated point. BatchNorm makes that value depend on the other samples in the batch, corrupting the penalty.}
+\textbf{LayerNorm, not BatchNorm, in the CNN-WGAN-GP critic:} the gradient penalty needs the critic's gradient norm at a \emph{single} interpolated point. BatchNorm makes that value depend on the other samples in the batch, corrupting the penalty.}
 
 \columnbreak
 
@@ -1213,7 +1197,7 @@ ${RPT_COMPUTE_ROWS}
 
 \textbf{Phase 4 --- fine-tuning} of the recovery network on generated sequences.
 
-Phases 1--2 are pre-training and are excluded from budget parity; only phase-3 joint steps are counted, matching QuantGAN's and FinGAN's \texttt{train\_steps}. In this run the pre-training budget was ${RPT_PROV_AE_STEPS} autoencoder and ${RPT_PROV_SUP_STEPS} supervisor steps, reported here rather than folded into the parity figure.}
+Phases 1--2 are pre-training and are excluded from budget parity; only phase-3 joint steps are counted, matching QuantGAN's and CNN-WGAN-GP's \texttt{train\_steps}. In this run the pre-training budget was ${RPT_PROV_AE_STEPS} autoencoder and ${RPT_PROV_SUP_STEPS} supervisor steps, reported here rather than folded into the parity figure.}
 
 \end{multicols}
 
@@ -1303,6 +1287,15 @@ def main():
         print(f"ERROR: {e}")
         sys.exit(1)
 
+    # Walk-forward files for models not in their run's metrics CSV (a renamed or
+    # removed model's leftovers) are skipped by the data layer. Say so, so a
+    # reader of the build output knows the directory holds more than was used.
+    if ctx["stale_walk_forward"]:
+        print(f"NOTE: ignored {len(ctx['stale_walk_forward'])} walk-forward file(s) "
+              "for models not evaluated in their (market, seed) run:")
+        for _f in ctx["stale_walk_forward"]:
+            print(f"  {_f}")
+
     prov = ctx["formatted"]["provenance"]
     is_smoke = prov["smoke_test"]
 
@@ -1334,8 +1327,7 @@ def main():
     guard = fmt["guard"]
     kurt = fmt["kurtosis_divergence"]
     mm = fmt["minmax_evidence"]
-    ds = fmt["downstream_prose"]
-    dsf = fmt["downstream_failures"]
+    dst = fmt["downstream_text"]
     wfo = fmt["wf_outliers"]
     gan = fmt["gan_only_prose"]
 
@@ -1480,15 +1472,13 @@ def main():
 
         # Downstream utility
         "RPT_DOWNSTREAM_ROWS": fmt["downstream_rows"],
-        "RPT_DS_FAIL_ROWS": dsf["rows"],
-        "RPT_DS_FAIL_N": dsf["n"],
-        "RPT_DS_FAIL_N_TOTAL": dsf["n_total"],
-        "RPT_DS_FAIL_MODELS": dsf["models"],
-        "RPT_DS_N_MIN": ds["n_test_min"],
-        "RPT_DS_N_MAX": ds["n_test_max"],
-        "RPT_DS_N_FILES": ds["n_files"],
-        "RPT_DS_N_COMBINED": ds["n_test_combined"],
-        "RPT_DS_N_MARKETS": ds["n_markets"],
+        "RPT_DS_FAIL_BLOCK": dst["fail_block"],
+        "RPT_DS_N_NOTE": dst["n_note"],
+        "RPT_DS_METHODS_NOTE": dst["methods_note"],
+        "RPT_DS_LIMITATION": dst["limitation"],
+        "RPT_DS_AUDIT_ROWS": dst["audit_rows"],
+        "RPT_CONTROL_AUDIT_HEADER": fmt["control_audit_header"]["header"],
+        "RPT_CONTROL_AUDIT_COLSPEC": fmt["control_audit_header"]["colspec"],
 
         # Design-decision evidence from the raw series
         "RPT_KURT_ROWS": kurt["rows"],

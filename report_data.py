@@ -16,7 +16,9 @@ that is the only tree meant to back a real report:
     thesis_results/production/overall_performance.csv             cross-run ranks
     thesis_results/production/per_seed_market_performance.csv      + compute cost
     thesis_results/production/<MARKET>/seed<N>/<MARKET>_metrics.csv  19 raw metrics
-    thesis_results/production/<MARKET>/seed<N>/pooled_downstream_utility.csv
+    thesis_results/production/pooled_downstream_utility.csv       pooled TSTR backtest
+      (runs before 2026-09-10 have <MARKET>/seed<N>/pooled_downstream_utility.csv
+       instead -- one market's backtest each, despite the name; see _load_downstream)
     thesis_results/production/walk_forward/<MARKET>/walk_forward_<MODEL>_seed<N>.csv
     thesis_results/production/<MARKET>/seed<N>/*.png               figures
 
@@ -109,21 +111,39 @@ def discover_market_seed_dirs(results_dir: Path):
             yield market_dir.name, int(m.group("seed")), seed_dir
 
 
-def _discover_walk_forward(results_dir: Path, market: str, seed: int) -> dict:
+def _discover_walk_forward(results_dir: Path, market: str, seed: int,
+                           run_models: set, stale: list) -> dict:
     """Return {model_name: DataFrame} from walk_forward_<MODEL>_seed<seed>.csv
-    files under thesis_results/walk_forward/<market>/."""
+    files under thesis_results/walk_forward/<market>/, for the models this
+    (market, seed) run actually evaluated.
+
+    The directory is shared by every run that ever wrote to it, and a rerun
+    overwrites its own files without deleting anyone else's. A model that has
+    since been renamed or removed (walk_forward_<OLD>_seed42.csv beside a new
+    walk_forward_<NEW>_seed42.csv) would otherwise be read as an extra
+    model and its old folds mixed into this run's walk-forward tables. So the
+    model list comes from the run's own metrics CSV; files for any other model
+    are skipped and recorded in `stale` so the caller can say so, never used.
+    A model the run evaluated but has no walk-forward file for is an error.
+    """
     wf_dir = results_dir / "walk_forward" / market
     if not wf_dir.is_dir():
         raise ReportDataError(f"Required walk-forward directory not found: {wf_dir}")
+    wanted = {m for m in run_models if not _is_control(m)}
     out = {}
     for f in sorted(wf_dir.iterdir()):
         m = _WF_FILE_RE.match(f.name)
         if not m or int(m.group("seed")) != seed:
             continue
+        if m.group("model") not in wanted:
+            stale.append(str(f))
+            continue
         out[m.group("model")] = _read_csv(f)
-    if not out:
+    missing = sorted(wanted - set(out))
+    if missing:
         raise ReportDataError(
-            f"No walk_forward_<MODEL>_seed{seed}.csv files found under {wf_dir}"
+            f"No walk-forward file for model(s) {missing} evaluated in "
+            f"{market} seed {seed}: expected walk_forward_<MODEL>_seed{seed}.csv under {wf_dir}"
         )
     return out
 
@@ -507,7 +527,7 @@ def _timegan_step(metadata: dict, key: str):
 # Model families
 #
 # The benchmark now spans two families that are not comparable on training
-# budget: gradient-trained generators (TimeGAN/QuantGAN/FinGAN), which take a
+# budget: gradient-trained generators (TimeGAN/QuantGAN/CNN-WGAN-GP), which take a
 # specified number of generator updates, and econometric generators
 # (GARCH/GJR-GARCH), fitted by maximum likelihood, for which a "generator
 # update" has no analogue. The split is read from the data -- a model with no
@@ -1355,55 +1375,79 @@ def _pick_extreme_market(characteristics: dict) -> str:
 # Downstream utility, aggregated across every run on disk
 # ============================================================================
 
-def _downstream_frame(runs: list) -> pd.DataFrame:
+def _load_downstream(results_dir: Path, runs: list) -> dict:
+    """Downstream-utility rows, and which of the two on-disk layouts they came from.
+
+      'pooled'     -- results_dir/pooled_downstream_utility.csv: one backtest
+                      per model per seed over every market's concatenated test
+                      set. Written by the pipeline from 2026-09-10.
+      'per-market' -- <MARKET>/seed<N>/pooled_downstream_utility.csv: one
+                      backtest per market-seed at that market's n. Written
+                      before 2026-09-10 under a name promising pooling it did
+                      not do; still read, so reports on those runs build, and
+                      described in the text as per-market throughout.
+
+    The pooled file wins when both exist: a rerun into an old tree overwrites
+    every per-seed directory it touches but does not delete the old per-seed
+    CSVs, and those must not be mixed into the new result.
+    """
+    pooled_path = results_dir / "pooled_downstream_utility.csv"
+    cols = ["model", "seed", "qlike", "var_coverage_error", "kupiec_p", "violations", "n_test"]
+    if pooled_path.exists():
+        du = _read_csv(pooled_path)
+        missing = [c for c in cols if c not in du.columns]
+        if missing:
+            raise ReportDataError(f"{pooled_path} is missing column(s) {missing}")
+        du["market"] = "pooled"
+        return {"mode": "pooled", "frame": du}
     frames = []
     for run in runs:
+        if run["pooled_utility"] is None:
+            raise ReportDataError(
+                f"No downstream-utility results: neither {pooled_path} nor the "
+                f"legacy per-seed file for {run['market']} seed {run['seed']} exists")
         d = run["pooled_utility"].copy()
         d["market"] = run["market"]
         d["seed"] = run["seed"]
         frames.append(d)
-    if not frames:
-        raise ReportDataError("No downstream-utility CSVs to aggregate")
     du = pd.concat(frames, ignore_index=True)
-    cols = ["qlike", "var_coverage_error", "kupiec_p", "violations", "n_test"]
     missing = [c for c in cols if c not in du.columns]
     if missing:
-        raise ReportDataError(
-            f"downstream-utility CSVs missing column(s) {missing}")
-    return du
+        raise ReportDataError(f"legacy downstream-utility CSVs missing column(s) {missing}")
+    return {"mode": "per-market", "frame": du}
 
 
-# A QLIKE of the right order is around -8; a positive one means the fitted
-# conditional variance collapsed toward zero and the r^2/sigma^2 term
-# exploded. Used only to COUNT and NAME such cells, never to drop them: they
-# are a measured property of this run and are reported as one.
+# A QLIKE of the right order is around -8; a positive one means a variance
+# forecast near zero on some observation drove r^2/sigma^2 up by orders of
+# magnitude. Used only to COUNT and NAME such cells, never to drop them.
 _QLIKE_DEGENERATE = 0.0
 
 
-def _build_downstream_pooled_rows(runs: list) -> str:
-    """Per model: median and mean QLIKE, coverage error and Kupiec p over
-    every (market, seed) downstream-utility file present.
+def _signed(x, decimals=2) -> str:
+    """A signed number for text mode: a bare '-' sets as a hyphen."""
+    s = _fnum(abs(x), decimals)
+    return f"$-${s}" if x < 0 else s
 
-    Median first, and deliberately. Four of the ninety cells in this run
-    returned a positive QLIKE -- a degenerate GARCH fit, orders of magnitude
-    off the scale of the rest -- and a mean alone reports one failed fit as
-    the model's typical downstream utility. Both statistics are shown, and the
-    failing cells are named in the note beside the table, so nothing is
-    discarded and nothing is hidden.
 
-    Each file is one market's test set; averaging across them summarises
-    fifteen per-market backtests, NOT a single pooled backtest at the combined
-    n. The distinction matters for power and is stated in the text -- the
-    file's name ("pooled") does not settle it, n_test does.
+def _build_downstream_pooled_rows(downstream: dict) -> str:
+    """Per model: median and mean QLIKE, and median coverage error, Kupiec p,
+    violations and n, over every downstream row present (one per seed when
+    pooled, one per market-seed in the legacy layout).
+
+    Median first, deliberately: QLIKE averages log(sigma^2) + r^2/sigma^2, so
+    one variance forecast near zero sends a single cell to four or five
+    figures, and a mean across cells then reports that cell rather than the
+    model. Both are shown and the degenerate cells are counted per model, so
+    nothing is dropped and nothing is hidden.
     """
-    du = _downstream_frame(runs)
-    lines = []
+    du = downstream["frame"]
     agg = du.groupby("model").agg(
         qlike_med=("qlike", "median"), qlike_mean=("qlike", "mean"),
         cov=("var_coverage_error", "median"), kup=("kupiec_p", "median"),
         viol=("violations", "median"), n=("n_test", "median"),
     ).sort_values("qlike_med")
     bad = du[du["qlike"] > _QLIKE_DEGENERATE].groupby("model").size()
+    lines = []
     for model, row in agg.iterrows():
         n_bad = int(bad.get(model, 0))
         lines.append(
@@ -1415,49 +1459,181 @@ def _build_downstream_pooled_rows(runs: list) -> str:
     return "\n".join(lines)
 
 
-def _build_downstream_failures(runs: list) -> dict:
-    """Name every (model, market, seed) whose downstream GARCH fit degenerated.
-
-    Reported, not repaired. A fit that returns a near-zero conditional
-    variance is a defect in the downstream-utility stage, not a property of
-    the generator being scored, and silently excluding it would change a
-    measured result.
+def _build_downstream_text(downstream: dict, wfo: dict) -> dict:
+    """Every sentence about downstream utility whose truth depends on the
+    layout on disk or on what the rows contain: the degenerate-cell block,
+    the note on n, the Methods sentence, the Extended Data audit rows and the
+    Limitations bullet. Built here so the template never asserts pooling the
+    artifacts do not have, or a mean-versus-median gap the data does not show.
     """
-    du = _downstream_frame(runs)
+    du, pooled = downstream["frame"], downstream["mode"] == "pooled"
+    unit = "model-seed" if pooled else "model-market-seed"
     bad = du[du["qlike"] > _QLIKE_DEGENERATE].sort_values("qlike", ascending=False)
-    rows = "\n".join(
-        f"{_escape_latex(str(r['model']))} & {_escape_latex(str(r['market']))} & "
-        f"{_fint(r['seed'])} & {_fnum(r['qlike'], 0)} & {_fint(r['violations'])} & "
-        f"{_fint(r['n_test'])} \\\\"
-        for _, r in bad.iterrows())
+    n_bad, n_total = len(bad), len(du)
+
+    st = du.groupby("model")["qlike"].agg(["mean", "median"])
+    gap = st["mean"] - st["median"]
+    # The model named in the "mean is uninformative" sentence must be one whose
+    # gap actually comes from degenerate cells, or the sentence misattributes.
+    gap_pool = gap[gap.index.isin(bad["model"].unique())] if n_bad else gap
+    gap_model = str(gap_pool.idxmax())
+    gap_fails = int((bad["model"] == gap_model).sum())
+
+    n_vals = sorted(int(v) for v in du["n_test"].dropna().unique())
+    n_min, n_max = n_vals[0], n_vals[-1]
+    n_txt = _fint(n_min) if n_min == n_max else f"{_fint(n_min)}--{_fint(n_max)}"
+    meets = "meets" if n_min >= 600 else "does not meet"
+    power = (r"close to the $n\approx2{,}480$ at which Kupiec power was measured at $\approx99\%$"
+             if n_min >= 2000 else
+             r"below the $n\approx2{,}480$ at which Kupiec power was measured at $\approx99\%$ "
+             r"(it is $\approx56\%$ at $n\approx496$)")
+    out = {}
+
+    if n_bad:
+        rows = "\n".join(
+            f"{_escape_latex(str(r['model']))} & {_escape_latex(str(r['market']))} & "
+            f"{_fint(r['seed'])} & {_fnum(r['qlike'], 0)} & {_fint(r['violations'])} & "
+            f"{_fint(r['n_test'])} \\\\" for _, r in bad.iterrows())
+        out["fail_block"] = (
+            r"\textbf{Median and mean are both shown, and they disagree.} "
+            f"{n_bad} of {n_total} {unit} cells returned a positive QLIKE:" "\n\n"
+            "\\smallskip\n{\\footnotesize\n\\begin{tabular}{@{}llrrrr@{}}\n\\toprule\n"
+            "Model & Market & Seed & QLIKE & Viol. & $n$ \\\\\n\\midrule\n"
+            + rows + "\n\\bottomrule\n\\end{tabular}}\n\n\\smallskip\n"
+            r"QLIKE averages $\log\sigma_t^2 + r_t^2/\sigma_t^2$ over observations, so a variance "
+            r"forecast near zero on a single observation sends that term toward infinity, and one "
+            r"such cell then dominates any mean taken across cells. \textbf{The mean column is "
+            r"therefore uninformative here:} "
+            f"{_escape_latex(gap_model)}'s mean of {_signed(st.loc[gap_model, 'mean'], 2)} against "
+            f"a median of {_signed(st.loc[gap_model, 'median'], 2)} is an artefact of {gap_fails} "
+            f"degenerate cell{'s' if gap_fails != 1 else ''}, not a summary. "
+            r"The cells are reported, not removed --- removing them would change a measured "
+            r"result --- and the median is the column to read.")
+    else:
+        out["fail_block"] = (
+            r"\textbf{Median and mean are both shown.} "
+            f"No {unit} cell returned a positive QLIKE in this run; the largest gap between a "
+            f"model's mean and median QLIKE is {_fnum(gap.max(), 3)} ({_escape_latex(gap_model)}).")
+
+    if pooled:
+        n_mk = int(du["n_markets"].max()) if "n_markets" in du.columns else 0
+        mk_names = (_escape_latex(str(du["markets"].dropna().iloc[0]).replace(" ", ", "))
+                    if "markets" in du.columns else "---")
+        n_sd = int(du["seed"].nunique())
+        s_ = "s" if n_sd != 1 else ""
+        out["n_note"] = (
+            f"Each backtest runs once per seed over the pooled test set: the real test series of "
+            f"all {n_mk} markets ({mk_names}) concatenated in market order, with each model's "
+            f"per-market synthetic draws concatenated in the same order. $n$ is {n_txt} per "
+            f"backtest, over {n_sd} seed{s_}, so each row above summarises {n_sd} pooled "
+            f"backtest{s_}. That $n$ {meets} the " r"$n\gtrsim600$" " at which QLIKE ranks "
+            f"stably, and is " + power + ".")
+        bnd = max(n_mk - 1, 0)
+        # Kept shorter than the per-market variant: the Methods continuation page
+        # has no slack, and this sentence is the one whose length varies by layout.
+        out["methods_note"] = (
+            r"The pipeline therefore computes it once per seed over every market's concatenated "
+            f"test set: $n$ is {n_txt} here (Results, Table~7), which {meets} the "
+            r"$n\gtrsim600$ threshold, at the disclosed cost of the variance filter crossing "
+            f"{bnd} market boundar{'y' if bnd == 1 else 'ies'}.")
+        out["limitation"] = (
+            r"\textbf{Downstream QLIKE outliers.} "
+            + (f"{n_bad} of {n_total} pooled backtests returned a positive QLIKE; reported with "
+               "the median beside the mean, not removed." if n_bad else
+               "No pooled backtest returned a degenerate QLIKE in this run."))
+        pool_row = (
+            r"\auditrow{FIXED}{Amber}{ABg}%" "\n"
+            r"  {Downstream utility pooled across markets}%" "\n"
+            f"  {{One file, one backtest per model per seed, $n$ of {n_txt} over {n_mk} markets. "
+            r"Before 2026-09-10 the pipeline wrote one file per market-seed under this name, at "
+            r"that market's $n$ (486--501) --- below QLIKE's $n\gtrsim600$ stability threshold, "
+            r"where it can rank noise above real data.}")
+        garch_row = (
+            r"\auditrow{GUARDED}{Amber}{ABg}%" "\n"
+            r"  {GARCH fits on the stationarity boundary rejected}%" "\n"
+            r"  {Maximum likelihood can converge normally (\texttt{convergence\_flag}=0) to "
+            r"persistence on the covariance-stationarity boundary, from which simulated paths can "
+            r"explode; standard convergence diagnostics do not detect it. \texttt{GARCHModel.train()} "
+            r"raises when persistence ($\alpha+\beta$, plus $\gamma/2$ for GJR) is within $10^{-6}$ "
+            r"of 1, and \texttt{generate()} raises when output sd is more than $10\times$ from the "
+            r"training sd; the pipeline re-raises rather than skipping the fold. Both guards were "
+            r"active for this run.}")
+    else:
+        per_market = du.groupby("market")["n_test"].max()
+        n_files = int(du.groupby(["market", "seed"]).ngroups)
+        out["n_note"] = (
+            r"The files are named \texttt{pooled\_downstream\_utility.csv}, but each carries one "
+            f"market's test set: $n$ ranges from {_fint(n_min)} to {_fint(n_max)} across {n_files} "
+            f"files, combining to {_fint(per_market.sum())} across the {len(per_market)} markets. "
+            f"What is reported above is therefore a summary of {n_files} per-market backtests, "
+            r"\textbf{not} a single pooled backtest at the combined $n$ --- these artifacts predate "
+            r"the pipeline's pooled computation. The distinction is not cosmetic: the per-market $n$ "
+            r"is " + power + r", so the per-market $p$-values above are descriptive, and QLIKE is the "
+            r"primary downstream signal.")
+        out["methods_note"] = (
+            r"The design intent is therefore pooled computation. The pipeline now does this --- "
+            r"once per seed over every market's concatenated test set --- but \textbf{these "
+            r"artifacts predate that change}: they are per-market at $n$ of "
+            f"{_fint(n_min)}--{_fint(n_max)} (Results, Table~7), below the " r"$n\gtrsim600$ "
+            r"threshold despite the file name, and are described as per-market throughout. Kupiec "
+            r"power is $\approx56\%$ at $n\approx496$ against $\approx99\%$ at $n\approx2{,}480$, so "
+            r"per-market $p$-values are descriptive.")
+        out["limitation"] = (
+            r"\textbf{Downstream utility per market, not pooled.} These artifacts predate the "
+            r"pipeline's pooled computation (Methods), and "
+            f"{n_bad} of {n_total} cells returned a degenerate QLIKE, reported with the median "
+            r"beside the mean.")
+        pool_row = (
+            r"\auditrow{FIXED IN PIPELINE}{Amber}{ABg}%" "\n"
+            r"  {\texttt{pooled\_downstream\_utility.csv} was not pooled}%" "\n"
+            f"  {{Each file in these artifacts carries one market's test set ($n$ of "
+            f"{_fint(n_min)}--{_fint(n_max)}, combining to {_fint(per_market.sum())} across "
+            f"{len(per_market)} markets), because the evaluation function that wrote it only ever "
+            r"sees one market. QLIKE's stability threshold is $n\gtrsim600$ and Kupiec power at "
+            r"$n\approx496$ is $\approx56\%$ against $\approx99\%$ pooled, so the difference is "
+            r"material. \textbf{Fix:} the pipeline now records each market-seed's inputs and pools "
+            r"them across markets once per seed into a single file. These artifacts predate it and "
+            r"are described as per-market throughout.}")
+        garch_row = (
+            r"\auditrow{FIXED IN PIPELINE}{Amber}{ABg}%" "\n"
+            r"  {GARCH fits converged to non-stationary parameters and generated explosive paths}%" "\n"
+            f"  {{In these artifacts {wfo['worst_model']} on {wfo['worst_market']} walk-forward fold "
+            f"{wfo['worst_fold']} gives Wasserstein {wfo['worst_value']} against a pooled median of "
+            f"{wfo['median']}, with discriminative AUC {wfo['worst_auc']}. Refitting that window "
+            r"shows the cause: maximum likelihood converged normally (\texttt{convergence\_flag}=0) "
+            r"to persistence on the covariance-stationarity boundary, so the non-convergence guard "
+            r"never fired and simulated paths could explode. \textbf{Fix:} \texttt{GARCHModel.train()} "
+            r"now raises when persistence ($\alpha+\beta$, plus $\gamma/2$ for GJR) is within "
+            r"$10^{-6}$ of 1, and \texttt{generate()} raises when output sd is more than $10\times$ "
+            r"from the training sd; the pipeline re-raises rather than skipping the fold. These "
+            r"artifacts predate both guards; the refit parameters are recorded in the repository's "
+            r"standing constraints, not in a run artifact.}")
+
+    qlike_row = (
+        (r"\auditrow{REPORTED}{Indigo}{IBg}%" "\n"
+         f"  {{Downstream QLIKE degenerate in {n_bad} of {n_total} cells}}%" "\n"
+         r"  {QLIKE averages $\log\sigma_t^2 + r_t^2/\sigma_t^2$, so a variance forecast near zero "
+         r"on a single observation sends one term toward infinity. "
+         f"{_escape_latex(gap_model)}'s mean of {_signed(st.loc[gap_model, 'mean'], 2)} against a "
+         f"median of {_signed(st.loc[gap_model, 'median'], 2)} is an artefact of {gap_fails} such "
+         r"cell(s), not a summary. The cells are reported with the median beside the mean and are "
+         r"not removed, since removing them would change a measured result.}")
+        if n_bad else
+        (r"\auditrow{OK}{FGreen}{GBg}%" "\n"
+         r"  {Downstream QLIKE: no degenerate cells}%" "\n"
+         f"  {{No {unit} cell returned a positive QLIKE in this run; median and mean are both "
+         r"reported regardless.}"))
+    out["audit_rows"] = "\n\n".join([garch_row, qlike_row, pool_row])
+    return out
+
+
+def _build_control_audit_header(models: list) -> dict:
+    """Header and column spec for the control-audit table, from the same model
+    list the rows iterate. A typed header silently mislabels every column the
+    moment the sorted model order changes -- which a rename does."""
     return {
-        "n": str(len(bad)),
-        "n_total": str(len(du)),
-        "rows": rows,
-        "models": ", ".join(sorted({_escape_latex(str(m)) for m in bad["model"]})) or "none",
-        "any": bool(len(bad)),
-    }
-
-
-def _build_downstream_prose(runs: list) -> dict:
-    """The n each backtest actually ran at, and how many files back the mean.
-
-    n_test is read rather than assumed: the files are named
-    pooled_downstream_utility.csv, but what they contain decides whether the
-    report may call the result pooled. On this run each file carries one
-    market's test set, so the honest description is fifteen per-market
-    backtests -- reported as such.
-    """
-    du = _downstream_frame(runs)
-    n_vals = sorted(du["n_test"].dropna().unique())
-    per_market = du.groupby("market")["n_test"].max()
-    return {
-        "n_files": str(len(runs)),
-        "n_test_min": _fint(min(n_vals)),
-        "n_test_max": _fint(max(n_vals)),
-        "n_test_combined": _fint(per_market.sum()),
-        "n_markets": str(len(per_market)),
-        "is_pooled": bool(len(n_vals) == 1 and n_vals[0] > 1.5 * per_market.max()),
+        "header": "Metric & Control & " + " & ".join(_escape_latex(m) for m in models),
+        "colspec": "l" + "c" * (len(models) + 1),
     }
 
 
@@ -1482,10 +1658,14 @@ def load_report_context(results_dir="thesis_results/production",
     per_seed_market = _read_csv(results_dir / "per_seed_market_performance.csv")
 
     runs = []
+    stale_walk_forward = []   # files for models not in their run -- skipped, reported
     for market, seed, seed_dir in discover_market_seed_dirs(results_dir):
         metrics = _read_csv(seed_dir / f"{market}_metrics.csv")
-        pooled_utility = _read_csv(seed_dir / "pooled_downstream_utility.csv")
-        walk_forward = _discover_walk_forward(results_dir, market, seed)
+        # Pre-2026-09-10 layout only; newer runs write one pooled file at the root.
+        _legacy_du = seed_dir / "pooled_downstream_utility.csv"
+        pooled_utility = _read_csv(_legacy_du) if _legacy_du.exists() else None
+        walk_forward = _discover_walk_forward(results_dir, market, seed,
+                                              set(metrics["model"]), stale_walk_forward)
         figures = {
             "stylized_facts": seed_dir / f"{market}_stylized_facts.png",
             "metrics_heatmap": seed_dir / f"{market}_metrics_heatmap.png",
@@ -1521,6 +1701,7 @@ def load_report_context(results_dir="thesis_results/production",
         "models": models,
         "markets": markets,
         "seeds": seeds,
+        "stale_walk_forward": stale_walk_forward,
     }
 
     data_markets = _discover_data_markets(processed_dir)
@@ -1550,6 +1731,8 @@ def load_report_context(results_dir="thesis_results/production",
     # pooled across all runs on disk instead -- with 5 markets x 3 seeds there
     # is no longer any reason to report one market's numbers as the result.
     primary = runs[0]
+    wf_outliers = _build_wf_outliers(wf)
+    downstream = _load_downstream(results_dir, runs)
 
     ctx["formatted"] = {
         "provenance": _build_provenance(metadata),
@@ -1572,6 +1755,7 @@ def load_report_context(results_dir="thesis_results/production",
         # Shuffled-control audit
         "perm_invariance": _build_perm_invariance(pooled),
         "control_audit_rows": _build_control_audit_rows(pooled, models),
+        "control_audit_header": _build_control_audit_header(models),
         "control_audit_prose": _build_control_audit_prose(pooled, models, families),
 
         # Walk-forward
@@ -1581,7 +1765,7 @@ def load_report_context(results_dir="thesis_results/production",
         "fold_effect_rows": _build_fold_effect_rows(wf),
         "fold_effect_prose": _build_fold_effect_prose(wf),
         "wf_dispersion_rows": _build_wf_dispersion_rows(wf),
-        "wf_outliers": _build_wf_outliers(wf),
+        "wf_outliers": wf_outliers,
 
         # Tail index and the bottom-ranked model
         "tail_spread_rows": _build_tail_spread_rows(pooled, models),
@@ -1598,11 +1782,11 @@ def load_report_context(results_dir="thesis_results/production",
         "minmax_evidence": _build_minmax_evidence(
             processed_dir, heaviest_tail_market),
 
-        # Downstream utility, across every run on disk
-        "downstream_rows": _build_downstream_pooled_rows(runs),
-        "downstream_failures": _build_downstream_failures(runs),
-        "downstream_prose": _build_downstream_prose(runs),
-        "downstream_utility_rows": _build_downstream_utility_rows(primary["pooled_utility"]),
+        # Downstream utility: the pooled file if the run wrote one, else the
+        # legacy per-market files, described as such (see _load_downstream)
+        "downstream_mode": downstream["mode"],
+        "downstream_rows": _build_downstream_pooled_rows(downstream),
+        "downstream_text": _build_downstream_text(downstream, wf_outliers),
 
         "walk_forward_rows": _build_walk_forward_rows(primary["walk_forward"]),
         "walk_forward_summary": _build_walk_forward_summary(primary["walk_forward"]),

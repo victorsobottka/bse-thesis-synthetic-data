@@ -4,7 +4,7 @@
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![Status](https://img.shields.io/badge/status-active%20research-brightgreen)
 
-Peer-reviewed paper benchmarking **TimeGAN**, **QuantGAN**, and **FinGAN** on five
+Peer-reviewed paper benchmarking **TimeGAN**, **QuantGAN**, and **CNN-WGAN-GP** on five
 BRICS emerging-market log-return series (Bovespa, FTSE JSE, MSCI, Nifty 50,
 Shanghai Composite) using stylized-fact preservation, walk-forward validation, and
 distributional metrics (Wasserstein distance, energy distance, discriminative AUC,
@@ -62,7 +62,7 @@ Collaboration between **Barcelona School of Economics (BSE)** and **UPC**.
 |----------|-----------------------|-------------------------------------------|
 | TimeGAN  | GRU autoencoder + GAN | `n_critic=1` (standard GAN), `epochs=200` |
 | QuantGAN | TCN WGAN-GP           | `n_critic=5`, `λ_gp=10` (Gulrajani 2017) |
-| FinGAN   | CNN deconv WGAN-GP    | `n_critic=5`, `λ_gp=10` (Gulrajani 2017) |
+| CNN-WGAN-GP   | CNN deconv WGAN-GP    | `n_critic=5`, `λ_gp=10` (Gulrajani 2017) |
 
 ---
 

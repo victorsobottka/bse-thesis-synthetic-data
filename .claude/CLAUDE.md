@@ -71,7 +71,7 @@ equal training.
 **Parity is on generator updates:**
 
 ```
-TimeGAN.joint_steps == QuantGAN.train_steps == FinGAN.train_steps
+TimeGAN.joint_steps == QuantGAN.train_steps == CNN-WGAN-GP.train_steps
 ```
 
 The pipeline asserts this and refuses to run otherwise.
@@ -79,11 +79,11 @@ The pipeline asserts this and refuses to run otherwise.
 - TimeGAN's `ae_steps` and `sup_steps` are **pre-training** required by the
   four-phase algorithm (Yoon et al. 2019). They are reported separately and
   **excluded from parity**.
-- QuantGAN and FinGAN take `n_critic = 5` discriminator updates per generator
+- QuantGAN and CNN-WGAN-GP take `n_critic = 5` discriminator updates per generator
   update. That is intrinsic to WGAN-GP (Gulrajani et al. 2017), not an extra
   budget.
 - Equal generator updates is **not** equal compute. Measured wall-clock at 1,000
-  generator steps, averaged over five runs: TimeGAN 20.5 s, FinGAN 42.4 s,
+  generator steps, averaged over five runs: TimeGAN 20.5 s, CNN-WGAN-GP 42.4 s,
   QuantGAN 178.0 s — roughly a 9× spread. Record both budget and wall-clock;
   they are different claims. Run-to-run spread itself is uneven across models —
   see §6, Run-to-run nondeterminism.
@@ -175,7 +175,8 @@ observations, and shuffling moves the null from 0.506 to 0.584.
 
 **Statistical power.** Kupiec at true p = 7% against a claimed 5%: 17% power at
 n = 125, ~56% at n = 496, ~99% at n = 2,480. Per-market non-rejections are
-uninformative; downstream utility is computed pooled. QLIKE inverts at
+uninformative; downstream utility is computed pooled (genuinely so since
+2026-09-10 — see *Downstream-utility pooling* below). QLIKE inverts at
 n ≈ 126 — Gaussian noise scored −6.888 against real data's −6.876 — and is stable
 only at pooled n.
 
@@ -185,7 +186,7 @@ collapsed constant-output model can beat a working one on that metric alone.
 
 **Run-to-run nondeterminism.** At fixed seed and identical code, TimeGAN and the
 shuffled control are bit-identical across five runs (sd = 0 on every metric,
-including every walk-forward fold). FinGAN drifts slightly: Wasserstein CV 1.6%,
+including every walk-forward fold). CNN-WGAN-GP drifts slightly: Wasserstein CV 1.6%,
 WF AUC sd 0.009. QuantGAN drifts substantially: Wasserstein CV 37%,
 `tail_index_diff` CV 79%, raw AUC 0.551–0.734.
 
@@ -195,10 +196,71 @@ WGAN-GP double-backward with dilated convolutions.
 `torch.use_deterministic_algorithms(True)` and `cudnn.deterministic` remain
 deliberately unset; the cost is now measured rather than assumed.
 
-`composite_rank` is stable (QuantGAN wins 5/5, 1.429–1.500; FinGAN 1.786–1.893;
+`composite_rank` is stable (QuantGAN wins 5/5, 1.429–1.500; CNN-WGAN-GP 1.786–1.893;
 TimeGAN 2.643–2.714). But `tail_index_diff`, `hurst_diff` and `mean_diff` change
 their winner between runs. Never report a single-run winner on
-`tail_index_diff` — QuantGAN spans 0.065–1.707 against FinGAN's 0.357–0.865.
+`tail_index_diff` — QuantGAN spans 0.065–1.707 against CNN-WGAN-GP's 0.357–0.865.
+
+**Non-stationary GARCH fits.** Maximum-likelihood GARCH can converge — `convergence_flag
+= 0`, so the non-convergence guard never fires — to parameters on the
+covariance-stationarity boundary, and then simulate explosive synthetic paths. Standard
+convergence diagnostics do not detect this.
+
+Found on SHANGHAI walk-forward fold 3 (`train[:3240]`, 3,240 points): the production
+GARCH walk-forward CSVs give Wasserstein 74.795 / 7.814 / 43.006 for seeds 42 / 43 / 44,
+against a run-wide median of 0.0025, with discriminative AUC 1.000 in all three. Refit on
+that window (arch 8.0.0, local):
+
+| | μ | ω | α | γ | β | ν | persistence |
+|---|---|---|---|---|---|---|---|
+| GARCH | 0.05389748 | 0.00674063 | 0.05453920 | — | 0.94546080 | 4.89916394 | 1 + 5.9e-14 |
+| GJR-GARCH | 0.05391927 | 0.00673637 | 0.05461722 | −0.00020376 | 0.94548466 | 4.90039858 | 1 − 1.7e-13 |
+
+Persistence is α + β, plus γ/2 for GJR (the negative-innovation term is active half the
+time under a symmetric distribution).
+
+- **A boundary effect, not a high-persistence effect.** Across 110 refits (5 markets ×
+  full-train, 5-fold and 2-fold walk-forward windows × both models) 6 sit within 1.7e-13
+  of 1; every other fit is at least 1.23e-4 below it (max 0.99987662, SHANGHAI full-train
+  GJR). At persistence 0.9972 and 0.9995 (SHANGHAI folds 2 and 4), 0 of 1,200 simulated
+  paths exceed 10× the training sd (max 7.76×).
+- **At the boundary, explosion is a knife-edge.** In production, GARCH exploded on all
+  three seeds while GJR stayed sane (Wasserstein 0.0011–0.0080). The local refit reverses
+  it: GJR exceeds 10× the training sd on 200 of 200 seeds, GARCH on 0 of 200.
+  Production's arch version was not recorded (`requirements.txt` says only `arch>=7.0`).
+- **Not only fold 3.** SHANGHAI full-train GARCH is on the boundary too — the production
+  `weights/GARCH_params.json` records α + β = 1.0000000000, matching the local refit to
+  ~7 significant figures — and, locally, so is NIFTY50 5-fold walk-forward fold 0 GARCH.
+- **Guard (cell 14).** `train()` raises `NonStationaryFitError` when persistence ≥
+  1 − 1e-6, naming market, seed, window and the fitted parameters. A strict `≥ 1.0` would
+  miss the GJR fit above, whose paths explode. `generate()` raises `GenerationSanityError`
+  when output sd is outside 1/10–10× the training sd, and the three generation call sites
+  that skip a failed fold re-raise it instead of swallowing it.
+- **Unresolved consequence.** With the guard raising, a production run aborts at the first
+  boundary fit: locally that is NIFTY50 seed 42 walk-forward fold 0, and SHANGHAI Step 1
+  can never complete. Fits are seed-independent, so every seed hits the same cells.
+  Completing the benchmark needs a decision on how boundary fits are handled — a
+  methodology choice (§5), not made here.
+
+**Downstream-utility pooling.** `comprehensive_evaluation()` sees one market at a time,
+so the per-seed `pooled_downstream_utility.csv` it used to write held that market's test
+set alone (n 486–501) — below QLIKE's n ≳ 600 stability threshold, under a name
+promising the pooled set. It now writes only `downstream_utility_inputs.npz` (the real
+test series and one synthetic draw per model), and `compute_pooled_downstream_utility()`
+concatenates those across every market for each seed, calls `compute_downstream_utility()`
+once, and writes a single `pooled_downstream_utility.csv` at the results root. The metric
+is unchanged. Pooling means the GARCH fitted to the synthetic sample and the variance
+filter over the real sample run across the market boundaries (4 with 5 markets). QLIKE's
+mean across cells is uninformative whenever one variance forecast is near zero — report
+the median beside it.
+
+**Model naming.** The CNN-deconvolution WGAN-GP generator is **CNN-WGAN-GP** (class
+`CNN_WGAN_GP`). Until 2026-09-10 it was called `FinGAN`, which collides with the published
+Fin-GAN (Vuletić, Prenzel & Cucuringu 2024, *Quantitative Finance* 24(2), 175–199) — a
+different model that forecasts and classifies returns with an economics-driven loss.
+Result files written before the rename (all of `thesis_results/production/` at commit
+`33cc769`) carry the old name; `report_data.py` discovers model names from the
+filesystem, so it reads either.
 
 ---
 
@@ -218,14 +280,17 @@ their winner between runs. Never report a single-run winner on
 | `reports/smoke/` | same, for a smoke run — **gitignored**, split for the same reason as `thesis_results/smoke/` |
 
 `thesis_results/<production\|smoke>/` both keep the same internal shape:
-`<MARKET>/seed<N>/` (metrics, `pooled_downstream_utility.csv`,
-`run_config.json`, `weights/` when not smoke-testing), `walk_forward/<MARKET>/`.
+`<MARKET>/seed<N>/` (metrics,
+`downstream_utility_inputs.npz`, `run_config.json`, `weights/` when not smoke-testing), `walk_forward/<MARKET>/` —
+plus a single `pooled_downstream_utility.csv` at the root, pooled across markets
+per seed.
 Never mix the two roots by hand — `RESULTS`/`REPORTS` in the notebook and
 `--results-dir`/`--reports-dir` in `generate_report.py`/`report_data.py` pick
 one based on `SMOKE_TEST`, and nothing reads across the split.
 
 **Resume.** `run_complete_pipeline()` skips a `(market, seed)` whose output
-under the current `RESULTS` is already complete (metrics, downstream utility,
+under the current `RESULTS` is already complete (metrics, downstream-utility
+inputs,
 every model's walk-forward CSV, and — outside smoke tests — every model's
 weights, or for GARCH/GJR-GARCH the fitted-parameter JSON in the same
 `weights/` directory) **and** whose `run_config.json` matches the run about to start
@@ -235,7 +300,17 @@ re-run rather than a skip. `FORCE_RERUN = True` in EXPERIMENT CONFIGURATION
 ignores all of this and redoes everything. Aggregation (`overall_performance.csv`,
 `per_seed_market_performance.csv`) is read back from the per-market-seed CSVs
 on disk, not from in-memory state, so a run that skips everything still
-produces complete aggregates.
+produces complete aggregates. The pooled downstream-utility backtest is
+recomputed the same way, from every market's `downstream_utility_inputs.npz`, and
+refuses to run if any market for a seed is missing.
+
+**Leftover files.** A rerun overwrites its own outputs but deletes nothing, so a results
+tree can hold files from models that no longer exist (a renamed model's
+`walk_forward_<OLD>_seed<N>.csv`, pre-2026-09-10 per-seed `pooled_downstream_utility.csv`).
+`report_data.py` reads walk-forward files only for models present in that market-seed's
+own metrics CSV, raises if one of those is missing, and lists every skipped file in the
+`generate_report.py` output; it prefers the root pooled file over per-seed ones. Nothing
+is deleted automatically.
 
 **Notebook cell map** (indices shift when cells are inserted — re-check before
 editing by index):
@@ -246,8 +321,8 @@ editing by index):
 | 1 | paths (`ROOT`, `DATA`, `REPORTS`) — `RESULTS` and `REPORTS` both start here but are re-pointed to `smoke/`/`production/` in cell 3, once `SMOKE_TEST` is known |
 | 3 | **EXPERIMENT CONFIGURATION** — seeds, markets, folds, step budgets, `SMOKE_TEST`, `FORCE_RERUN`, the `RESULTS` and `REPORTS` split |
 | 4 | GPU Device Check — raises if CUDA is unavailable, does not fall back to CPU silently |
-| 8 / 10 / 12 | TimeGAN / QuantGAN / FinGAN — gradient-trained (`family = 'gradient'`) |
-| 14 | `GARCHModel` — GARCH(1,1) / GJR-GARCH(1,1), Student-t, fit by MLE (`family = 'econometric'`, exempt from the parity assertion) |
+| 8 / 10 / 12 | TimeGAN / QuantGAN / CNN-WGAN-GP — gradient-trained (`family = 'gradient'`) |
+| 14 | `GARCHModel` — GARCH(1,1) / GJR-GARCH(1,1), Student-t, fit by MLE (`family = 'econometric'`, exempt from the parity assertion); post-fit stationarity guard and post-generation scale guard, both raising (§6) |
 | 16 | `FinancialMetrics` |
 | 18 | plotting |
 | 20 | pipeline, resume/skip logic, and `generate_metric_diagnostics_report` |
