@@ -199,3 +199,9 @@ reports/**/*.fls
 reports/**/*.fdb_latexmk
 reports/**/*.out
 reports/**/*.synctex.gz
+
+# Local archive of superseded reports and run logs, kept on disk by choice.
+# Holds the only copy of the pre-rerun production run log (never tracked:
+# *.log is ignored). Kept out of git so superseded PDFs don't churn the repo;
+# tracked copies of the reports remain recoverable from history.
+reports/Archive/
