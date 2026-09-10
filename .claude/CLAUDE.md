@@ -231,16 +231,45 @@ time under a symmetric distribution).
 - **Not only fold 3.** SHANGHAI full-train GARCH is on the boundary too — the production
   `weights/GARCH_params.json` records α + β = 1.0000000000, matching the local refit to
   ~7 significant figures — and, locally, so is NIFTY50 5-fold walk-forward fold 0 GARCH.
-- **Guard (cell 14).** `train()` raises `NonStationaryFitError` when persistence ≥
-  1 − 1e-6, naming market, seed, window and the fitted parameters. A strict `≥ 1.0` would
-  miss the GJR fit above, whose paths explode. `generate()` raises `GenerationSanityError`
-  when output sd is outside 1/10–10× the training sd, and the three generation call sites
-  that skip a failed fold re-raise it instead of swallowing it.
-- **Unresolved consequence.** With the guard raising, a production run aborts at the first
-  boundary fit: locally that is NIFTY50 seed 42 walk-forward fold 0, and SHANGHAI Step 1
-  can never complete. Fits are seed-independent, so every seed hits the same cells.
-  Completing the benchmark needs a decision on how boundary fits are handled — a
-  methodology choice (§5), not made here.
+- **Decision (2026-09-10): two-stage fitting, not raise-and-stop.** A first guard raised on
+  boundary fits; it surfaced the problem but would have stopped every run at SHANGHAI
+  Step 1 (confirmed on a smoke run). Now stage 1 fits unconstrained and *always* records
+  persistence — a reported result, not a diagnostic. Stage 2 runs only when stage 1 is
+  within `STATIONARITY_TOL = 1e-6` of 1: it refits under persistence ≤ 1 −
+  `STATIONARITY_DELTA` (1e-4), and output is generated from the constrained parameters.
+  Why: near-unit persistence in daily equity returns is structural breaks in the
+  unconditional variance absorbed as persistence (Lamoureux & Lastrapes 1990; Mikosch &
+  Stărică 2004) — SHANGHAI 2006–2026 spans the 2007 bubble and crash, 2015 and COVID — and
+  at α + β = 1 the variance is a martingale with nothing to revert to, so paths
+  random-walk without an anchor. Whether a boundary fit explodes is arbitrary (knife-edge
+  above), so it is fixed at fit time rather than by rejecting draws after generation.
+- **Why δ = 1e-4.** The bimodality above: boundary fits within 1.7e-13 of 1, every other
+  fit at least 1.23e-4 below. 1 − 1e-4 is inside that empty gap, so the bound binds only on
+  fits that were at the boundary.
+- **How the constraint is imposed.** arch exposes no persistence bound, arch 8.0.0 has no
+  variance-targeting GARCH, and rescaling parameters into `fix()` is not an MLE.
+  `_StationaryGARCH` subclasses arch's `GARCH` and changes only the right-hand side of
+  arch's own stationarity row (−Σα − ½Σγ − Σβ ≥ −1 becomes ≥ −(1 − δ)); arch's likelihood,
+  SLSQP optimiser and `simulate()` are untouched, and it refuses to run if arch's
+  constraint layout ever differs. The γ/2 weight is arch's own: both `constraints()` and
+  `simulate()` use 0.5. Local refits: every boundary fit converges to persistence
+  0.9999000000 at a log-likelihood change of −0.0006 to −0.0197; on stationary controls
+  (BOVESPA full-train, SHANGHAI fold 4) the refit reproduces the unconstrained fit
+  (ΔLL 0.0000, max parameter change 4.5e-4).
+- **The generation guard can still fire.** `generate()` raises `GenerationSanityError`
+  outside 1/10–10× the training sd, and the three generation call sites re-raise it. At
+  persistence 0.9999 the pipeline's seeds 42–44 stay within 1.7× on every boundary window,
+  but over 200 seeds one path per boundary window exceeded 10× (max 20.8×, SHANGHAI
+  full-train GARCH). If it fires in a run, look before loosening it.
+- **Recorded.** `<MODEL>_params.json` holds both parameter sets, both persistences and
+  `generated_from`; `<MARKET>/seed<N>/garch_persistence.csv` has one row per econometric
+  fit (main and every fold). `pipeline_run_metadata.json` records arch, statsmodels, scipy,
+  numpy and pandas versions, because the knife-edge flipped between environments.
+- **Pre-rerun production weights.** `weights/` was never tracked in git. Before
+  `thesis_results/production/` was deleted on 2026-09-10, its 150 untracked files (22 MB:
+  generator checkpoints and fitted-parameter JSONs, including the SHANGHAI file cited
+  above) were archived to `../backups/thesis_results_production_untracked_33cc769.tar.gz`,
+  outside the repository.
 
 **Downstream-utility pooling.** `comprehensive_evaluation()` sees one market at a time,
 so the per-seed `pooled_downstream_utility.csv` it used to write held that market's test
@@ -249,8 +278,10 @@ promising the pooled set. It now writes only `downstream_utility_inputs.npz` (th
 test series and one synthetic draw per model), and `compute_pooled_downstream_utility()`
 concatenates those across every market for each seed, calls `compute_downstream_utility()`
 once, and writes a single `pooled_downstream_utility.csv` at the results root. The metric
-is unchanged. Pooling means the GARCH fitted to the synthetic sample and the variance
-filter over the real sample run across the market boundaries (4 with 5 markets). QLIKE's
+is unchanged. Concatenating five markets means one GARCH filter crosses four market boundaries within
+~2,480 pooled observations — a disclosed artefact of pooling. Before pooling, the
+shuffled control's QLIKE beat a genuine generator's in 33 of 75 control-versus-generator
+comparisons (44%). QLIKE's
 mean across cells is uninformative whenever one variance forecast is near zero — report
 the median beside it.
 
@@ -281,7 +312,7 @@ filesystem, so it reads either.
 
 `thesis_results/<production\|smoke>/` both keep the same internal shape:
 `<MARKET>/seed<N>/` (metrics,
-`downstream_utility_inputs.npz`, `run_config.json`, `weights/` when not smoke-testing), `walk_forward/<MARKET>/` —
+`downstream_utility_inputs.npz`, `garch_persistence.csv`, `run_config.json`, `weights/` when not smoke-testing), `walk_forward/<MARKET>/` —
 plus a single `pooled_downstream_utility.csv` at the root, pooled across markets
 per seed.
 Never mix the two roots by hand — `RESULTS`/`REPORTS` in the notebook and
@@ -290,7 +321,7 @@ one based on `SMOKE_TEST`, and nothing reads across the split.
 
 **Resume.** `run_complete_pipeline()` skips a `(market, seed)` whose output
 under the current `RESULTS` is already complete (metrics, downstream-utility
-inputs,
+inputs, GARCH persistence,
 every model's walk-forward CSV, and — outside smoke tests — every model's
 weights, or for GARCH/GJR-GARCH the fitted-parameter JSON in the same
 `weights/` directory) **and** whose `run_config.json` matches the run about to start
@@ -322,7 +353,7 @@ editing by index):
 | 3 | **EXPERIMENT CONFIGURATION** — seeds, markets, folds, step budgets, `SMOKE_TEST`, `FORCE_RERUN`, the `RESULTS` and `REPORTS` split |
 | 4 | GPU Device Check — raises if CUDA is unavailable, does not fall back to CPU silently |
 | 8 / 10 / 12 | TimeGAN / QuantGAN / CNN-WGAN-GP — gradient-trained (`family = 'gradient'`) |
-| 14 | `GARCHModel` — GARCH(1,1) / GJR-GARCH(1,1), Student-t, fit by MLE (`family = 'econometric'`, exempt from the parity assertion); post-fit stationarity guard and post-generation scale guard, both raising (§6) |
+| 14 | `GARCHModel` — GARCH(1,1) / GJR-GARCH(1,1), Student-t, fit by MLE (`family = 'econometric'`, exempt from the parity assertion); two-stage fit (constrained refit on boundary windows) and a raising post-generation scale guard (§6) |
 | 16 | `FinancialMetrics` |
 | 18 | plotting |
 | 20 | pipeline, resume/skip logic, and `generate_metric_diagnostics_report` |
