@@ -1,0 +1,9 @@
+{
+  "smoke_test": false,
+  "generator_updates": 9000,
+  "n_folds": 5,
+  "seq_len": 128,
+  "timegan_ae_steps": 3000,
+  "timegan_sup_steps": 3000,
+  "git_commit": "a53060cc5c7e673287ac483343def87b722af0b7"
+}
