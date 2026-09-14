@@ -122,12 +122,9 @@ REQUIRED = [
     # persistence exactly on the stationarity boundary on SHANGHAI walk-forward
     # fold 3 and generated returns with Wasserstein ~75 against a run median of
     # 0.0025. The non-convergence guard never fired. See .claude/CLAUDE.md SS6.
-    ("r33   GARCH post-fit stationarity guard",
-     "class NonStationaryFitError" in ALL and "raise NonStationaryFitError" in EXEC
-     and "STATIONARITY_TOL" in EXEC),
     # A strict `>= 1.0` misses a boundary fit that lands 1.7e-13 below 1.
-    ("r33   stationarity check uses a tolerance, not >= 1.0",
-     bool(re.search(r"pers\s*>=\s*1\.0\s*-\s*STATIONARITY_TOL", ALL))),
+    ("r33   boundary trigger uses a tolerance, not >= 1.0",
+     bool(re.search(r"pers\w*\s*>=\s*1\.0\s*-\s*STATIONARITY_TOL", ALL))),
     ("r33   GJR persistence includes gamma/2",
      bool(re.search(r"gamma\[1\]['\"]\]\s*/\s*2", ALL))),
     ("r33   GARCH post-generation guard raises",
@@ -152,6 +149,29 @@ REQUIRED = [
      "def compute_pooled_downstream_utility" in ALL
      and "compute_pooled_downstream_utility(RESULTS, markets, SEEDS)" in EXEC
      and "{output_dir}/pooled_downstream_utility.csv" not in ALL),
+
+    # r36 -- boundary fits are refit under a stationarity constraint, not raised
+    # on (decision 2026-09-10; .claude/CLAUDE.md SS6). These fail on a silent
+    # regression to raise-and-stop, or to generating from a boundary fit.
+    ("r36   two-stage GARCH: refit class tightens arch's own stationarity row",
+     "class _StationaryGARCH(_ArchGARCH)" in ALL
+     and bool(re.search(r"b\[-1\]\s*=\s*-\(1\.0\s*-\s*self\._delta\)", ALL))),
+    ("r36   two-stage GARCH: trigger 1e-6, bound delta 1e-4",
+     bool(re.search(r"^STATIONARITY_TOL\s*=\s*1e-6", ALL, re.M))
+     and bool(re.search(r"^STATIONARITY_DELTA\s*=\s*1e-4", ALL, re.M))),
+    ("r36   two-stage GARCH: constrained refit only when triggered",
+     "if self.constraint_applied:" in EXEC and "_StationaryGARCH" in EXEC
+     and "self.unconstrained_result = res" in EXEC),
+    ("r36   boundary fits no longer raise-and-stop",
+     "NonStationaryFitError" not in ALL),
+    ("r36   both fits persisted (params JSON + garch_persistence.csv)",
+     "def fit_record" in ALL and "def persistence_row" in ALL
+     and "**model.fit_record()" in ALL and "garch_persistence.csv" in ALL),
+
+    # r37 -- library versions: the boundary knife-edge flipped between the
+    # production environment and a local one, and no version was recorded.
+    ("r37   numerical library versions in run metadata",
+     all(f"'{lib}':" in ALL for lib in ("arch", "statsmodels", "scipy", "numpy", "pandas"))),
 ]
 
 PENDING = [

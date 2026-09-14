@@ -40,6 +40,7 @@ Markets & """ + prov['markets'] + r""" \\
 Walk-forward folds & """ + prov['n_folds'] + r""" \\
 Generator updates & """ + prov['generator_updates'] + r""" \\
 Software & Python """ + prov['python'] + r""" $\cdot$ PyTorch """ + prov['torch'] + r""" \\
+Libraries & """ + prov['libraries'] + r""" \\
 CUDA & """ + prov['cuda'] + r""" (""" + prov['device'] + r""") \\
 Platform & """ + prov['platform'] + r"""\\
 \end{tabular}
@@ -490,6 +491,24 @@ This is not a seeding bug. Loss traces agree to four significant figures at epoc
 
 \clearpage
 
+%% ─── Results 5: GARCH fits at the integrated boundary ───────────────────────
+\pagehead{Results --- GARCH Fits at the Integrated Boundary}
+         {Persistence as a reported result $\cdot$ structural breaks $\cdot$ two-stage fitting}
+
+\begin{multicols}{2}
+
+\navybox{Boundary Fits, Counted (Table~8)}{%
+${RPT_PERSIST_LEFT}}
+
+\columnbreak
+
+\amberbox{Why Persistence Reaches 1, and What Is Done About It}{%
+${RPT_PERSIST_RIGHT}}
+
+\end{multicols}
+
+\clearpage
+
 %% ─── Figures: this run's plots, included by reference ──────────────────────
 \pagehead{Figures --- ${RPT_PRIMARY_MARKET} (seed ${RPT_PRIMARY_SEED})}
          {Seven stacked series rows --- real, five generators, shuffled control --- plus the log-log tail panel}
@@ -690,6 +709,12 @@ ${RPT_DS_LIMITATION}
 \item \hypertarget{R:41}{}%
   Vuleti\'{c}, M., Prenzel, F., \& Cucuringu, M.\ (2024). Fin-GAN: forecasting and classifying financial time series via generative adversarial networks. \textit{Quantitative Finance} 24(2), 175--199. Related work: a conditional GAN for return forecasting and classification with an economics-driven loss --- a different model from the unconditional CNN-WGAN-GP generator benchmarked here, despite the similar name.
 
+\item \hypertarget{R:42}{}%
+  Lamoureux, C.\ G., \& Lastrapes, W.\ D.\ (1990). Persistence in variance, structural change, and the GARCH model. \textit{Journal of Business \& Economic Statistics} 8(2), 225--234.
+
+\item \hypertarget{R:43}{}%
+  Mikosch, T., \& St\u{a}ric\u{a}, C.\ (2004). Nonstationarities in financial time series, the long-range dependence, and the IGARCH effects. \textit{Review of Economics and Statistics} 86(1), 378--390.
+
 \end{enumerate}
 }
 
@@ -717,7 +742,7 @@ Five daily closing-price series: BOVESPA (Ibovespa), FTSE/JSE All Share, MOEX (M
 An earlier version of this basket used MSCI World as the Russia leg. MSCI World is a developed-market global index and is not a BRICS market; using it made the ``BRICS emerging market'' framing false. MOEX replaces it. The cost is a genuine structural break: a $-33.3\%$ single-day return on 2022-02-24 followed by a 27-trading-day suspension (2022-02-25 to 2022-03-24). Both are recorded as a known gap and never interpolated --- interpolating would manufacture returns on days when no trading occurred, in exactly the regime the benchmark is meant to stress. MOEX consequently dominates several descriptive statistics, which is a property of the data, not an artefact.
 
 \smallskip
-\textbf{Data characteristics (Table~8).}
+\textbf{Data characteristics (Table~9).}
 
 \begin{tabular}{@{}lrrr@{}}
 \toprule
@@ -1142,7 +1167,7 @@ Generated series are compared with real test-set returns on 19 metrics: 7 Fideli
 Family & gradient & gradient & gradient & econometric & econometric \\
 Core & 4-phase (embedder $+$ supervisor $+$ GAN), GRU backbone & TCN backbone, WGAN-GP & CNN deconvolution, WGAN-GP & Conditional variance, Student-$t$ innovations & GARCH $+$ leverage indicator \\
 Temporal mechanism & Recurrent: each step in order, gating what to remember & Dilated causal convolutions: all time scales in one pass & Transposed convolutions: upsample noise to full sequence & $\sigma_t^2=\omega+\alpha r_{t-1}^2+\beta\sigma_{t-1}^2$ & adds $\gamma r_{t-1}^2\mathbb{1}[r_{t-1}<0]$ \\
-Fitting & BCE $+$ moment matching, 4 phases & WGAN-GP, $n_\text{critic}=5$, $\lambda_\text{gp}=10$ & WGAN-GP, $n_\text{critic}=5$, $\lambda_\text{gp}=10$ & Maximum likelihood & Maximum likelihood \\
+Fitting & BCE $+$ moment matching, 4 phases & WGAN-GP, $n_\text{critic}=5$, $\lambda_\text{gp}=10$ & WGAN-GP, $n_\text{critic}=5$, $\lambda_\text{gp}=10$ & ML; constrained refit if persistence reaches 1 & ML; constrained refit if persistence reaches 1 \\
 Reference & Yoon et al.\ 2019\tcite{4} & Wiese et al.\ 2020\tcite{5} & This paper; not Fin-GAN\tcite{41} & Bollerslev 1986\tcite{39} & Glosten et al.\ 1993\tcite{40} \\
 Key settings & hidden\_dim 24, layers 3, lr 1e-3 & noise\_dim 100, lr 1e-4, 3 TCN blocks (dil.\ 1/2/4) & base\_channels 64, lr 1e-4, 3$\times$ConvTranspose1d & $p{=}1,q{=}1,o{=}0$, dist $t$, burn-in 500 & $p{=}1,q{=}1,o{=}1$, dist $t$, burn-in 500 \\
 Input scaling & z-score $+\tanh(z/3)\to[-1,1]$ & z-score $+\tanh(z/3)\to[-1,1]$ & z-score $+\tanh(z/3)\to[-1,1]$ & Raw returns $\times100$ & Raw returns $\times100$ \\
@@ -1478,6 +1503,8 @@ def main():
         "RPT_DS_LIMITATION": dst["limitation"],
         "RPT_DS_AUDIT_ROWS": dst["audit_rows"],
         "RPT_CONTROL_AUDIT_HEADER": fmt["control_audit_header"]["header"],
+        "RPT_PERSIST_LEFT": fmt["persistence"]["left"],
+        "RPT_PERSIST_RIGHT": fmt["persistence"]["right"],
         "RPT_CONTROL_AUDIT_COLSPEC": fmt["control_audit_header"]["colspec"],
 
         # Design-decision evidence from the raw series

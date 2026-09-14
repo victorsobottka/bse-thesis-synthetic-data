@@ -81,7 +81,7 @@ TimeGAN 2.682 (sd 3.33, range 0.024–9.825).
 **Guard** — 16 `[WARNING]` firings, all TimeGAN; mean |ACF(1)| 0.568, range
 −0.622 to 0.942. TimeGAN worst on 7/7 temporal, 5/7 fidelity, 15/19 metrics.
 
-**Known defects in this run's artifacts** (pipeline changed 2026-09-10 — GARCH stationarity and generation guards, pooled downstream utility; production rerun pending; CLAUDE.md §6)
+**Known defects in this run's artifacts** (pipeline changed 2026-09-10 — two-stage GARCH fitting with a constrained refit on boundary windows, a raising generation guard, pooled downstream utility; `thesis_results/production/` deleted pending a full rerun; CLAUDE.md §6)
 - Downstream GARCH fit degenerates in 4/90 cells: GARCH MOEX seed 42 (QLIKE
   33,081), control FTSE seeds 42/43/44 (16,975).
 - Walk-forward GARCH SHANGHAI fold 3: Wasserstein 74.8 / 43.0 / 7.8 across

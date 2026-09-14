@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-09-08T22:22:54",
-  "git_commit": "7352a023f85d7da8a5f36e1f7331d3afabbe902f",
+  "timestamp": "2026-09-12T13:18:16",
+  "git_commit": "a53060cc5c7e673287ac483343def87b722af0b7",
   "smoke_test": false,
   "seeds": [
     42,
@@ -37,7 +37,7 @@
       "batch_size": 64,
       "seq_len": 128
     },
-    "FinGAN": {
+    "CNN-WGAN-GP": {
       "lr_g": 0.0001,
       "lr_d": 0.0001,
       "train_steps": 9000,
@@ -60,8 +60,13 @@
   },
   "python": "3.12.3",
   "torch": "2.13.0+cu130",
+  "arch": "8.0.0",
+  "statsmodels": "0.15.0",
+  "scipy": "1.18.1",
+  "numpy": "2.5.3",
+  "pandas": "2.3.3",
   "cuda": true,
   "device": "NVIDIA GeForce RTX 4090",
-  "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
-  "log_path": "/workspace/bse-thesis-synthetic-data/reports/production/run_log_20260908_222254.log"
+  "platform": "Linux-6.8.0-106-generic-x86_64-with-glibc2.39",
+  "log_path": "/workspace/bse-thesis-synthetic-data/reports/production/run_log_20260912_131816.log"
 }
