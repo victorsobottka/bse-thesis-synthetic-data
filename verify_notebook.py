@@ -172,6 +172,13 @@ REQUIRED = [
     # production environment and a local one, and no version was recorded.
     ("r37   numerical library versions in run metadata",
      all(f"'{lib}':" in ALL for lib in ("arch", "statsmodels", "scipy", "numpy", "pandas"))),
+
+    # r38 -- ranks are computed jointly across the registered models, so a
+    # five-model and a six-model run are not interchangeable at identical
+    # budgets. run_config.json records the roster and the resume check compares
+    # it like every other key; without it, a roster change reads as "complete".
+    ("r38   run_config records the model roster (resume compares it)",
+     bool(re.search(r"'models':\s*sorted\(model_factories\)", ALL))),
 ]
 
 PENDING = [

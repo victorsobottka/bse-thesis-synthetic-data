@@ -326,9 +326,12 @@ every model's walk-forward CSV, and — outside smoke tests — every model's
 weights, or for GARCH/GJR-GARCH the fitted-parameter JSON in the same
 `weights/` directory) **and** whose `run_config.json` matches the run about to start
 (`smoke_test`, `generator_updates`, `n_folds`, `seq_len`, TimeGAN pre-training
-steps, git commit). Any mismatch, or an absent `run_config.json`, forces a
+steps, the registered **model roster**, git commit). Any mismatch, or an absent `run_config.json`, forces a
 re-run rather than a skip. `FORCE_RERUN = True` in EXPERIMENT CONFIGURATION
-ignores all of this and redoes everything. Aggregation (`overall_performance.csv`,
+ignores all of this and redoes everything. The roster is recorded because ranks are
+computed jointly across the models present: a five-model run and a six-model run
+are not interchangeable at identical budgets, and output written before the field
+existed (everything up to 2026-09-12) therefore reads as a config change. Aggregation (`overall_performance.csv`,
 `per_seed_market_performance.csv`) is read back from the per-market-seed CSVs
 on disk, not from in-memory state, so a run that skips everything still
 produces complete aggregates. The pooled downstream-utility backtest is
