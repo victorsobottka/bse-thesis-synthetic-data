@@ -488,6 +488,158 @@ def _build_figures_block(figures: dict) -> str:
 _LIBRARIES = ("arch", "statsmodels", "scipy", "numpy", "pandas")
 
 
+# ============================================================================
+# Stylised-facts figure: legible sub-figures by cropping, never by redrawing
+# ============================================================================
+
+def _stylized_crops(path: Path, n_series: int):
+    """Pixel boxes that cut the stylised-facts PNG into sub-figures readable at
+    full text width, or None if the image does not have the expected shape.
+
+    The notebook draws one tall figure on a 16-inch canvas: a block of
+    `n_series` stacked series rows, then a 4 x 2 panel grid. Scaled whole to a
+    portrait text width its 8--12 pt labels print at roughly 3--5 pt. Cropping
+    keeps the artifact untouched -- LaTeX trims the same PNG -- while letting
+    each panel take the full width.
+
+    Boundaries are found from the image, not typed as pixel constants:
+      * inked runs of rows are either axes bodies (tall) or text lines (short);
+      * each panel row runs from midway above its title line to just after the
+        text lines under its axes, stopping before any line that crosses the
+        figure's vertical centre -- per-panel tick and axis labels never do,
+        the figure-wide caption at the bottom does;
+      * each panel row is split into left and right at the widest fully blank
+        column run near the centre, measured in that row alone, so a right
+        panel's rotated y-label is not left behind in the left crop.
+    """
+    try:
+        from PIL import Image
+    except ImportError:
+        return None
+    try:
+        im = Image.open(path)
+        dpi = float((im.info.get("dpi") or (72.0, 72.0))[0]) or 72.0
+        g = np.asarray(im.convert("L"))
+    except Exception:
+        return None
+    H, W = g.shape
+    # A row carries ink if a handful of pixels are dark. A share-of-width
+    # threshold fails here: a series row is mostly white (one thin line, faint
+    # gridlines, the frame), so its axes region fragments into pieces.
+    ink_row = (g <= 245).sum(axis=1) >= 5
+    runs, y = [], 0
+    while y < H:
+        if ink_row[y]:
+            s0 = y
+            while y < H and ink_row[y]:
+                y += 1
+            runs.append((s0, y))
+        else:
+            y += 1
+    body_min = int(0.025 * H)
+    is_body = [(e - s0) >= body_min for s0, e in runs]
+    body_idx = [i for i, b in enumerate(is_body) if b]
+    if len(body_idx) != n_series + 4:
+        return None
+    s_idx, p_idx = body_idx[:n_series], body_idx[n_series:]
+    centre = W // 2
+
+    def crosses_centre(run):
+        return bool((g[run[0]:run[1], centre - 40:centre + 40] <= 245).any())
+
+    rows = []
+    for j in p_idx:
+        if j < 2 or is_body[j - 1]:
+            return None
+        title, above = runs[j - 1], runs[j - 2]
+        top = (above[1] + title[0]) // 2
+        k = j + 1
+        while (k < len(runs) and not is_body[k] and not crosses_centre(runs[k])
+               and not (k + 1 < len(runs) and is_body[k + 1])):
+            k += 1
+        last = runs[k - 1]
+        bottom = (last[1] + runs[k][0]) // 2 if k < len(runs) else H
+        ink_col = (g[top:bottom, :] <= 245).any(axis=0)
+        lo, hi, best, x = int(0.3 * W), int(0.7 * W), None, int(0.3 * W)
+        while x < hi:
+            if not ink_col[x]:
+                x0 = x
+                while x < hi and not ink_col[x]:
+                    x += 1
+                if best is None or (x - x0) > (best[1] - best[0]):
+                    best = (x0, x)
+            else:
+                x += 1
+        if best is None:
+            return None
+        mid = (best[0] + best[1]) // 2
+        rows.append(((0, top, mid, bottom), (mid, top, W, bottom)))
+
+    first = runs[s_idx[0] - 1] if s_idx[0] > 0 else (0, 0)
+    s_top = (first[1] + runs[s_idx[0]][0]) // 2
+    half = (n_series + 1) // 2
+    s_cut = (runs[s_idx[half - 1]][1] + runs[s_idx[half]][0]) // 2
+    s_bottom = rows[0][0][1]
+    names = ["qq", "survival", "acf_returns", "acf_absolute", "acf_squared",
+             "rolling_volatility", "moments_location", "moments_shape"]
+    boxes = {"series_a": (0, s_top, W, s_cut), "series_b": (0, s_cut, W, s_bottom)}
+    for (left, right), (nl, nr) in zip(rows, zip(names[0::2], names[1::2])):
+        boxes[nl], boxes[nr] = left, right
+    return {"dpi": dpi, "width": W, "height": H, "boxes": boxes}
+
+
+def _crop_include(path: Path, crop: dict, key: str, width: str = r"\linewidth") -> str:
+    """\\includegraphics that trims the PNG to one sub-figure. Trim is in bp, the
+    unit graphicx reads bare numbers in, converted from pixels via the PNG's
+    own DPI so the crop lands where the pixel analysis put it."""
+    x0, y0, x1, y1 = crop["boxes"][key]
+    bp = 72.0 / crop["dpi"]
+    trim = (f"{x0 * bp:.2f} {(crop['height'] - y1) * bp:.2f} "
+            f"{(crop['width'] - x1) * bp:.2f} {y0 * bp:.2f}")
+    return rf"\includegraphics[width={width},trim={trim},clip]{{{path}}}"
+
+
+def _build_figure_graphics(figures: dict, n_series: int) -> dict:
+    """One \\includegraphics per sub-figure of the stylised-facts panel grid,
+    plus the two whole diagnostic figures. Each entry is only the graphic --
+    captions and explanations live in the template, next to the prose that
+    reads the figure. A missing file or an unexpected layout yields an explicit
+    note in place of the graphic, never a silently empty figure."""
+    sf = figures["stylized_facts"]
+    crop = _stylized_crops(sf, n_series) if sf.exists() else None
+    reason = "not found" if not sf.exists() else "did not match the expected panel layout"
+    out = {"crops_ok": bool(crop), "source": _escape_latex(str(sf))}
+    for key in ("series_a", "series_b", "qq", "survival", "acf_returns", "acf_absolute",
+                "acf_squared", "rolling_volatility", "moments_location", "moments_shape"):
+        out[key] = (_crop_include(sf, crop, key) if crop else
+                    r"\textit{[Sub-figure unavailable: " + _escape_latex(str(sf)) + " " + reason + "]}")
+    for key in ("metrics_heatmap", "rank_comparison"):
+        path = figures[key]
+        out[key] = (rf"\includegraphics[width=\linewidth]{{{path}}}" if path.exists() else
+                    r"\textit{[" + _escape_latex(str(path)) + " not found]}")
+    return out
+
+
+def _build_downstream_best(downstream: dict) -> dict:
+    """The generator with the lowest median QLIKE across the downstream
+    backtests present, and per-backtest winners -- for the Highlights and the
+    downstream subsection. The control is excluded: it is a diagnostic, not a
+    candidate."""
+    du = downstream["frame"]
+    gen = du[~du["model"].apply(_is_control)]
+    med = gen.groupby("model")["qlike"].median().sort_values()
+    group = ["seed"] if downstream["mode"] == "pooled" else ["market", "seed"]
+    winners = gen.loc[gen.groupby(group)["qlike"].idxmin(), "model"].value_counts()
+    n_vals = sorted(int(v) for v in du["n_test"].dropna().unique())
+    return {
+        "model": _escape_latex(str(med.index[0])),
+        "qlike": _signed(float(med.iloc[0]), 3),
+        "n": _fint(n_vals[0]) if len(n_vals) == 1 else f"{_fint(n_vals[0])}--{_fint(n_vals[-1])}",
+        "winners": ", ".join(f"{_escape_latex(str(m))} {v}" for m, v in winners.items()),
+        "n_backtests": str(int(gen.groupby(group).ngroups)),
+    }
+
+
 def _build_provenance(metadata: dict) -> dict:
     # timestamp/commit/seeds/n_folds/generator_updates are digits, colons,
     # dashes and commas -- never need escaping. python/torch/device/platform
@@ -1586,7 +1738,7 @@ def _build_downstream_text(downstream: dict, wfo: dict, garch_audit_row: str) ->
         # has no slack, and this sentence is the one whose length varies by layout.
         out["methods_note"] = (
             r"The pipeline therefore computes it once per seed over every market's concatenated "
-            f"test set: $n$ is {n_txt} here (Results, Table~7), which {meets} the "
+            f"test set: $n$ is {n_txt} here (Table~\\ref{{tab:downstream}}), which {meets} the "
             r"$n\gtrsim600$ threshold, at the disclosed cost of the variance filter crossing "
             f"{bnd} market boundar{'y' if bnd == 1 else 'ies'}.")
         out["limitation"] = (
@@ -1618,13 +1770,13 @@ def _build_downstream_text(downstream: dict, wfo: dict, garch_audit_row: str) ->
             r"The design intent is therefore pooled computation. The pipeline now does this --- "
             r"once per seed over every market's concatenated test set --- but \textbf{these "
             r"artifacts predate that change}: they are per-market at $n$ of "
-            f"{_fint(n_min)}--{_fint(n_max)} (Results, Table~7), below the " r"$n\gtrsim600$ "
+            f"{_fint(n_min)}--{_fint(n_max)} (Table~\\ref{{tab:downstream}}), below the " r"$n\gtrsim600$ "
             r"threshold despite the file name, and are described as per-market throughout. Kupiec "
             r"power is $\approx56\%$ at $n\approx496$ against $\approx99\%$ at $n\approx2{,}480$, so "
             r"per-market $p$-values are descriptive.")
         out["limitation"] = (
             r"\textbf{Downstream utility per market, not pooled.} These artifacts predate the "
-            r"pipeline's pooled computation (Methods), and "
+            r"pipeline's pooled computation (Section~\ref{sec:downstream}), and "
             f"{n_bad} of {n_total} cells returned a degenerate QLIKE, reported with the median "
             r"beside the mean.")
         pool_row = (
@@ -1730,6 +1882,8 @@ def _build_persistence(runs: list, wfo: dict, wf: pd.DataFrame) -> dict:
             r"within $10^{-6}$, output generated from the constrained parameters --- plus a "
             r"post-generation guard. These artifacts predate both.}")
         return {"available": False, "counts": counts, "seed": seed_para,
+                "n_hit": "---", "n_rows": "---", "n_combos_hit": "---",
+                "ll_smallest": "---", "ll_largest": "---",
                 "causes": causes_generic, "procedure": why_rest, "audit_row": audit}
 
     df = pd.concat(frames, ignore_index=True)
@@ -1855,7 +2009,7 @@ def _build_persistence(runs: list, wfo: dict, wf: pd.DataFrame) -> dict:
         audit_body = (
             f"{n_hit} of {n_rows} econometric fits in this run reached persistence within $10^{{-6}}$ of 1 "
             f"({hit_list}) and were refit under persistence $\\le1-10^{{-4}}$; output was generated from "
-            r"the constrained parameters and both parameter sets are stored (Results, Table~8).")
+            r"the constrained parameters and both parameter sets are stored (Section~\ref{sec:boundary}).")
     else:
         seed_para = (r"No fit reached the boundary in this run, so the seed-invariance check has "
                      r"nothing to compare.")
@@ -1870,7 +2024,14 @@ def _build_persistence(runs: list, wfo: dict, wf: pd.DataFrame) -> dict:
         r"have kept SHANGHAI from completing on any seed; it was replaced because stopping the "
         r"benchmark is not a treatment of the fit. The post-generation guard still raises outside "
         r"$1/10$--$10\times$ the training sd.}")
-    return {"available": True, "counts": counts, "seed": seed_para,
+    _ll = (df.loc[hit, "loglikelihood_change"].astype(float)
+           if n_hit and "loglikelihood_change" in df.columns else None)
+    summary = {
+        "n_hit": str(n_hit), "n_rows": str(n_rows), "n_combos_hit": str(n_hit_distinct),
+        "ll_smallest": f"{-_ll.max():.6f}" if _ll is not None else "---",
+        "ll_largest": f"{-_ll.min():.6f}" if _ll is not None else "---",
+    }
+    return {"available": True, "counts": counts, "seed": seed_para, **summary,
             "causes": (cause_para if n_hit else causes_generic),
             "procedure": why_rest + (prevented if n_hit else ""),
             "audit_row": audit, "n_rows": n_rows, "n_hit": n_hit}
@@ -2047,6 +2208,11 @@ def load_report_context(results_dir="thesis_results/production",
         "primary_market": primary["market"],
         "primary_seed": str(primary["seed"]),
         "figures_block": _build_figures_block(primary["figures"]),
+        # Sub-figures of the primary run's stylised-facts figure. Real + every
+        # series in the metrics CSV (the control included) = one stacked row each.
+        "figure_graphics": _build_figure_graphics(primary["figures"],
+                                                  int(primary["metrics"]["model"].nunique()) + 1),
+        "downstream_best": _build_downstream_best(downstream),
     }
     return ctx
 
