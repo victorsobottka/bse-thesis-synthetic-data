@@ -434,9 +434,10 @@ Figure~\ref{fig:pipeline} shows the pipeline from price files to ranked results.
 \node[pp] (csv)  at (0.0,  0.0) {\textbf{5 BRICS}\\CSV Files};
 \node[pp] (lr)   at (3.2,  0.0) {Log Returns\\$r_t=\ln\!\tfrac{P_t}{P_{t-1}}$};
 \node[pp] (spl)  at (6.4,  0.0) {Temporal Split\\80\,/\,10\,/\,10};
-\node[sp] (trn)  at (9.5,  0.8) {Train (80\,\%)\\Parquet};
-\node[sp] (tst)  at (9.5, -0.8) {Test (10\,\%)\\Parquet};
-\node[sp] (poo)  at (12.5,  0.8) {Per-Market\\Windows (128)};
+\node[sp] (trn)  at (9.5,  1.3) {Train (80\,\%)\\Parquet};
+\node[sp] (val)  at (9.5,  0.0) {Validation (10\,\%)\\Parquet};
+\node[sp] (tst)  at (9.5, -1.3) {Test (10\,\%)\\Parquet};
+\node[sp] (poo)  at (12.5,  1.3) {Per-Market\\Windows (128)};
 \node[rectangle,rounded corners=3pt,draw=TGcol,fill=ABg,
       text width=2.1cm,align=center,minimum height=0.85cm,inner sep=4pt]
      (tga) at (15.5,  2.1) {\textcolor{TGcol}{\bfseries TimeGAN}\\GRU-based};
@@ -455,10 +456,12 @@ Figure~\ref{fig:pipeline} shows the pipeline from price files to ranked results.
 \node[sp] (syn)  at (19.0,  0.8) {Synthetic\\Returns};
 \node[ev] (sfm)  at (22.5,  1.6) {19 Metrics\\7 Fidelity + 7 Temporal\\+ 5 Descriptive};
 \node[ev] (wfv)  at (22.5, -0.8) {Walk-Forward\\(5 folds)};
+\node[ev] (wfd)  at (22.5, -2.6) {Per-fold\\Diagnostics\\(\S\ref{sec:walkforward})};
 \node[rk] (rnk)  at (26.0,  0.4) {\textbf{Rankings}\\fidelity / temporal\\composite};
 \draw[arr] (csv.east) -- (lr.west);
 \draw[arr] (lr.east)  -- (spl.west);
 \draw[arr] (spl.east) to[out= 30,in=155] (trn.west);
+\draw[arr] (spl.east) --                 (val.west);
 \draw[arr] (spl.east) to[out=-30,in=205] (tst.west);
 \draw[arr] (trn.east) -- (poo.west);
 \draw[arr] (poo.east) to[out= 30,in=180] (tga.west);
@@ -467,19 +470,27 @@ Figure~\ref{fig:pipeline} shows the pipeline from price files to ranked results.
 %% The econometric arm is fed from the raw training returns, not the
 %% normalised 128-step windows: the tanh squash would compress exactly the
 %% variance dynamics GARCH exists to model (Section~\ref{sec:decisions}).
-\draw[arr] (trn.south) to[out=-60,in=180] (gar.west);
-\draw[arr] (trn.south) to[out=-70,in=180] (gjr.west);
+%% Routed through the corridor left of Per-Market Windows so the curve
+%% clears the Validation and Test nodes rather than crossing through them.
+\draw[arr, rounded corners=6pt] (trn.east) -- (11.0, 1.3) -- (11.0, -1.5) -- (gar.west);
+\draw[arr, rounded corners=6pt] (trn.east) -- (11.3, 1.3) -- (11.3, -2.7) -- (gjr.west);
 \draw[arr] (tga.east) to[out=  0,in=120] (syn.north);
 \draw[arr] (qga.east) --                 (syn.west);
 \draw[arr] (fga.east) to[out=  0,in=240] (syn.south);
 \draw[arr] (gar.east) to[out=  0,in=250] (syn.south);
 \draw[arr] (gjr.east) to[out=  0,in=260] (syn.south);
 \draw[arr]  (syn.east) to[out= 30,in=180] (sfm.west);
-\draw[arr]  (syn.east) to[out=-30,in=180] (wfv.west);
-\draw[arr]  (tst.east) --                 (wfv.west);
 \draw[sarr] (tst.east) to[out=10,in=200]  (sfm.south);
 \draw[arr] (sfm.east) to[out=0,in=130] (rnk.north west);
-\draw[arr] (wfv.east) to[out=0,in=230] (rnk.south west);
+%% Walk-forward never sees the Track A test split or its synthetic draws: it
+%% reassembles the complete series and retrains every model from scratch per
+%% fold (Section~\ref{sec:pipeline-reading}). Restricting it to the
+%% 496-point test split gave folds of 168--414 points and AUC = 1.000 in
+%% every fold (Section~\ref{sec:pipeline}, Walk-forward validation).
+\draw[arr] (spl.north) -- (6.4, 3.3) -- (24.0, 3.3) -- (24.0, -0.8) -- (wfv.east);
+\node[font=\scriptsize,text=Navy!80,align=center] at (15.2, 3.6)
+     {full series (train + valid + test)};
+\draw[arr] (wfv.south) -- (wfd.north);
 \node[font=\scriptsize\bfseries,text=Navy!80]  at ( 4.0,-3.6) {Stage 1 $\cdot$ Data Preprocessing};
 \node[font=\scriptsize\bfseries,text=Navy!80]  at (14.0,-3.6) {Stage 2 $\cdot$ Per-Market Fitting};
 \node[font=\scriptsize\bfseries,text=Teal]     at (23.5,-3.6) {Stage 3 $\cdot$ Evaluation};
@@ -491,6 +502,18 @@ Figure~\ref{fig:pipeline} shows the pipeline from price files to ranked results.
 \label{fig:pipeline}
 \end{figure}
 \end{landscape}
+
+\subsection{Reading the diagram}
+\label{sec:pipeline-reading}
+Figure~\ref{fig:pipeline} runs left to right in three stages, separated by the dashed vertical rules. \textbf{Stage 1} turns the five markets' CSV files into log returns and splits each market's series in time into Train (80\,\%), Validation (10\,\%) and Test (10\,\%) Parquet files; the training split is then cut into overlapping 128-step windows. \textbf{Stage 2} fits every model independently per market and seed: the three gradient-trained generators (TimeGAN, QuantGAN, CNN-WGAN-GP) read the windowed training data, while the two econometric models (GARCH-$t$, GJR-GARCH-$t$) are fed directly from the raw training returns, bypassing the windowing node --- the $\tanh(z/3)$ squash used to bound the GAN inputs would compress exactly the variance dynamics GARCH exists to model (Section~\ref{sec:decisions}). All five write to Synthetic Returns.
+
+\textbf{Stage 3} is where the diagram forks into two tracks that both read from the Temporal Split node and never from each other.
+
+\emph{Track A}, along the bottom, is the fixed-split evaluation: Test and Synthetic Returns both feed 19 Metrics, which feeds Rankings. This is Table~\ref{tab:ranking} --- fidelity, temporal and composite rank on one held-out test series per market and seed, ${RPT_WIN_N_CELLS} evaluations in total, one training per model per evaluation: ${RPT_PIPE_N_MODELS}~models~$\times$~${RPT_WIN_N_CELLS}~evaluations~=~${RPT_PIPE_TRACKA_TRAININGS} trainings.
+
+\emph{Track B}, along the top, is walk-forward: an arrow leaves the Temporal Split node directly, labelled ``full series (train + valid + test)'', and feeds Walk-Forward, which terminates in its own Per-fold Diagnostics node (Section~\ref{sec:walkforward}) rather than in Rankings --- composite rank never includes a walk-forward number. Walk-forward retrains every model from scratch on each of ${RPT_PIPE_N_FOLDS} rolling-origin folds, so it runs ${RPT_PIPE_N_FOLDS}$\times$ as many trainings as Track A: ${RPT_PIPE_N_FOLDS}~folds~$\times$~${RPT_PIPE_N_MODELS}~models~$\times$~${RPT_WIN_N_CELLS}~evaluations~=~${RPT_PIPE_TRACKB_TRAININGS} trainings, against Track A's ${RPT_PIPE_TRACKA_TRAININGS}. That is why walk-forward dominates the pipeline's wall-clock time, independent of any per-model cost difference (Table~\ref{tab:compute}).
+
+Track B reassembles the complete series rather than reading the Test split because the test split alone is too short for what it evaluates: at 496 points, walk-forward's rolling-origin folds ranged 168--414 points, which at \texttt{seq\_len}~$=$~128 and \texttt{batch\_size}~$=$~64 gives 0--2 batches per epoch --- the gradient-trained models were evaluated essentially untrained, and discriminative AUC read 1.000 in every fold as a result (Section~\ref{sec:pipeline}, Walk-forward validation). Reassembling the full series before folding is the fix, and it has a consequence worth stating before it is found some other way: Track A and Track B overlap in what they see. Walk-forward's later folds train on data that includes the years Track A held out as its own test split. This is inherent to rolling-origin evaluation on a single series --- there is no second independent series to hold out a second time (Tashman 2000\tcite{13}; Bergmeir \& Ben\'{\i}tez 2012\tcite{14}) --- which is why the two tracks are reported separately throughout, Table~\ref{tab:ranking} against Table~\ref{tab:auc}, and never pooled into one score.
 
 \subsection{Data preparation}
 Closing prices are read with an explicit date format and sorted chronologically before anything else is computed; daily log returns are $r_t=\ln(P_t/P_{t-1})$, with no clipping of outliers. Each market's series is split in time into training, validation and test parts (80/10/10) and stored as Parquet files. For the gradient-trained models the training part is cut into overlapping windows of 128 returns with stride 1.
@@ -520,7 +543,7 @@ All tables pool ${RPT_WIN_N_CELLS} evaluations: ${RPT_PROV_N_MARKETS} markets $\
 
 \begin{table}[htbp]
 \centering
-\caption{Mean ranks over ${RPT_WIN_N_CELLS} market--seed evaluations; lower is better. \emph{Wins}: evaluations in which the model has the lowest composite rank. \emph{Fit}: mean wall-clock seconds to train or fit one model. The shuffled control is scored on every metric but does not compete for rank.}
+\caption{Mean ranks over ${RPT_WIN_N_CELLS} market--seed evaluations; lower is better. \emph{Wins}: evaluations in which the model has the lowest composite rank --- the gradient-trained family takes ${RPT_WIN_COMPOSITE_GRAD} of ${RPT_WIN_N_CELLS} composite wins and the econometric family ${RPT_WIN_COMPOSITE_ECON}. \emph{Fit}: mean wall-clock seconds to train or fit one model; GARCH and GJR-GARCH fit roughly ${RPT_COMPUTE_GARCH_FIT_RATIO}$\times$ and ${RPT_COMPUTE_GJR_FIT_RATIO}$\times$ faster than QuantGAN respectively. The shuffled control is scored on every metric but does not compete for rank.}
 \label{tab:ranking}
 \begin{tabular}{@{}llccccr@{}}
 \toprule
@@ -1405,6 +1428,7 @@ def main():
     fmt = ctx["formatted"]
     t1 = fmt["table1_prose"]
     win = fmt["win_prose"]
+    pipe = fmt["pipeline_reading_prose"]
     comp = fmt["compute_prose"]
     perm = fmt["perm_invariance"]
     audit = fmt["control_audit_prose"]
@@ -1512,6 +1536,14 @@ def main():
         "RPT_RESID_VS_CONTROL": fmt["resid_kurt_prose"]["vs_control"],
         "RPT_COMPUTE_PARAM_RATIO": comp["param_ratio"],
         "RPT_COMPUTE_TIME_RATIO": comp["time_ratio"],
+        "RPT_COMPUTE_GARCH_FIT_RATIO": comp["garch_fit_ratio"],
+        "RPT_COMPUTE_GJR_FIT_RATIO": comp["gjr_fit_ratio"],
+
+        # Reading the diagram (Section 5.0)
+        "RPT_PIPE_N_MODELS": pipe["n_models"],
+        "RPT_PIPE_N_FOLDS": pipe["n_folds"],
+        "RPT_PIPE_TRACKA_TRAININGS": pipe["track_a_trainings"],
+        "RPT_PIPE_TRACKB_TRAININGS": pipe["track_b_trainings"],
 
         # Shuffled-control audit
         "RPT_PERM_N_INVARIANT": perm["n_invariant"],

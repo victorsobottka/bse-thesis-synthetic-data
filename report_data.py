@@ -42,6 +42,7 @@ computation over the same raw inputs, scoped to Table 1 only.
 """
 
 import json
+import math
 import re
 from pathlib import Path
 
@@ -276,6 +277,24 @@ def _fint(x) -> str:
     if x is None or (isinstance(x, float) and x != x):
         return "---"
     return f"{int(x):,}"
+
+
+def _fsig2(x) -> str:
+    """Two significant figures, comma-grouped above 1. Used where a value's
+    magnitude is not known ahead of time (sub-second fit times next to
+    five-digit speed ratios), so a fixed decimal count would either print
+    '0.0' or six digits of noise."""
+    if x is None or (isinstance(x, float) and x != x):
+        return "---"
+    if x == 0:
+        return "0.0"
+    exp = math.floor(math.log10(abs(x)))
+    factor = 10 ** (exp - 1)
+    rounded = round(x / factor) * factor
+    decimals = max(0, 1 - exp)
+    if decimals == 0:
+        return f"{rounded:,.0f}"
+    return f"{rounded:.{decimals}f}"
 
 
 def _build_table3_rows(overall: pd.DataFrame) -> str:
@@ -747,11 +766,13 @@ def _fmt_seconds(x) -> str:
     """Fit cost spans four orders of magnitude here (0.017 s for GJR-GARCH,
     465 s for QuantGAN). A fixed number of decimals either prints '0.0' for
     the econometric models or six digits of noise for the GANs, so the
-    precision follows the magnitude."""
+    precision follows the magnitude: two significant figures below 1 second
+    (an econometric fit reported as '$<1$' against a GAN's '481' understates
+    the actual four-orders-of-magnitude gap), whole seconds above it."""
     if x is None or (isinstance(x, float) and x != x):
         return "---"
     if x < 1:
-        return f"$<1$"
+        return _fsig2(x)
     return f"{x:,.0f}"
 
 
@@ -798,6 +819,29 @@ def _build_win_prose(per_seed_market: pd.DataFrame, families: dict) -> dict:
         out[f"{label}_econ"] = str(econ)
         out[f"{label}_grad"] = str(grad)
     return out
+
+
+def _build_pipeline_reading_prose(per_seed_market: pd.DataFrame, models: list,
+                                  metadata: dict) -> dict:
+    """Scalars for Section~\\ref{sec:pipeline-reading} (Figure~\\ref{fig:pipeline}):
+    how many trainings each evaluation track runs. '5 folds x 5 models x 15
+    evaluations = 375' is counted from the roster and the run metadata here,
+    never typed as a fixed number in the template."""
+    n_cells = _n_cells(per_seed_market)
+    n_models = len(models)
+    n_folds = metadata.get("n_folds")
+    if not isinstance(n_folds, (int, float)) or n_folds != n_folds:
+        raise ReportDataError(
+            "pipeline_run_metadata.json is missing n_folds, required for "
+            "Section~\\ref{sec:pipeline-reading}'s training-count arithmetic")
+    n_folds = int(n_folds)
+    return {
+        "n_models": str(n_models),
+        "n_folds": str(n_folds),
+        "n_cells": str(n_cells),
+        "track_a_trainings": str(n_models * n_cells),
+        "track_b_trainings": str(n_folds * n_models * n_cells),
+    }
 
 
 # ============================================================================
@@ -919,6 +963,19 @@ def _build_compute_prose(per_seed_market: pd.DataFrame, overall: pd.DataFrame,
     else:
         leverage = "so no leverage comparison is available in this run"
 
+    # Fit-time advantage of the two econometric models over QuantGAN, for the
+    # Table~\ref{tab:ranking} caption: the Fit column alone leaves a reader to
+    # divide a two-significant-figure cell into a three-digit one.
+    for m in ("QuantGAN", "GARCH", "GJR-GARCH"):
+        if m not in agg.index:
+            raise ReportDataError(
+                f"per_seed_market_performance.csv has no train_seconds for "
+                f"{m!r}, required for the Table~\\ref{{tab:ranking}} "
+                "caption's fit-time ratio")
+    quantgan_seconds = agg.loc["QuantGAN", "train_seconds"]
+    garch_fit_ratio = _fsig2(quantgan_seconds / agg.loc["GARCH", "train_seconds"])
+    gjr_fit_ratio = _fsig2(quantgan_seconds / agg.loc["GJR-GARCH", "train_seconds"])
+
     return {
         "best_model": _escape_latex(best_model),
         "best_params": _fint(agg.loc[best_model, "n_params_g"]),
@@ -942,6 +999,8 @@ def _build_compute_prose(per_seed_market: pd.DataFrame, overall: pd.DataFrame,
         "temporal_leader_params": _fint(agg.loc[tmp_leader, "n_params_g"]),
         "econ_positions": positions,
         "leverage_verdict": leverage,
+        "garch_fit_ratio": garch_fit_ratio,
+        "gjr_fit_ratio": gjr_fit_ratio,
     }
 
 
@@ -2160,6 +2219,8 @@ def load_report_context(results_dir="thesis_results/production",
         "families": families,
         "headline_rows": _build_headline_rows(overall, per_seed_market, families),
         "win_prose": _build_win_prose(per_seed_market, families),
+        "pipeline_reading_prose": _build_pipeline_reading_prose(
+            per_seed_market, models, metadata),
 
         # Compute versus performance
         "gan_only_prose": _build_gan_only_prose(per_seed_market, families),
