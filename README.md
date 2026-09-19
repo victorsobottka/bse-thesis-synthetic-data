@@ -5,7 +5,7 @@
 ![Status](https://img.shields.io/badge/status-active%20research-brightgreen)
 
 Peer-reviewed paper benchmarking **TimeGAN**, **QuantGAN**, and **CNN-WGAN-GP** on five
-BRICS emerging-market log-return series (Bovespa, FTSE JSE, MSCI, Nifty 50,
+BRICS emerging-market log-return series (Bovespa, FTSE JSE, MOEX, Nifty 50,
 Shanghai Composite) using stylized-fact preservation, walk-forward validation, and
 distributional metrics (Wasserstein distance, energy distance, discriminative AUC,
 ARCH-LM, Hurst exponent).
@@ -26,13 +26,13 @@ Collaboration between **Barcelona School of Economics (BSE)** and **UPC**.
 ├── data/
 │   ├── Bovespa Historical Data.csv                # Brazil (B3)
 │   ├── FTSE_JSE All Share Historical Data.csv     # South Africa (JSE)
-│   ├── MSCI Stock Price History.csv               # MSCI EM index
+│   ├── MOEX Historial Data.csv                    # Russia (MOEX)
 │   ├── Nifty 50 Historical Data.csv               # India (NSE)
 │   ├── Shanghai Composite Historical Data.csv     # China (SSE)
 │   └── processed_files/
 │       ├── BOVESPA_processed.csv                  # Log-return series (no clipping)
 │       ├── FTSE_JSE_processed.csv
-│       ├── MSCI_processed.csv
+│       ├── MOEX_processed.csv
 │       ├── NIFTY50_processed.csv
 │       ├── SHANGHAI_processed.csv
 │       ├── train/ valid/ test/                    # Parquet splits per market
