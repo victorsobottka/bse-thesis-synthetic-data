@@ -191,9 +191,56 @@ def _discover_data_markets(processed_dir: Path) -> list:
     return markets
 
 
+_HILL_Q = 0.95  # the pipeline's tail_index_diff uses the largest 5% of |r|
+
+
+def _hill_k(n: int, q: float = _HILL_Q) -> int:
+    """Number of excesses k the pipeline's estimator uses on n observations.
+
+    Its tail is s[int(n*q):] of the ascending |r|, whose first element is the
+    threshold, so k = n - int(n*q) - 1 excesses over that threshold.
+    """
+    return n - int(n * q) - 1
+
+
+def _hill_curve(r: np.ndarray, k_max: int) -> np.ndarray:
+    """Hill estimate alpha(k) for k = 1..k_max, as an array indexed k - 1.
+
+    alpha(k) = 1 / ( mean_{i<=k} log X_(i) - log X_(k+1) ), X_(1) >= X_(2) >= ...
+    the descending order statistics of |r|. NaN where the threshold is not
+    positive or the estimate is not finite.
+
+    This is the only Hill implementation in the report. Table 1's alpha is
+    this curve read at k = _hill_k(n), and the Hill-plot figure draws the same
+    curve, so the two cannot disagree. Definition and top-5% choice are the
+    pipeline's ``hill_estimator`` (a notebook, so copied, not imported), minus
+    its alpha > 20 -> NaN guard, which exists for degenerate generated series
+    and which no real series here approaches.
+    """
+    x = np.sort(np.abs(r))[::-1]
+    if k_max < 1 or k_max > len(x) - 1:
+        raise ReportDataError(f"k_max={k_max} outside 1..{len(x) - 1}")
+    x = x[:k_max + 1]
+    with np.errstate(divide="ignore", invalid="ignore"):
+        lx = np.log(x)
+        k = np.arange(1, k_max + 1)
+        alpha = 1.0 / (np.cumsum(lx[:-1]) / k - lx[1:])
+    alpha[~np.isfinite(alpha)] = np.nan
+    return alpha
+
+
+def _hill_alpha(r: np.ndarray, q: float = _HILL_Q) -> float:
+    """Hill alpha on the largest (1-q) of |r|: the curve read at _hill_k."""
+    k = _hill_k(len(r), q)
+    if k < 1:
+        return float("nan")
+    return float(_hill_curve(r, k)[k - 1])
+
+
 def compute_real_market_characteristics(processed_dir: Path, markets: list) -> dict:
-    """Per-market sigma, excess kurtosis, |r|>5*sigma count, and a big-move
-    clustering ratio, computed from the full (train+valid+test) real series.
+    """Per-market sigma, excess kurtosis, Hill alpha, |r|>5*sigma count, and
+    a big-move clustering ratio, computed from the full (train+valid+test)
+    real series.
 
     Raises if a market's parquet files are missing, rather than skipping it
     silently -- the resulting table would otherwise under-report market-days
@@ -230,6 +277,7 @@ def compute_real_market_characteristics(processed_dir: Path, markets: list) -> d
             "n_days": int(r.size),
             "sigma_pct": sigma * 100,
             "excess_kurtosis": kurt,
+            "hill_alpha": _hill_alpha(r),
             "n_extreme_5sigma": n_extreme,
             "p_big_move": p_big * 100,
             "p_big_given_big": p_big_given_big * 100,
@@ -353,18 +401,73 @@ def _build_budget_parity_rows(per_seed_market: pd.DataFrame) -> str:
 
 
 def _build_table1_rows(characteristics: dict) -> str:
-    """Market, sigma, excess kurtosis, resid. kurtosis (not yet computable
-    without duplicating FinancialMetrics' GARCH fit -- left as an em-dash,
-    same as the table this replaces)."""
+    """Market, sigma, excess kurtosis, Hill alpha.
+
+    Residual kurtosis is deliberately not a column: it enters the pipeline
+    only as a real-versus-synthetic difference, so it has no per-market value
+    to tabulate, and a column of em-dashes said nothing. The explanation is
+    in the text under the table.
+    """
     lines = []
     for market, c in characteristics.items():
         if market == "_totals":
             continue
         lines.append(
             f"{_escape_latex(market)} & {_fnum(c['sigma_pct'], 2)} & "
-            f"{_fnum(c['excess_kurtosis'], 2)} & --- \\\\"
+            f"{_fnum(c['excess_kurtosis'], 2)} & {_fnum(c['hill_alpha'], 2)} \\\\"
         )
     return "\n".join(lines)
+
+
+def _month_span(dates: list) -> str:
+    """'April--May 2023', or 'December 2009--January 2010' across years, or
+    'March 2010' when every market ends in the same month."""
+    lo, hi = min(dates), max(dates)
+    if (lo.year, lo.month) == (hi.year, hi.month):
+        return f"{lo:%B %Y}"
+    if lo.year == hi.year:
+        return f"{lo:%B}--{hi:%B %Y}"
+    return f"{lo:%B %Y}--{hi:%B %Y}"
+
+
+def _build_fold_calendar(processed_dir: Path, markets: list, n_folds: int,
+                         wf: pd.DataFrame) -> dict:
+    """The calendar span each walk-forward fold's training window covers.
+
+    Recomputed from the dated return series with the same schedule the
+    pipeline uses (L = n // (K+1); fold k trains on the first n - L*(K-k)
+    observations) and cross-checked against ``train_len`` in the
+    walk-forward CSVs, so a mismatch raises instead of printing dates for a
+    window the run did not use. Needed because fold index, training length
+    and calendar period advance together, and the text says which periods.
+    """
+    last = n_folds - 1
+    ends = {0: [], last: []}
+    starts = []
+    for market in markets:
+        matches = sorted(processed_dir.glob(f"{market}*_processed.csv"))
+        if not matches:
+            raise ReportDataError(
+                f"No dated processed CSV for {market!r} under {processed_dir}")
+        d = pd.read_csv(matches[0])
+        d = d[d["LogReturn"].notna()]
+        dates = pd.to_datetime(d["Date"]).reset_index(drop=True)
+        n = len(dates)
+        block = n // (n_folds + 1)
+        starts.append(dates.iloc[0])
+        for k in ends:
+            train_len = n - block * (n_folds - k)
+            got = wf[(wf["market"] == market) & (wf["fold"] == k)]["train_len"].unique()
+            if len(got) and int(got[0]) != train_len:
+                raise ReportDataError(
+                    f"{market} fold {k}: train_len {int(got[0])} in the "
+                    f"walk-forward CSVs but {train_len} from the dated series")
+            ends[k].append(dates.iloc[train_len - 1])
+    return {
+        "start_year": str(min(starts).year),
+        "first_end": _month_span(ends[0]),
+        "last_end": _month_span(ends[last]),
+    }
 
 
 def _build_table1_prose(characteristics: dict) -> dict:
@@ -376,7 +479,15 @@ def _build_table1_prose(characteristics: dict) -> dict:
     max_ratio_market = max(per_market, key=lambda m: per_market[m]["clustering_ratio"])
     max_extreme_market = max(per_market, key=lambda m: per_market[m]["n_extreme_5sigma"])
     ratios = [c["clustering_ratio"] for c in per_market.values()]
+    alphas = [c["hill_alpha"] for c in per_market.values()]
     return {
+        # E|X|^k is finite only for k < alpha, so a market with alpha < 3 has
+        # infinite skewness and one with alpha < 4 infinite kurtosis.
+        "alpha_min": _fnum(min(alphas), 2),
+        "alpha_max": _fnum(max(alphas), 2),
+        "n_markets": str(len(per_market)),
+        "n_skew_infinite": str(sum(a < 3 for a in alphas)),
+        "n_kurt_infinite": str(sum(a < 4 for a in alphas)),
         "total_days": _fint(totals["n_days"]),
         "total_extreme": _fint(totals["n_extreme_5sigma"]),
         "max_extreme_market": _escape_latex(max_extreme_market),
@@ -835,12 +946,46 @@ def _build_pipeline_reading_prose(per_seed_market: pd.DataFrame, models: list,
             "pipeline_run_metadata.json is missing n_folds, required for "
             "Section~\\ref{sec:pipeline-reading}'s training-count arithmetic")
     n_folds = int(n_folds)
+    # Sizes as fractions of the series, not of any one market: fold k trains
+    # on the first (k+1)/(K+1) of it (n - L*(K-k) with L = n/(K+1)) and tests
+    # on the next block of 1/(K+1). The test/valid boundaries are the 80/10/10
+    # split's.
+    block = 1.0 / (n_folds + 1)
+    # The prose says: no fold trains on Track A's test block (starts at 0.90),
+    # the last fold trains into its valid block (0.80-0.90), and the one before
+    # it is evaluated on data Track A trains on (below 0.80). True for the
+    # 5-fold schedule; raise if a different fold count would make it false.
+    max_train = n_folds * block
+    penult_test_start = (n_folds - 1) * block
+    if not (0.80 < max_train < 0.90 and penult_test_start < 0.80):
+        raise ReportDataError(
+            f"With n_folds={n_folds} the cross-track overlap statement in "
+            f"Section~\\ref{{sec:pipeline-reading}} no longer holds "
+            f"(max fold training {max_train:.3f}, penultimate test block "
+            f"starts at {penult_test_start:.3f})")
+    if "n_params_g" not in per_seed_market.columns:
+        raise ReportDataError(
+            "per_seed_market_performance.csv has no n_params_g column, "
+            "required for the pipeline figure's model roster")
+    params = (per_seed_market[~per_seed_market["model"].apply(_is_control)]
+              .groupby("model")["n_params_g"].mean())
     return {
         "n_models": str(n_models),
         "n_folds": str(n_folds),
         "n_cells": str(n_cells),
         "track_a_trainings": str(n_models * n_cells),
         "track_b_trainings": str(n_folds * n_models * n_cells),
+        "last_fold": str(n_folds - 1),
+        "penult_fold": str(n_folds - 2),
+        "block_pct": f"{100 * block:.0f}",
+        # Share of the pipeline's trainings that are Track B refits (not of
+        # wall-clock: per-fold training time is not recorded).
+        "refit_share": f"{100 * n_folds * n_models * n_cells / (n_folds * n_models * n_cells + n_models * n_cells):.0f}",
+        "fold_first_pct": f"{100 * block:.0f}",
+        "fold_last_pct": f"{100 * n_folds * block:.0f}",
+        "max_train_frac": f"{n_folds * block:.3f}",
+        "test_start_frac": "0.900",
+        "params": {str(m): _fint(v) for m, v in params.items()},
     }
 
 
@@ -1189,7 +1334,10 @@ def _build_control_audit_prose(pooled: pd.DataFrame, models: list,
 # Measured over 15 real-vs-real half-splits; see Methods. Rank is on
 # |AUC - 0.5|, never on raw AUC.
 AUC_NULL_MEAN = 0.506
+# Standard deviation of the INDIVIDUAL null draws, not the standard error of
+# the null mean (AUC_NULL_SD / sqrt(AUC_NULL_B) = 0.022).
 AUC_NULL_SD = 0.084
+AUC_NULL_B = 15
 
 
 def _pooled_walk_forward(runs: list) -> pd.DataFrame:
@@ -1226,12 +1374,13 @@ def _build_wf_auc_rows(wf: pd.DataFrame) -> str:
 
 
 def _build_wf_auc_prose(wf: pd.DataFrame) -> dict:
-    """How many models' fold-averaged AUC lies more than 1.96 null sd from the
-    empirical null.
+    """How many models' fold-averaged AUC lies above the empirical null mean,
+    and the constants of the Monte Carlo p-value formulation.
 
-    Counted, because "every model is distinguishable" is exactly the kind of
-    sentence that reads true and is not: in this run some generators sit
-    inside the band.
+    No "beyond 1.96 sd" count: with B = 15 null draws the smallest attainable
+    Monte Carlo p is 1/(B+1) = 0.0625, so no result reaches 5%, and a
+    normal-theory threshold would claim a significance the null cannot
+    support.
     """
     z = {}
     above = 0
@@ -1239,13 +1388,20 @@ def _build_wf_auc_prose(wf: pd.DataFrame) -> dict:
         mean = grp["discriminative_auc"].mean()
         z[str(model)] = abs(mean - AUC_NULL_MEAN) / AUC_NULL_SD
         above += int(mean > AUC_NULL_MEAN)
-    beyond = [m for m, v in sorted(z.items(), key=lambda kv: -kv[1]) if v > 1.96]
-    within = [m for m, v in sorted(z.items(), key=lambda kv: kv[1]) if v <= 1.96]
+    # Monte Carlo p = (1 + #{null >= observed}) / (B + 1): the floor is
+    # 1/(B+1) whatever the observed value, so it is a property of B alone.
+    n_models = len(z)
+    p_floor = 1.0 / (AUC_NULL_B + 1)
+    bonf_z = round(float(stats.norm.ppf(1 - 0.05 / (2 * n_models))), 2)
     return {
+        "null_b": str(AUC_NULL_B),
+        "null_b_plus_1": str(AUC_NULL_B + 1),
+        "p_floor": _fnum(p_floor, 4),
+        "null_se": _fnum(AUC_NULL_SD / math.sqrt(AUC_NULL_B), 3),
+        "expected_false_flags": _fnum(0.05 * n_models, 2),
+        "bonf_z": _fnum(bonf_z, 2),
+        "bonf_threshold": _fnum(AUC_NULL_MEAN + bonf_z * AUC_NULL_SD, 3),
         "n_models": str(len(z)),
-        "n_beyond": str(len(beyond)),
-        "beyond": ", ".join(_escape_latex(m) for m in beyond) or "none",
-        "within": ", ".join(_escape_latex(m) for m in within) or "none",
         "n_above": str(above),
     }
 
@@ -1279,6 +1435,15 @@ def _build_fold_effect_prose(wf: pd.DataFrame) -> dict:
     ).sort_index()
     aucs = per_fold["auc"].to_numpy()
     monotonic = bool((aucs[1:] <= aucs[:-1]).all())
+    # The aggregate is a mean over models, markets and seeds. "Not monotonic"
+    # is checked one level down too, on every individual (model, market,
+    # seed) series and on every model's fold-mean curve, because a monotone
+    # aggregate could hide non-monotone parts and the converse.
+    series = wf.pivot_table(index=["model", "market", "seed"], columns="fold",
+                            values="discriminative_auc").sort_index(axis=1)
+    falling = (series.diff(axis=1).iloc[:, 1:] <= 0).all(axis=1)
+    per_model = wf.groupby(["model", "fold"])["discriminative_auc"].mean().unstack()
+    model_falling = (per_model.diff(axis=1).iloc[:, 1:] <= 0).all(axis=1)
     rises = [int(f) for f, prev, cur in
              zip(per_fold.index[1:], aucs[:-1], aucs[1:]) if cur > prev]
     return {
@@ -1289,6 +1454,10 @@ def _build_fold_effect_prose(wf: pd.DataFrame) -> dict:
         "first_len": f"{_fint(per_fold['lo'].iloc[0])}--{_fint(per_fold['hi'].iloc[0])}",
         "last_len": f"{_fint(per_fold['lo'].iloc[-1])}--{_fint(per_fold['hi'].iloc[-1])}",
         "monotonic": "monotonic" if monotonic else "not monotonic",
+        "n_series": str(len(series)),
+        "n_series_monotone": str(int(falling.sum())),
+        "n_models_monotone": str(int(model_falling.sum())),
+        "n_models_curves": str(len(model_falling)),
         "rise_folds": ", ".join(str(f) for f in rises) or "none",
         "n_folds_measured": _fint(len(per_fold)),
     }
@@ -1542,6 +1711,17 @@ def _read_market_returns(processed_dir: Path, market: str) -> np.ndarray:
     return np.concatenate(parts)
 
 
+def _disjoint_block_estimates(r: np.ndarray, n: int) -> dict:
+    """Excess kurtosis and top-5% Hill alpha on each disjoint block of length
+    n. One place for both the kurtosis table and the Hill-plot figure, so the
+    two show the same numbers where they overlap."""
+    starts = range(0, len(r) - n + 1, n)
+    return {
+        "kurtosis": [float(stats.kurtosis(r[i:i + n])) for i in starts],
+        "alpha": [_hill_alpha(r[i:i + n]) for i in starts],
+    }
+
+
 def _build_kurtosis_divergence(processed_dir: Path, markets: list) -> dict:
     """Sample excess kurtosis against block length, per market.
 
@@ -1564,8 +1744,7 @@ def _build_kurtosis_divergence(processed_dir: Path, markets: list) -> dict:
         for n in block_ns:
             if len(r) < 2 * n:
                 continue
-            blocks = [stats.kurtosis(r[i:i + n]) for i in range(0, len(r) - n + 1, n)]
-            vals[n] = float(np.mean(blocks))
+            vals[n] = float(np.mean(_disjoint_block_estimates(r, n)["kurtosis"]))
         per_market[market] = vals
     used_ns = [n for n in block_ns if all(n in v for v in per_market.values())]
     rows = []
@@ -1586,6 +1765,121 @@ def _build_kurtosis_divergence(processed_dir: Path, markets: list) -> dict:
         "n_grew": str(grew), "n_markets": str(len(per_market)),
         "ratio_min": _fnum(min(v[hi] / v[lo] for v in per_market.values()), 1),
         "ratio_max": _fnum(max(v[hi] / v[lo] for v in per_market.values()), 1),
+    }
+
+
+# Block lengths for the alpha-against-n and kurtosis-against-n panels. The
+# kurtosis table uses (250, 500, 1000, 2000); the extra two only make the line
+# smoother. Every length needs at least two disjoint blocks.
+_HILL_FIG_BLOCK_NS = (250, 500, 750, 1000, 1500, 2000)
+# Hill-plot sweep: k from 10 to n/4. Below ~10 order statistics the estimate
+# rests on too few points to read; at n/4 the "tail" is a quarter of the
+# sample and no longer a tail, which is what the drift at large k shows.
+_HILL_FIG_K_MIN = 10
+_HILL_FIG_K_MAX_FRAC = 0.25
+_HILL_FIG_K_POINTS = 140
+
+
+def _build_hill_figure_data(processed_dir: Path, markets: list,
+                            characteristics: dict) -> dict:
+    """Numbers behind the Hill-plot figure, one entry per market.
+
+    ``curve``: alpha(k) on a log-spaced k grid that always contains the
+    top-5% k, with the iid-asymptotic band alpha*(1 +- 1.96/sqrt(k)).
+    ``k5``/``alpha5``: the top-5% point, read from the SAME curve array as the
+    band, and checked against the value Table 1 prints (both come from
+    ``_hill_alpha``); a mismatch raises rather than drawing a figure that
+    disagrees with the table.
+    ``blocks``: per block length, every disjoint block's alpha and kurtosis.
+    ``full``: the whole-series alpha and excess kurtosis, which are Table 1's
+    two columns.
+    """
+    out = {}
+    for market in markets:
+        r = _read_market_returns(processed_dir, market)
+        n = len(r)
+        k5 = _hill_k(n)
+        k_max = int(n * _HILL_FIG_K_MAX_FRAC)
+        curve = _hill_curve(r, k_max)
+        ks = sorted(set(np.unique(np.round(np.geomspace(
+            _HILL_FIG_K_MIN, k_max, _HILL_FIG_K_POINTS)).astype(int)).tolist()) | {k5})
+        alpha5 = float(curve[k5 - 1])
+        table_alpha = characteristics[market]["hill_alpha"]
+        if abs(alpha5 - table_alpha) > 1e-9:
+            raise ReportDataError(
+                f"{market}: Hill alpha at the top-5% k is {alpha5:.6f} in the "
+                f"figure but {table_alpha:.6f} in Table 1")
+        blocks = {}
+        for bn in _HILL_FIG_BLOCK_NS:
+            if n < 2 * bn:
+                continue
+            blocks[bn] = _disjoint_block_estimates(r, bn)
+        out[market] = {
+            "n": n, "k5": k5, "alpha5": alpha5,
+            "ks": ks,
+            "alpha": [float(curve[k - 1]) for k in ks],
+            "blocks": blocks,
+            "full_alpha": table_alpha,
+            "full_kurtosis": characteristics[market]["excess_kurtosis"],
+            # Curve read at 2%, 10% and 25% of n, for the prose.
+            "plateau": [float(v) for v in
+                        curve[int(n * 0.02) - 1:int(n * 0.10)]],
+            "alpha_at_kmax": float(curve[k_max - 1]),
+        }
+    return out
+
+
+def _build_hill_figure_prose(hill: dict) -> dict:
+    """Ranges across the markets for the sentences under the Hill figure. Read
+    from the same ``hill`` dict the drawing uses, so text and picture agree."""
+    def rng(vals, d=2):
+        return f"{_fnum(min(vals), d)}--{_fnum(max(vals), d)}"
+
+    def block_mean(d, n, key):
+        return float(np.mean(d["blocks"][n][key]))
+
+    lo_n, hi_n = 250, 2000
+    for d in hill.values():
+        if lo_n not in d["blocks"] or hi_n not in d["blocks"]:
+            raise ReportDataError(
+                f"Hill figure needs blocks of {lo_n} and {hi_n}; "
+                f"a market has only {sorted(d['blocks'])}")
+    # The panels share a fixed vertical range for alpha; say so if the sweep
+    # leaves it rather than let a curve run off the edge unremarked.
+    y_max = 8.0
+    clipped = []
+    for market, d in hill.items():
+        over = [(k, a) for k, a in zip(d["ks"], d["alpha"]) if a == a and a > y_max]
+        if over:
+            clipped.append(f"{_escape_latex(market)}'s curve leaves the axis for $k\\le{max(k for k, _ in over)}$ "
+                           f"(${max(a for _, a in over):.1f}$ at $k={over[0][0]}$)")
+        n_off = sum(v > y_max for b in d["blocks"].values() for v in b["alpha"])
+        if n_off:
+            clipped.append(f"{n_off} block estimate(s) for {_escape_latex(market)} exceed it")
+    clip_note = (" Values above the axis limit are clipped: " + "; ".join(clipped) + ".") if clipped else ""
+    return {
+        "clip_note": clip_note,
+        # How flat the middle of each curve is: max minus min of alpha(k) for
+        # k in 2-10% of n. Reported per market, not thresholded into
+        # "plateau" / "no plateau", so the reader sees the spread.
+        "window_widths": ", ".join(
+            f"{_escape_latex(m)} {_fnum(max(d['plateau']) - min(d['plateau']), 2)}"
+            for m, d in hill.items()),
+        "n_markets": str(len(hill)),
+        "n_below4_window": str(sum(max(d["plateau"]) < 4 for d in hill.values())),
+        "n_below3_window": str(sum(max(d["plateau"]) < 3 for d in hill.values())),
+        "n_below3_k5": str(sum(d["alpha5"] < 3 for d in hill.values())),
+        "k5": f"{min(d['k5'] for d in hill.values())}--{max(d['k5'] for d in hill.values())}",
+        "plateau_lo": _fnum(min(min(d["plateau"]) for d in hill.values()), 2),
+        "plateau_hi": _fnum(max(max(d["plateau"]) for d in hill.values()), 2),
+        "at_kmax": rng([d["alpha_at_kmax"] for d in hill.values()]),
+        "n_full": f"{_fint(min(d['n'] for d in hill.values()))}--{_fint(max(d['n'] for d in hill.values()))}",
+        "alpha_lo_n": rng([block_mean(d, lo_n, "alpha") for d in hill.values()]),
+        "alpha_hi_n": rng([block_mean(d, hi_n, "alpha") for d in hill.values()]),
+        "kurt_lo_n": rng([block_mean(d, lo_n, "kurtosis") for d in hill.values()], 1),
+        "kurt_hi_n": rng([block_mean(d, hi_n, "kurtosis") for d in hill.values()], 1),
+        "blocks_hi_n": (lambda v: str(v[0]) if len(set(v)) == 1 else f"{min(v)}--{max(v)}")(
+            [len(d["blocks"][hi_n]["alpha"]) for d in hill.values()]),
     }
 
 
@@ -2239,6 +2533,8 @@ def load_report_context(results_dir="thesis_results/production",
         "resid_kurt_prose": _build_resid_kurt_prose(pooled, families),
         "fold_effect_rows": _build_fold_effect_rows(wf),
         "fold_effect_prose": _build_fold_effect_prose(wf),
+        "fold_calendar": _build_fold_calendar(
+            processed_dir, data_markets, int(metadata["n_folds"]), wf),
         "wf_dispersion_rows": _build_wf_dispersion_rows(wf),
         "wf_outliers": wf_outliers,
 
@@ -2252,6 +2548,8 @@ def load_report_context(results_dir="thesis_results/production",
         "guard": _build_guard_firings(reports_dir),
 
         # Design-decision evidence from the raw series
+        "hill_figure": (hill_fig := _build_hill_figure_data(processed_dir, data_markets, characteristics)),
+        "hill_prose": _build_hill_figure_prose(hill_fig),
         "kurtosis_divergence": _build_kurtosis_divergence(
             processed_dir, data_markets),
         "minmax_evidence": _build_minmax_evidence(

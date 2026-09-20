@@ -78,6 +78,11 @@ target/
 # Jupyter Notebook
 .ipynb_checkpoints
 
+# The previous run's executed copy of the pipeline notebook (~550k lines of
+# output). Never the source: one lost production launch was run from it. Its
+# stream output is extracted to reports/production/run_log_<commit>.txt.
+executed_run.ipynb
+
 # IPython
 profile_default/
 ipython_config.py

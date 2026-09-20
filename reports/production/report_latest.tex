@@ -19,6 +19,9 @@
 \usepackage[section]{placeins}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta,positioning,calc}
+\usepackage{pgfplots}
+\usepgfplotslibrary{groupplots,fillbetween}
+\pgfplotsset{compat=1.17}
 \usepackage[most]{tcolorbox}
 \usepackage[colorlinks=true,linkcolor=Accent,citecolor=Accent,urlcolor=Accent]{hyperref}
 
@@ -27,6 +30,7 @@
 \definecolor{Accent}{HTML}{1F3A5F}
 \definecolor{Rule}{HTML}{8A94A0}
 \definecolor{DRed}{HTML}{B71C1C}   % smoke-test banner only
+\definecolor{RefitCol}{HTML}{C25A00}   % the pipeline figure's refit node: the only colour-coded node
 %% Colour names used by diagram and table code carried over from the previous
 %% layout all collapse to the accent or to white, so nothing is colour-coded.
 \colorlet{Navy}{Accent}\colorlet{Sky}{Accent}\colorlet{Teal}{Accent}
@@ -99,7 +103,7 @@
 \vfill
 {\sffamily\small\textbf{Scope.} Five generators of daily equity returns --- three generative adversarial networks and two GARCH baselines --- trained per market on five BRICS indices, 2006--2026, and ranked with a metric suite audited against a shuffled copy of the real data.\par}
 \vspace{0.7cm}
-{\sffamily\small 2026-09-18\par}
+{\sffamily\small 2026-09-20\par}
 \end{titlepage}
 \setcounter{page}{2}
 
@@ -138,9 +142,9 @@ The numerical library versions are recorded because they are load-bearing, not a
 \begin{itemize}[leftmargin=1.3em,itemsep=6pt]
 \item \textbf{A 6-parameter model ranks first.} GJR-GARCH, fitted in 0.018\,s, has the best mean composite rank (2.524). The largest generator, QuantGAN, has 276,481 parameters and trains for 481\,s per market--seed, and ranks below it on composite, on fidelity and on temporal.
 \item \textbf{The margin is thin, and the two families win different things.} CNN-WGAN-GP trails by 0.081 on composite. The gradient-trained family takes 10 of 15 per-evaluation composite wins and 9 of 15 fidelity wins; the econometric family takes 9 of 15 temporal wins.
-\item \textbf{A shuffled copy of the real data beats most generators on volatility clustering.} 9 of 19 computed metrics cannot tell a shuffled deck from the real series at all. On the autocorrelation of squared returns the shuffled control beats all 3 GANs, and only GJR-GARCH clears it.
+\item \textbf{A shuffled copy of the real data beats most generators on volatility clustering.} 9 of the 19 per-market metrics cannot tell a shuffled deck from the real series at all. On the autocorrelation of squared returns the shuffled control beats all 3 GANs, and only GJR-GARCH clears it.
 \item \textbf{GARCH fits reach the integrated boundary as a property of the data.} 12 of 180 econometric fits converge to persistence~1, in 4 market--window--model combinations and identically in every seed. A refit under a stationarity bound costs 0.000581 to 0.019743 in log-likelihood.
-\item \textbf{Most generators remain distinguishable from real data.} In walk-forward evaluation 3 of 5 models sit more than 1.96 null standard deviations from chance on discriminative AUC. AUC falls from 0.811 to 0.664 as the training window grows, and the decline is not monotonic.
+\item \textbf{Every generator's AUC lies above the real-versus-real null, but no result reaches the 5\,\% level.} The AUC quoted here is the walk-forward one (Section~\ref{sec:walkforward}), because it is scored out of time: a classifier-based indistinguishability test\tcite{4} compares a freshly trained model with the real block that follows its training data, in every fold. 5 of 5 fold-averaged AUCs are above the null mean, but the null has only 15 draws, so the smallest attainable Monte Carlo $p$-value is $1/16=0.0625$. AUC falls from 0.811 to 0.664 as the training window grows; the decline is not monotonic, and training length and calendar period grow together.
 \item \textbf{Downstream, the pooled risk backtest favours CNN-WGAN-GP.} Across 3 backtests over $n$ = 2,479 pooled observations it has the lowest median QLIKE ($-$8.134).
 \item \textbf{Mode collapse is caught by instrumentation, not by eye.} The post-generation guard fired 18 times across 2 models (TimeGAN (16), QuantGAN (2)); TimeGAN is the worst of the five on all 7 temporal metrics.
 \end{itemize}
@@ -150,7 +154,7 @@ The numerical library versions are recorded because they are load-bearing, not a
 \label{sec:why}
 Synthetic market data is wanted where real data cannot serve: crisis episodes are too rare to train or stress-test risk models on, proprietary positions cannot be shared, and scenario analysis needs many plausible histories rather than the single one that happened. Generative adversarial networks have been proposed for this, and the reference studies --- TimeGAN\tcite{4} and QuantGAN\tcite{5} --- report that they reproduce the statistical regularities of returns, the \emph{stylised facts}\tcite{7}, better than parametric baselines.
 
-Evaluation is the hard part. A generator can reproduce the distribution of daily returns exactly and still be useless for risk work if it scatters large moves at random, because what a risk model needs is the way turbulence clusters in time. Many of the metrics used to judge synthetic series look only at the distribution. This study measures that directly: scored by the same code as the generators, a random permutation of the real series --- identical values, no dynamics --- is indistinguishable from the real data on 9 of the 19 metrics computed here. A benchmark that does not audit its metrics against such a control cannot tell a working generator from a shuffled deck.
+Evaluation is the hard part. A generator can reproduce the distribution of daily returns exactly and still be useless for risk work if it scatters large moves at random, because what a risk model needs is the way turbulence clusters in time. Many of the metrics used to judge synthetic series look only at the distribution. This study measures that directly: scored by the same code as the generators, a random permutation of the real series --- identical values, no dynamics --- is indistinguishable from the real data on 9 of the 19 per-market metrics. A benchmark that does not audit its metrics against such a control cannot tell a working generator from a shuffled deck.
 
 Emerging markets make the test harder in the ways that matter. The reference GAN studies evaluate on developed-market data, for example the S\&P~500 in Wiese et al.\tcite{5}. The five BRICS indices used here span the 2008 crisis, the 2015 Chinese market crash, the COVID shock and the suspension of the Moscow exchange in 2022, and they carry heavy tails and strong volatility clustering: across 24,758 market-days, 76 daily moves exceed five standard deviations, where a Gaussian model predicts fewer than one (Table~\ref{tab:data}). A generator that works on these series is doing something a developed-market benchmark would not reveal.
 
@@ -165,20 +169,22 @@ The data are daily closing prices of five BRICS equity indices --- BOVESPA (Braz
 
 \begin{table}[htbp]
 \centering
-\caption{The five return series, computed from the processed daily log returns. $\sigma$: daily standard deviation. Excess kurtosis is zero for a Gaussian. Residual kurtosis enters the pipeline only as a real-versus-synthetic difference, so it has no standalone value per market.}
+\caption{The five return series, computed from the processed daily log returns. $\sigma$: daily standard deviation. Excess kurtosis is zero for a Gaussian. Hill $\hat\alpha$: tail index from the largest 5\,\% of $|r_t|$, the estimator behind \texttt{tail\_index\_diff}, read at the top-5\,\% point of the Hill plot in Figure~\ref{fig:hill}; $\mathrm{E}|X|^k$ is finite only for $k<\alpha$.}
 \label{tab:data}
 \begin{tabular}{@{}lrrr@{}}
 \toprule
-Market & $\sigma$ (\%/day) & Excess kurtosis & Residual kurtosis \\
+Market & $\sigma$ (\%/day) & Excess kurtosis & Hill $\hat\alpha$ \\
 \midrule
-BOVESPA & 1.63 & 10.36 & --- \\
-FTSE & 1.20 & 5.72 & --- \\
-MOEX & 1.87 & 65.63 & --- \\
-NIFTY50 & 1.29 & 14.52 & --- \\
-SHANGHAI & 1.48 & 5.77 & --- \\
+BOVESPA & 1.63 & 10.36 & 2.89 \\
+FTSE & 1.20 & 5.72 & 3.21 \\
+MOEX & 1.87 & 65.63 & 2.54 \\
+NIFTY50 & 1.29 & 14.52 & 2.72 \\
+SHANGHAI & 1.48 & 5.77 & 2.77 \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+The Hill tail index lies between 2.54 and 3.21. Because $\mathrm{E}|X|^k<\infty$ only for $k<\alpha$, the variance exists in every market, skewness is infinite in 4 of 5 and kurtosis in 5 of 5; the excess-kurtosis column is a sample value that grows with the sample length rather than an estimate of a population quantity (Section~\ref{sec:decisions}). This is why \texttt{kurtosis\_diff} and \texttt{skewness\_diff} are descriptive-only and heavy tails are ranked through \texttt{tail\_index\_diff}. Residual kurtosis --- the excess kurtosis of GARCH-standardised residuals --- is not tabulated: it enters the pipeline only as a real-versus-synthetic difference (\texttt{resid\_kurtosis\_diff}), so it has no standalone value per market.
 
 Across 24,758 market-days a Gaussian model predicts fewer than 0.01 days with $|r|>5\sigma$; the data contain 76, with MOEX alone contributing 21. Large moves also cluster: in MOEX the probability of a move beyond $2\sigma$ is 3.8\%, and 22.9\% on the day after one, a ratio of 6.1; the ratio lies between 3.4 and 6.1 in all five markets.
 
@@ -192,7 +198,9 @@ Across 24,758 market-days a Gaussian model predicts fewer than 0.01 days with $|
 \label{sec:families}
 Every metric compares a synthetic series with the real test series, and every metric belongs to one of three groups. \emph{Fidelity} metrics depend only on the marginal distribution of returns, so they are unchanged if the series is shuffled. \emph{Temporal} metrics depend on the order of the observations: autocorrelation, long memory, conditional tails and a classifier that sees windows of consecutive days. \emph{Descriptive} metrics are computed and reported but never ranked, each for a reason given below. Seven fidelity and seven temporal metrics are ranked.
 
-\paragraph{Why the ranking splits fidelity from temporal} \textit{Evidence:} an unweighted mean over all metrics was won by the shuffled-real control, \texttt{avg\_rank} 1.24 against 2.47 for a genuine generator. 9 of the 19 computed metrics are permutation-invariant, so they score a shuffled deck perfectly by construction, and no weighting of the remainder can overcome that. The composite is therefore
+Two counts recur and are not the same. The \emph{per-market metrics} are the 19 columns of each \texttt{<market>\_metrics.csv}: seven fidelity, seven temporal and five descriptive. Of these, 9 are permutation-invariant --- the seven fidelity metrics plus two descriptive ones, \texttt{skewness\_diff} and \texttt{kurtosis\_diff}. Seven of those 9 are ranked; the two descriptive ones are not. Separately, the pipeline's \texttt{DESCRIPTIVE\_COLS} has seven members: those two, \texttt{arch\_pvalue\_diff}, \texttt{arch\_stat\_diff} and \texttt{discriminative\_auc\_raw}, which are among the five in the per-market files, and \texttt{var\_coverage\_error} and \texttt{garch\_persistence\_diff}, which come from the pooled downstream backtest and appear in no per-market file. Every ``$k$ of $N$'' below says which of these it counts.
+
+\paragraph{Why the ranking splits fidelity from temporal} \textit{Evidence:} an unweighted mean over all metrics was won by the shuffled-real control, \texttt{avg\_rank} 1.24 against 2.47 for a genuine generator. 9 of the 19 per-market metrics are permutation-invariant, so they score a shuffled deck perfectly by construction, and no weighting of the remainder can overcome that. The composite is therefore
 \[ \text{composite\_rank} = \tfrac{1}{2}\left(\text{fidelity\_rank} + \text{temporal\_rank}\right), \]
 the equal-weighted mean of the two families --- families are weighted, not individual metrics. Model selection uses \texttt{composite\_rank}; \texttt{avg\_rank} is retained for comparability only and is never the selection criterion.
 
@@ -202,12 +210,12 @@ the equal-weighted mean of the two families --- families are weighted, not indiv
 
 \subsection{The metrics}
 \label{sec:metrics}
-Table~\ref{tab:metrics} lists every quantity the pipeline computes. $r_t$ is the real daily log return and $\tilde r_t$ the synthetic one; a tilde marks the synthetic counterpart of any statistic; $n$ is the test-series length. Unless stated, ``difference'' means the absolute difference between the real and synthetic value, and lower is better.
+Table~\ref{tab:metrics} lists every quantity the pipeline computes: the 19 per-market metrics, then the downstream-utility quantities, two of which (\texttt{var\_coverage\_error}, \texttt{garch\_persistence\_diff}) are also descriptive. $r_t$ is the real daily log return and $\tilde r_t$ the synthetic one; a tilde marks the synthetic counterpart of any statistic; $n$ is the test-series length. Unless stated, ``difference'' means the absolute difference between the real and synthetic value, and lower is better.
 
 {\footnotesize
 \setlength{\tabcolsep}{4pt}
 \begin{xltabular}{\linewidth}{@{}>{\raggedright\arraybackslash\ttfamily}p{3.35cm} >{\raggedright\arraybackslash}p{2.3cm} >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}p{2.2cm} >{\raggedright\arraybackslash}p{1.55cm}@{}}
-\caption{Every metric the pipeline computes: what it measures, how it is computed, where it comes from, and whether it is ranked. ``This work'' marks a metric defined for this study rather than taken from the literature.}\label{tab:metrics}\\
+\caption{Every quantity the pipeline computes: what it measures, how it is computed, where it comes from, and whether it is ranked. The first 19 rows (fidelity, temporal, and five descriptive) are the per-market metrics of \texttt{<market>\_metrics.csv}; the last five (downstream utility) are computed once per seed on the pooled sample. ``This work'' marks a metric defined for this study rather than taken from the literature.}\label{tab:metrics}\\
 \toprule
 \normalfont\bfseries Metric & \bfseries Measures & \bfseries Computation & \bfseries Source & \bfseries Role \\
 \midrule
@@ -290,6 +298,117 @@ SHANGHAI & 4.28 & 3.96 & 3.91 & 5.40 \\
 \end{tabular}
 \end{center}
 The estimate grows with $n$ in 5 of 5 markets, by factors of \(1.3\times\) to \(14.2\times\) between blocks of 250 and 2,000 observations. Both metrics are computed and displayed; neither is ranked. \texttt{tail\_index\_diff}, the Hill estimator\tcite{38} on the top $5\%$ of $|r|$, is the ranked heavy-tail metric --- it estimates $\alpha$ itself, which does exist. Hill returns NaN above $\hat\alpha=20$, after a degenerate series once drove it to 31{,}581.
+
+\paragraph{The same evidence as a Hill plot} Figure~\ref{fig:hill} shows the tail index and the kurtosis from two further sides, one row per market. The left panels are Hill plots: $\hat\alpha$ against the number $k$ of largest $|r|$ used. The sweep runs from $k=10$ to $n/4$ on a log axis, because below about ten order statistics the estimate is noise, and at $n/4$ the ``tail'' is a quarter of the sample and no longer a tail. The curve is erratic at small $k$ and drifts down once $k$ is large enough for the body of the distribution to enter the sample; it has fallen to 1.87--2.27 at $k=n/4$. Between 2 and 10\,\% of $n$ it lies between 2.14 and 3.87 across the five markets, but how flat that stretch is differs by market: the spread of $\hat\alpha$ (largest minus smallest) over it is BOVESPA 0.37, FTSE 1.09, MOEX 0.43, NIFTY50 0.87, SHANGHAI 1.20. Where the spread is small the top-5\,\% choice behind \texttt{tail\_index\_diff} ($k$ = 242--249, the dashed line and dot) sits on a plateau; where it is large the curve is still falling with $k$, and the top-5\,\% value is a point on a slope, not a plateau value. The dot is the value printed in Table~\ref{tab:data}: both come from one estimator, and the report refuses to build if they differ.
+
+The two moment conclusions are not equally robust to $k$. Across the whole 2--10\,\% window $\hat\alpha$ stays below 4 in 5 of 5 markets, so the finding that kurtosis does not exist does not depend on where in that range $k$ is set. The finding for skewness ($\alpha<3$) is weaker: $\hat\alpha$ is below 3 at the top-5\,\% point in 4 markets, but across the whole window in only 1.
+
+The centre and right panels use the disjoint blocks of the table above: each dot is one block of $n$ days, the line is their mean, and the square is the whole series, a single block of 4,860--4,997 days, which is again Table~\ref{tab:data}'s value. The mean $\hat\alpha$ falls from 4.02--4.69 at $n=250$ to 2.30--3.28 at $n=2{,}000$, toward the whole-series value, while mean sample excess kurtosis rises from 1.8--7.6 to 5.4--107.7. One statistic settles and the other does not. That is what a finite tail index below 4 predicts, and it is consistent with an infinite fourth moment rather than a proof of one: a nonstationary series would also show longer windows catching more extreme days. Only 2 blocks fit at $n=2{,}000$, so the dispersion there is the dots themselves, not a standard deviation.
+
+\begin{figure}[p]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[group style={group size=3 by 5, horizontal sep=1.0cm, vertical sep=0.75cm, x descriptions at=edge bottom}, width=3.75cm, height=3.0cm, scale only axis, tick label style={font=\scriptsize}, label style={font=\scriptsize}, title style={font=\footnotesize}, every axis plot/.append style={line width=0.6pt}, axis line style={draw=Rule}, clip mode=individual]
+\nextgroupplot[xmode=log, xmin=10, xmax=1238, ymin=1, ymax=8, ytick={2,3,4,6,8}, xtick={10,30,100,300,1000}, xticklabels={10,30,100,300,1000}, minor tick num=0, ylabel={\textbf{BOVESPA}\quad$\hat\alpha$}, title={Hill plot: $\hat\alpha$ against $k$}]
+\addplot[name path=loBOVESPA, draw=none, forget plot] coordinates {(10,1.2432) (11,1.4505) (12,1.628) (13,1.7369) (14,1.5475) (15,1.4912) (16,1.6159) (17,1.7355) (18,1.8524) (19,1.9545) (20,1.8553) (21,1.7673) (22,1.8088) (23,1.8923) (24,1.9837) (25,2.0458) (26,1.982) (27,2.0301) (28,2.0974) (29,2.1491) (30,2.2156) (31,2.1863) (33,2.0013) (34,2.0682) (35,2.0921) (36,2.1539) (37,2.0376) (39,1.8309) (40,1.8585) (41,1.8987) (43,1.8935) (44,1.9242) (46,1.8526) (48,1.9162) (49,1.9376) (51,1.9058) (53,1.9348) (55,1.8711) (57,1.943) (59,1.979) (61,1.9951) (63,2.0425) (65,2.0896) (67,2.0772) (70,2.0627) (72,2.1044) (75,2.1595) (77,2.2129) (80,2.2782) (83,2.2086) (86,2.1339) (89,2.1303) (92,2.1935) (95,2.1547) (99,2.1165) (102,2.1254) (106,2.156) (109,2.151) (113,2.2028) (117,2.2186) (121,2.254) (126,2.2909) (130,2.3265) (135,2.3253) (139,2.3811) (144,2.351) (149,2.379) (155,2.438) (160,2.4934) (166,2.552) (172,2.5043) (178,2.5028) (184,2.491) (190,2.4713) (197,2.5172) (204,2.5379) (211,2.5432) (219,2.5199) (226,2.5549) (234,2.5305) (243,2.5073) (247,2.532) (251,2.5497) (260,2.5758) (269,2.5996) (279,2.645) (289,2.597) (299,2.6245) (309,2.6014) (320,2.6358) (332,2.5989) (343,2.6123) (355,2.6094) (368,2.5772) (381,2.5834) (394,2.5986) (408,2.6153) (423,2.5717) (438,2.5616) (453,2.5375) (469,2.5537) (486,2.5315) (503,2.5606) (520,2.5658) (539,2.524) (558,2.5336) (577,2.5411) (598,2.5252) (619,2.522) (641,2.4951) (663,2.4879) (687,2.4998) (711,2.4782) (736,2.4453) (762,2.4633) (789,2.4409) (817,2.4453) (845,2.3775) (875,2.3824) (906,2.3588) (938,2.3265) (971,2.3174) (1006,2.3111) (1041,2.2726) (1078,2.2785) (1116,2.2306) (1155,2.1773) (1196,2.1507) (1238,2.141)};
+\addplot[name path=hiBOVESPA, draw=none, forget plot] coordinates {(10,5.2967) (11,5.6417) (12,5.8709) (13,5.8745) (14,4.9524) (15,4.5468) (16,4.7209) (17,4.8805) (18,5.0335) (19,5.1483) (20,4.7502) (21,4.4088) (22,4.4057) (23,4.5081) (24,4.6294) (25,4.6837) (26,4.4571) (27,4.4893) (28,4.5652) (29,4.6087) (30,4.685) (31,4.5618) (33,4.0743) (34,4.1625) (35,4.1652) (36,4.2438) (37,3.9749) (39,3.5059) (40,3.5277) (41,3.5739) (43,3.5079) (44,3.5382) (46,3.3586) (48,3.4281) (49,3.4447) (51,3.3476) (53,3.3604) (55,3.2154) (57,3.3056) (59,3.335) (61,3.332) (63,3.382) (65,3.4319) (67,3.3852) (70,3.3248) (72,3.3687) (75,3.4229) (77,3.4858) (80,3.5569) (83,3.4194) (86,3.2777) (89,3.2477) (92,3.3202) (95,3.2395) (99,3.155) (102,3.149) (106,3.17) (109,3.1453) (113,3.1987) (117,3.2005) (121,3.2315) (126,3.2602) (130,3.2925) (135,3.269) (139,3.3306) (144,3.269) (149,3.2891) (155,3.3491) (160,3.4077) (166,3.4677) (172,3.3843) (178,3.3648) (184,3.3325) (190,3.2907) (197,3.3343) (204,3.3452) (211,3.3366) (219,3.2893) (226,3.321) (234,3.2742) (243,3.2285) (247,3.2536) (251,3.2696) (260,3.2886) (269,3.3052) (279,3.3483) (289,3.2738) (299,3.2955) (309,3.2543) (320,3.2845) (332,3.2254) (343,3.2307) (355,3.2154) (368,3.1638) (381,3.1602) (394,3.168) (408,3.1774) (423,3.1135) (438,3.091) (453,3.0522) (469,3.0619) (486,3.0256) (503,3.051) (520,3.0484) (539,2.9894) (558,2.9921) (577,2.9926) (598,2.9652) (619,2.9534) (641,2.9139) (663,2.8979) (687,2.9039) (711,2.8714) (736,2.8262) (762,2.8398) (789,2.8071) (817,2.8053) (845,2.7213) (875,2.7205) (906,2.6874) (938,2.6446) (971,2.6285) (1006,2.6155) (1041,2.5665) (1078,2.5678) (1116,2.5087) (1155,2.4439) (1196,2.4091) (1238,2.3936)};
+\addplot[Accent!18, forget plot] fill between[of=loBOVESPA and hiBOVESPA];
+\addplot[Rule, dotted, thin, forget plot] coordinates {(10,3) (1238,3)};
+\addplot[Rule, dotted, thin, forget plot] coordinates {(10,4) (1238,4)};
+\addplot[Accent, thick, forget plot] coordinates {(10,3.2699) (11,3.5461) (12,3.7495) (13,3.8057) (14,3.25) (15,3.019) (16,3.1684) (17,3.308) (18,3.443) (19,3.5514) (20,3.3027) (21,3.088) (22,3.1072) (23,3.2002) (24,3.3066) (25,3.3648) (26,3.2196) (27,3.2597) (28,3.3313) (29,3.3789) (30,3.4503) (31,3.3741) (33,3.0378) (34,3.1153) (35,3.1286) (36,3.1989) (37,3.0063) (39,2.6684) (40,2.6931) (41,2.7363) (43,2.7007) (44,2.7312) (46,2.6056) (48,2.6721) (49,2.6912) (51,2.6267) (53,2.6476) (55,2.5432) (57,2.6243) (59,2.657) (61,2.6635) (63,2.7122) (65,2.7607) (67,2.7312) (70,2.6937) (72,2.7365) (75,2.7912) (77,2.8494) (80,2.9175) (83,2.814) (86,2.7058) (89,2.689) (92,2.7569) (95,2.6971) (99,2.6357) (102,2.6372) (106,2.663) (109,2.6481) (113,2.7007) (117,2.7095) (121,2.7427) (126,2.7755) (130,2.8095) (135,2.7971) (139,2.8558) (144,2.81) (149,2.834) (155,2.8936) (160,2.9506) (166,3.0098) (172,2.9443) (178,2.9338) (184,2.9117) (190,2.881) (197,2.9258) (204,2.9416) (211,2.9399) (219,2.9046) (226,2.938) (234,2.9023) (243,2.8679) (247,2.8928) (251,2.9096) (260,2.9322) (269,2.9524) (279,2.9966) (289,2.9354) (299,2.96) (309,2.9279) (320,2.9602) (332,2.9122) (343,2.9215) (355,2.9124) (368,2.8705) (381,2.8718) (394,2.8833) (408,2.8963) (423,2.8426) (438,2.8263) (453,2.7948) (469,2.8078) (486,2.7786) (503,2.8058) (520,2.8071) (539,2.7567) (558,2.7629) (577,2.7668) (598,2.7452) (619,2.7377) (641,2.7045) (663,2.6929) (687,2.7019) (711,2.6748) (736,2.6357) (762,2.6515) (789,2.624) (817,2.6253) (845,2.5494) (875,2.5515) (906,2.5231) (938,2.4855) (971,2.4729) (1006,2.4633) (1041,2.4195) (1078,2.4232) (1116,2.3696) (1155,2.3106) (1196,2.2799) (1238,2.2673)};
+\addplot[densely dashed, Accent, forget plot] coordinates {(247,1) (247,8)};
+\addplot[only marks, mark=*, mark size=1.4pt, Accent, forget plot] coordinates {(247,2.8928)};
+\nextgroupplot[xmode=log, xmin=200, xmax=6500, xtick={250,500,1000,2000,4953}, xticklabels={250,500,1000,2000,4953}, minor tick num=0, ymin=1, ymax=8, ytick={2,3,4,6,8}, title={$\hat\alpha$ against $n$}]
+\addplot[only marks, mark=*, mark size=0.7pt, Accent, opacity=0.35, forget plot] coordinates {(250,4.8586) (250,4.4956) (250,3.8597) (250,4.3164) (250,2.7475) (250,7.2939) (250,5.6103) (250,5.859) (250,5.8568) (250,5.4733) (250,2.8414) (250,4.4233) (250,7.1871) (250,1.9717) (250,5.0325) (250,4.0001) (250,4.8851) (250,5.042) (250,3.2705) (500,4.9958) (500,2.6858) (500,4.0097) (500,5.2052) (500,6.2694) (500,3.6307) (500,1.7753) (500,4.5672) (500,5.3637) (750,2.773) (750,4.3493) (750,3.9696) (750,4.0921) (750,1.9646) (750,5.0202) (1000,2.559) (1000,4.2515) (1000,4.1858) (1000,2.145) (1500,2.7273) (1500,4.0931) (1500,2.5903) (2000,2.912) (2000,2.8942)};
+\addplot[Accent, thick, mark=*, mark size=1.2pt, forget plot] coordinates {(250,4.6855) (500,4.2781) (750,3.6948) (1000,3.2853) (1500,3.1369) (2000,2.9031)};
+\addplot[only marks, mark=square, mark size=1.8pt, Accent, thick, forget plot] coordinates {(4953,2.8928)};
+\addplot[Rule, dotted, thin, forget plot] coordinates {(200,3) (6500,3)};
+\addplot[Rule, dotted, thin, forget plot] coordinates {(200,4) (6500,4)};
+\nextgroupplot[xmode=log, xmin=200, xmax=6500, xtick={250,500,1000,2000,4953}, xticklabels={250,500,1000,2000,4953}, minor tick num=0, ymin=0, title={Excess kurtosis against $n$}]
+\addplot[only marks, mark=*, mark size=0.7pt, Accent, opacity=0.35, forget plot] coordinates {(250,1.9732) (250,0.22765) (250,2.7924) (250,1.4463) (250,5.6027) (250,-0.032162) (250,0.36599) (250,0.11983) (250,0.13802) (250,0.98737) (250,9.7229) (250,0.52795) (250,0.59567) (250,10.776) (250,0.65127) (250,0.77949) (250,0.099223) (250,0.04972) (250,1.1233) (500,0.92112) (500,5.4193) (500,2.6606) (500,0.25348) (500,0.56257) (500,4.8514) (500,16.681) (500,0.71667) (500,0.69316) (750,4.7839) (750,2.268) (750,0.42267) (750,3.0143) (750,18.154) (750,0.97963) (1000,5.4781) (1000,1.8586) (1000,1.9998) (1000,18.724) (1500,6.1185) (1500,1.755) (1500,21.623) (2000,6.598) (2000,13.59)};
+\addplot[Accent, thick, mark=*, mark size=1.2pt, forget plot] coordinates {(250,1.9972) (500,3.64) (750,4.937) (1000,7.015) (1500,9.8321) (2000,10.094)};
+\addplot[only marks, mark=square, mark size=1.8pt, Accent, thick, forget plot] coordinates {(4953,10.355)};
+\nextgroupplot[xmode=log, xmin=10, xmax=1249, ymin=1, ymax=8, ytick={2,3,4,6,8}, xtick={10,30,100,300,1000}, xticklabels={10,30,100,300,1000}, minor tick num=0, ylabel={\textbf{FTSE}\quad$\hat\alpha$}]
+\addplot[name path=loFTSE, draw=none, forget plot] coordinates {(10,2.1946) (11,1.7839) (12,1.9826) (13,2.1975) (14,2.0771) (15,2.1453) (16,2.0266) (17,2.0346) (18,2.1374) (19,2.1437) (20,2.2933) (21,2.3938) (22,2.5237) (23,2.4021) (24,2.496) (25,2.3445) (26,2.3832) (27,2.4999) (28,2.51) (29,2.6011) (30,2.5817) (31,2.6638) (33,2.6828) (34,2.597) (35,2.4542) (36,2.2777) (37,2.3374) (39,2.3446) (40,2.3849) (42,2.3968) (43,2.4588) (45,2.3626) (46,2.4099) (48,2.2559) (49,2.2898) (51,2.1854) (53,2.2056) (55,2.2504) (57,2.3209) (59,2.3157) (61,2.3722) (63,2.4434) (65,2.4635) (68,2.5058) (70,2.5741) (72,2.6283) (75,2.6305) (78,2.6346) (80,2.6319) (83,2.6082) (86,2.5829) (89,2.6323) (92,2.7064) (96,2.7734) (99,2.816) (102,2.8379) (106,2.8834) (110,2.9522) (114,2.9846) (118,3.0323) (122,3.1084) (126,3.1386) (131,3.1754) (135,3.1505) (140,3.181) (145,3.1796) (150,3.1504) (155,3.1523) (161,3.146) (167,3.1433) (173,3.1098) (179,3.0139) (185,2.9787) (191,3.0322) (198,3.0572) (205,3.0619) (212,2.9671) (220,2.9061) (228,2.914) (236,2.8667) (244,2.8081) (249,2.8132) (253,2.8236) (262,2.8474) (271,2.8581) (281,2.7834) (290,2.7294) (301,2.725) (311,2.719) (322,2.7221) (334,2.7457) (346,2.7582) (358,2.7538) (370,2.7909) (383,2.7456) (397,2.7334) (411,2.6909) (426,2.6161) (441,2.5598) (456,2.5415) (472,2.5494) (489,2.5321) (506,2.5511) (524,2.5575) (543,2.5613) (562,2.568) (582,2.5401) (602,2.4943) (624,2.5049) (646,2.5034) (668,2.4629) (692,2.4655) (717,2.4661) (742,2.4019) (768,2.3785) (795,2.3844) (823,2.3745) (852,2.3252) (883,2.2888) (914,2.2688) (946,2.2476) (979,2.2211) (1014,2.2044) (1050,2.1776) (1087,2.1648) (1125,2.1513) (1165,2.1248) (1206,2.1108) (1249,2.0735)};
+\addplot[name path=hiFTSE, draw=none, forget plot] coordinates {(10,9.3502) (11,6.9385) (12,7.1498) (13,7.4323) (14,6.6473) (15,6.5412) (16,5.921) (17,5.7218) (18,5.808) (19,5.6466) (20,5.8718) (21,5.9718) (22,6.147) (23,5.7226) (24,5.8252) (25,5.3677) (26,5.3594) (27,5.5281) (28,5.4634) (29,5.5779) (30,5.4591) (31,5.5581) (33,5.4617) (34,5.227) (35,4.8859) (36,4.4878) (37,4.5598) (39,4.4895) (40,4.5268) (42,4.4752) (43,4.5552) (45,4.3132) (46,4.3688) (48,4.0358) (49,4.0707) (51,3.8387) (53,3.8308) (55,3.8672) (57,3.9486) (59,3.9023) (61,3.9618) (63,4.0459) (65,4.046) (68,4.0683) (70,4.1491) (72,4.2072) (75,4.1696) (78,4.1376) (80,4.1091) (83,4.0381) (86,3.9673) (89,4.0129) (92,4.0965) (96,4.1605) (99,4.1976) (102,4.2047) (106,4.2394) (110,4.3093) (114,4.3268) (118,4.3674) (122,4.4495) (126,4.4666) (131,4.4877) (135,4.4291) (140,4.4442) (145,4.4159) (150,4.3508) (155,4.3303) (161,4.2955) (167,4.2672) (173,4.1989) (179,4.0485) (185,3.9818) (191,4.0344) (198,4.0467) (205,4.0331) (212,3.8901) (220,3.791) (228,3.7833) (236,3.7052) (244,3.6139) (249,3.6112) (253,3.6173) (262,3.632) (271,3.6306) (281,3.5205) (290,3.4394) (301,3.4191) (311,3.399) (322,3.3897) (334,3.4053) (346,3.4079) (358,3.3903) (370,3.4242) (383,3.3567) (397,3.3299) (411,3.2669) (426,3.1651) (441,3.0868) (456,3.0552) (472,3.055) (489,3.0246) (506,3.0381) (524,3.0365) (543,3.0317) (562,3.0309) (582,2.9894) (602,2.9274) (624,2.9315) (646,2.9217) (668,2.8671) (692,2.8625) (717,2.8557) (742,2.7743) (768,2.7406) (795,2.7406) (823,2.7227) (852,2.66) (883,2.6121) (914,2.5834) (946,2.5536) (979,2.518) (1014,2.4935) (1050,2.458) (1087,2.4384) (1125,2.4183) (1165,2.3837) (1206,2.3633) (1249,2.317)};
+\addplot[Accent!18, forget plot] fill between[of=loFTSE and hiFTSE];
+\addplot[Rule, dotted, thin, forget plot] coordinates {(10,3) (1249,3)};
+\addplot[Rule, dotted, thin, forget plot] coordinates {(10,4) (1249,4)};
+\addplot[Accent, thick, forget plot] coordinates {(10,5.7724) (11,4.3612) (12,4.5662) (13,4.8149) (14,4.3622) (15,4.3432) (16,3.9738) (17,3.8782) (18,3.9727) (19,3.8951) (20,4.0825) (21,4.1828) (22,4.3353) (23,4.0624) (24,4.1606) (25,3.8561) (26,3.8713) (27,4.014) (28,3.9867) (29,4.0895) (30,4.0204) (31,4.1109) (33,4.0722) (34,3.912) (35,3.6701) (36,3.3828) (37,3.4486) (39,3.4171) (40,3.4558) (42,3.436) (43,3.507) (45,3.3379) (46,3.3894) (48,3.1459) (49,3.1802) (51,3.012) (53,3.0182) (55,3.0588) (57,3.1347) (59,3.109) (61,3.167) (63,3.2446) (65,3.2547) (68,3.2871) (70,3.3616) (72,3.4178) (75,3.4) (78,3.3861) (80,3.3705) (83,3.3232) (86,3.2751) (89,3.3226) (92,3.4015) (96,3.4669) (99,3.5068) (102,3.5213) (106,3.5614) (110,3.6307) (114,3.6557) (118,3.6999) (122,3.779) (126,3.8026) (131,3.8316) (135,3.7898) (140,3.8126) (145,3.7978) (150,3.7506) (155,3.7413) (161,3.7208) (167,3.7052) (173,3.6544) (179,3.5312) (185,3.4803) (191,3.5333) (198,3.552) (205,3.5475) (212,3.4286) (220,3.3486) (228,3.3486) (236,3.286) (244,3.211) (249,3.2122) (253,3.2205) (262,3.2397) (271,3.2443) (281,3.1519) (290,3.0844) (301,3.072) (311,3.059) (322,3.0559) (334,3.0755) (346,3.0831) (358,3.0721) (370,3.1076) (383,3.0512) (397,3.0316) (411,2.9789) (426,2.8906) (441,2.8233) (456,2.7983) (472,2.8022) (489,2.7783) (506,2.7946) (524,2.797) (543,2.7965) (562,2.7994) (582,2.7648) (602,2.7108) (624,2.7182) (646,2.7126) (668,2.665) (692,2.664) (717,2.6609) (742,2.5881) (768,2.5595) (795,2.5625) (823,2.5486) (852,2.4926) (883,2.4504) (914,2.4261) (946,2.4006) (979,2.3695) (1014,2.349) (1050,2.3178) (1087,2.3016) (1125,2.2848) (1165,2.2542) (1206,2.237) (1249,2.1953)};
+\addplot[densely dashed, Accent, forget plot] coordinates {(249,1) (249,8)};
+\addplot[only marks, mark=*, mark size=1.4pt, Accent, forget plot] coordinates {(249,3.2122)};
+\nextgroupplot[xmode=log, xmin=200, xmax=6500, xtick={250,500,1000,2000,4997}, xticklabels={250,500,1000,2000,4997}, minor tick num=0, ymin=1, ymax=8, ytick={2,3,4,6,8}]
+\addplot[only marks, mark=*, mark size=0.7pt, Accent, opacity=0.35, forget plot] coordinates {(250,4.4099) (250,4.2557) (250,5.1478) (250,4.5602) (250,2.6578) (250,4.702) (250,4.2639) (250,3.7288) (250,3.7206) (250,4.9245) (250,4.9088) (250,3.5906) (250,4.8531) (250,1.8668) (250,5.4385) (250,4.8414) (250,3.8257) (250,3.3897) (250,2.6136) (500,3.64) (500,2.8912) (500,4.0014) (500,4.9378) (500,4.0003) (500,4.0588) (500,2.167) (500,4.2306) (500,3.7547) (750,3.2816) (750,4.3126) (750,3.7942) (750,5.2472) (750,2.5588) (750,3.8591) (1000,3.2626) (1000,3.9042) (1000,4.8289) (1000,2.9276) (1500,3.8756) (1500,3.9581) (1500,3.0968) (2000,3.4982) (2000,3.0534)};
+\addplot[Accent, thick, mark=*, mark size=1.2pt, forget plot] coordinates {(250,4.0894) (500,3.7424) (750,3.8422) (1000,3.7308) (1500,3.6435) (2000,3.2758)};
+\addplot[only marks, mark=square, mark size=1.8pt, Accent, thick, forget plot] coordinates {(4997,3.2122)};
+\addplot[Rule, dotted, thin, forget plot] coordinates {(200,3) (6500,3)};
+\addplot[Rule, dotted, thin, forget plot] coordinates {(200,4) (6500,4)};
+\nextgroupplot[xmode=log, xmin=200, xmax=6500, xtick={250,500,1000,2000,4997}, xticklabels={250,500,1000,2000,4997}, minor tick num=0, ymin=0]
+\addplot[only marks, mark=*, mark size=0.7pt, Accent, opacity=0.35, forget plot] coordinates {(250,1.6976) (250,0.92019) (250,0.48372) (250,0.85558) (250,0.95034) (250,1.1623) (250,1.4029) (250,0.68056) (250,1.7436) (250,0.3269) (250,0.19771) (250,1.8582) (250,0.82102) (250,8.4187) (250,0.37649) (250,0.57371) (250,1.5973) (250,1.5225) (250,8.0488) (500,1.4087) (500,1.9448) (500,1.0768) (500,1.4499) (500,0.92344) (500,1.402) (500,11.907) (500,0.61258) (500,1.6678) (750,1.9944) (750,1.0276) (750,1.9227) (750,1.0722) (750,11.946) (750,1.2758) (1000,2.3862) (1000,1.3865) (1000,1.2928) (1000,9.8894) (1500,3.0178) (1500,1.4554) (1500,9.4024) (2000,3.7603) (2000,8.9467)};
+\addplot[Accent, thick, mark=*, mark size=1.2pt, forget plot] coordinates {(250,1.7704) (500,2.4881) (750,3.2064) (1000,3.7387) (1500,4.6252) (2000,6.3535)};
+\addplot[only marks, mark=square, mark size=1.8pt, Accent, thick, forget plot] coordinates {(4997,5.7245)};
+\nextgroupplot[xmode=log, xmin=10, xmax=1248, ymin=1, ymax=8, ytick={2,3,4,6,8}, xtick={10,30,100,300,1000}, xticklabels={10,30,100,300,1000}, minor tick num=0, ylabel={\textbf{MOEX}\quad$\hat\alpha$}]
+\addplot[name path=loMOEX, draw=none, forget plot] coordinates {(10,0.97372) (11,1.0494) (12,0.96692) (13,1.0301) (14,0.97587) (15,1.0482) (16,1.089) (17,1.1129) (18,1.1992) (19,1.2821) (20,1.3304) (21,1.3891) (22,1.4091) (23,1.3843) (24,1.4354) (25,1.4868) (26,1.5125) (27,1.5568) (28,1.4841) (29,1.5424) (30,1.5208) (31,1.5183) (33,1.625) (34,1.5992) (35,1.6048) (36,1.6433) (37,1.6929) (39,1.6198) (40,1.667) (42,1.7285) (43,1.7336) (45,1.5973) (46,1.5311) (48,1.5365) (49,1.5533) (51,1.5792) (53,1.524) (55,1.5832) (57,1.6422) (59,1.6853) (61,1.6962) (63,1.7087) (65,1.7626) (68,1.7917) (70,1.8074) (72,1.8487) (75,1.8893) (78,1.8756) (80,1.8171) (83,1.8635) (86,1.8442) (89,1.8635) (92,1.8754) (96,1.7835) (99,1.7431) (102,1.7537) (106,1.7538) (110,1.7944) (114,1.8377) (118,1.8588) (122,1.8756) (126,1.9211) (131,1.9721) (135,2.0027) (140,2.0105) (145,2.076) (150,2.0874) (155,2.0888) (161,2.1294) (167,2.066) (172,2.0986) (179,2.159) (185,2.2015) (191,2.1586) (198,2.1422) (205,2.1623) (212,2.1481) (220,2.1859) (228,2.1762) (236,2.2092) (244,2.2005) (249,2.2249) (253,2.2487) (262,2.1182) (271,2.1415) (280,2.1589) (290,2.1508) (301,2.1515) (311,2.144) (322,2.179) (334,2.1825) (345,2.1411) (358,2.141) (370,2.0995) (383,2.105) (397,2.1099) (411,2.0664) (425,2.0667) (440,2.0235) (456,2.0045) (472,2.0272) (489,2.0359) (506,2.0309) (524,2.0079) (542,1.9979) (562,1.9897) (581,1.9869) (602,1.9975) (623,2.0007) (645,2.0101) (668,2.005) (692,1.9974) (716,1.9846) (741,1.9841) (768,1.9581) (795,1.9478) (823,1.9349) (852,1.933) (882,1.9405) (913,1.9106) (945,1.9067) (979,1.8923) (1013,1.9068) (1049,1.876) (1086,1.8544) (1125,1.8461) (1164,1.8219) (1205,1.7975) (1248,1.7824)};
+\addplot[name path=hiMOEX, draw=none, forget plot] coordinates {(10,4.1485) (11,4.0818) (12,3.4869) (13,3.484) (14,3.123) (15,3.196) (16,3.1815) (17,3.1298) (18,3.2585) (19,3.3772) (20,3.4063) (21,3.4655) (22,3.4321) (23,3.2979) (24,3.35) (25,3.404) (26,3.4013) (27,3.4425) (28,3.2303) (29,3.3077) (30,3.2157) (31,3.168) (33,3.3081) (34,3.2186) (35,3.195) (36,3.2379) (37,3.3026) (39,3.1016) (40,3.1643) (42,3.2272) (43,3.2117) (45,2.9159) (46,2.7756) (48,2.7488) (49,2.7614) (51,2.7739) (53,2.6469) (55,2.7207) (57,2.7939) (59,2.84) (61,2.8328) (63,2.8293) (65,2.8949) (68,2.909) (70,2.9133) (72,2.9593) (75,2.9946) (78,2.9455) (80,2.837) (83,2.885) (86,2.8327) (89,2.8409) (92,2.8388) (96,2.6755) (99,2.5983) (102,2.5983) (106,2.5785) (110,2.6192) (114,2.6642) (118,2.6773) (122,2.6848) (126,2.7339) (131,2.7872) (135,2.8154) (140,2.8088) (145,2.8832) (150,2.8828) (155,2.8694) (161,2.9074) (167,2.8047) (172,2.8361) (179,2.9001) (185,2.9428) (191,2.8721) (198,2.8355) (205,2.8482) (212,2.8163) (220,2.8516) (228,2.8254) (236,2.8553) (244,2.8319) (249,2.856) (253,2.8808) (262,2.7018) (271,2.7204) (280,2.7318) (290,2.7103) (301,2.6996) (311,2.6802) (322,2.7134) (334,2.7069) (345,2.6462) (358,2.6358) (370,2.5759) (383,2.5736) (397,2.5703) (411,2.5087) (425,2.501) (440,2.4407) (456,2.4096) (472,2.4293) (489,2.4319) (506,2.4187) (524,2.384) (542,2.3652) (562,2.3483) (581,2.3386) (602,2.3443) (623,2.3416) (645,2.3464) (668,2.3341) (692,2.319) (716,2.2983) (741,2.2919) (768,2.2561) (795,2.2388) (823,2.2187) (852,2.2112) (882,2.2148) (913,2.1757) (945,2.1664) (979,2.1453) (1013,2.157) (1049,2.1176) (1086,2.0889) (1125,2.0752) (1164,2.044) (1205,2.0126) (1248,1.9918)};
+\addplot[Accent!18, forget plot] fill between[of=loMOEX and hiMOEX];
+\addplot[Rule, dotted, thin, forget plot] coordinates {(10,3) (1248,3)};
+\addplot[Rule, dotted, thin, forget plot] coordinates {(10,4) (1248,4)};
+\addplot[Accent, thick, forget plot] coordinates {(10,2.5611) (11,2.5656) (12,2.2269) (13,2.257) (14,2.0494) (15,2.1221) (16,2.1352) (17,2.1214) (18,2.2288) (19,2.3296) (20,2.3683) (21,2.4273) (22,2.4206) (23,2.3411) (24,2.3927) (25,2.4454) (26,2.4569) (27,2.4997) (28,2.3572) (29,2.425) (30,2.3682) (31,2.3432) (33,2.4666) (34,2.4089) (35,2.3999) (36,2.4406) (37,2.4978) (39,2.3607) (40,2.4157) (42,2.4778) (43,2.4726) (45,2.2566) (46,2.1533) (48,2.1426) (49,2.1574) (51,2.1765) (53,2.0855) (55,2.152) (57,2.218) (59,2.2626) (61,2.2645) (63,2.269) (65,2.3288) (68,2.3503) (70,2.3603) (72,2.404) (75,2.4419) (78,2.4105) (80,2.327) (83,2.3743) (86,2.3385) (89,2.3522) (92,2.3571) (96,2.2295) (99,2.1707) (102,2.176) (106,2.1661) (110,2.2068) (114,2.251) (118,2.268) (122,2.2802) (126,2.3275) (131,2.3797) (135,2.409) (140,2.4097) (145,2.4796) (150,2.4851) (155,2.4791) (161,2.5184) (167,2.4353) (172,2.4674) (179,2.5295) (185,2.5722) (191,2.5154) (198,2.4889) (205,2.5053) (212,2.4822) (220,2.5188) (228,2.5008) (236,2.5322) (244,2.5162) (249,2.5405) (253,2.5648) (262,2.41) (271,2.431) (280,2.4453) (290,2.4306) (301,2.4256) (311,2.4121) (322,2.4462) (334,2.4447) (345,2.3936) (358,2.3884) (370,2.3377) (383,2.3393) (397,2.3401) (411,2.2875) (425,2.2838) (440,2.2321) (456,2.207) (472,2.2283) (489,2.2339) (506,2.2248) (524,2.196) (542,2.1816) (562,2.169) (581,2.1628) (602,2.1709) (623,2.1711) (645,2.1783) (668,2.1696) (692,2.1582) (716,2.1415) (741,2.138) (768,2.1071) (795,2.0933) (823,2.0768) (852,2.0721) (882,2.0777) (913,2.0431) (945,2.0366) (979,2.0188) (1013,2.0319) (1049,1.9968) (1086,1.9717) (1125,1.9606) (1164,1.933) (1205,1.905) (1248,1.8871)};
+\addplot[densely dashed, Accent, forget plot] coordinates {(249,1) (249,8)};
+\addplot[only marks, mark=*, mark size=1.4pt, Accent, forget plot] coordinates {(249,2.5405)};
+\nextgroupplot[xmode=log, xmin=200, xmax=6500, xtick={250,500,1000,2000,4994}, xticklabels={250,500,1000,2000,4994}, minor tick num=0, ymin=1, ymax=8, ytick={2,3,4,6,8}]
+\addplot[only marks, mark=*, mark size=0.7pt, Accent, opacity=0.35, forget plot] coordinates {(250,4.9117) (250,3.8696) (250,2.3089) (250,5.8355) (250,2.7485) (250,5.9157) (250,5.3103) (250,2.5222) (250,5.3615) (250,4.3041) (250,4.8322) (250,3.4751) (250,5.1554) (250,2.5202) (250,4.1732) (250,1.5617) (250,3.3123) (250,5.2357) (250,3.2766) (500,3.9687) (500,2.1444) (500,3.4499) (500,3.4148) (500,3.9273) (500,3.3007) (500,1.8585) (500,1.9347) (500,5.0038) (750,2.107) (750,4.3278) (750,3.8252) (750,3.7953) (750,2.2162) (750,2.1188) (1000,2.4118) (1000,3.0711) (1000,3.6639) (1000,2.1206) (1500,2.382) (1500,3.6606) (1500,2.3154) (2000,2.3622) (2000,2.2464)};
+\addplot[Accent, thick, mark=*, mark size=1.2pt, forget plot] coordinates {(250,4.0332) (500,3.2225) (750,3.0651) (1000,2.8168) (1500,2.786) (2000,2.3043)};
+\addplot[only marks, mark=square, mark size=1.8pt, Accent, thick, forget plot] coordinates {(4994,2.5405)};
+\addplot[Rule, dotted, thin, forget plot] coordinates {(200,3) (6500,3)};
+\addplot[Rule, dotted, thin, forget plot] coordinates {(200,4) (6500,4)};
+\nextgroupplot[xmode=log, xmin=200, xmax=6500, xtick={250,500,1000,2000,4994}, xticklabels={250,500,1000,2000,4994}, minor tick num=0, ymin=0]
+\addplot[only marks, mark=*, mark size=0.7pt, Accent, opacity=0.35, forget plot] coordinates {(250,1.63) (250,2.4116) (250,5.2497) (250,1.0864) (250,4.4741) (250,1.1184) (250,0.92274) (250,19.437) (250,0.39362) (250,1.4826) (250,0.24067) (250,21.041) (250,0.058657) (250,9.5789) (250,0.72225) (250,65.899) (250,2.1843) (250,2.4405) (250,3.7053) (500,2.5) (500,9.8151) (500,2.5785) (500,16.397) (500,0.86938) (500,15.104) (500,13.029) (500,118.35) (500,2.3385) (750,12.661) (750,1.9978) (750,9.598) (750,8.8693) (750,12.351) (750,151.08) (1000,14.101) (1000,7.0136) (1000,5.0564) (1000,158.39) (1500,17.222) (1500,10.045) (1500,189.15) (2000,20.738) (2000,194.67)};
+\addplot[Accent, thick, mark=*, mark size=1.2pt, forget plot] coordinates {(250,7.583) (500,20.109) (750,32.76) (1000,46.141) (1500,72.14) (2000,107.7)};
+\addplot[only marks, mark=square, mark size=1.8pt, Accent, thick, forget plot] coordinates {(4994,65.633)};
+\nextgroupplot[xmode=log, xmin=10, xmax=1238, ymin=1, ymax=8, ytick={2,3,4,6,8}, xtick={10,30,100,300,1000}, xticklabels={10,30,100,300,1000}, minor tick num=0, ylabel={\textbf{NIFTY50}\quad$\hat\alpha$}]
+\addplot[name path=loNIFTY50, draw=none, forget plot] coordinates {(10,1.1609) (11,1.1879) (12,1.3526) (13,1.4238) (14,1.5439) (15,1.7038) (16,1.8516) (17,2.0069) (18,2.1575) (19,2.2132) (20,2.3772) (21,2.3577) (22,2.3497) (23,2.3343) (24,2.4523) (25,2.4998) (26,2.5828) (27,2.3352) (28,2.4383) (29,2.4741) (30,2.5676) (31,2.6127) (33,2.7573) (34,2.7785) (35,2.831) (36,2.9099) (37,2.9695) (39,2.7303) (40,2.8132) (41,2.8794) (43,2.9459) (44,2.8343) (46,2.7792) (48,2.8373) (49,2.5886) (51,2.656) (53,2.5636) (55,2.5856) (57,2.3366) (59,2.4266) (61,2.4375) (63,2.3965) (65,2.4829) (67,2.4837) (70,2.4944) (72,2.4663) (75,2.2806) (77,2.3206) (80,2.3867) (83,2.4157) (86,2.4482) (89,2.489) (92,2.4212) (95,2.4686) (99,2.5252) (102,2.487) (106,2.5638) (109,2.6009) (113,2.6684) (117,2.6673) (121,2.6612) (126,2.6574) (130,2.6434) (135,2.6929) (139,2.6938) (144,2.6925) (149,2.6405) (155,2.6583) (160,2.6538) (166,2.5308) (172,2.5002) (178,2.5144) (184,2.4879) (190,2.3839) (197,2.4086) (204,2.4567) (211,2.4356) (219,2.4115) (226,2.3886) (234,2.3747) (243,2.3503) (247,2.3803) (251,2.3305) (260,2.3638) (269,2.3188) (279,2.3499) (289,2.3224) (299,2.2896) (309,2.3126) (320,2.3243) (332,2.3619) (343,2.3194) (355,2.3322) (368,2.346) (381,2.3416) (394,2.3574) (408,2.315) (423,2.3002) (438,2.2865) (453,2.258) (469,2.2469) (486,2.2278) (503,2.2401) (520,2.242) (539,2.2461) (558,2.2325) (577,2.2387) (598,2.2123) (619,2.2099) (641,2.2026) (663,2.1859) (687,2.1886) (711,2.1862) (736,2.1892) (762,2.1897) (789,2.1563) (817,2.0967) (845,2.0756) (875,2.0198) (906,2.0049) (938,1.9878) (971,1.9877) (1006,1.9601) (1041,1.9498) (1078,1.9037) (1116,1.8653) (1155,1.8663) (1196,1.863) (1238,1.8414)};
+\addplot[name path=hiNIFTY50, draw=none, forget plot] coordinates {(10,4.9458) (11,4.6204) (12,4.8778) (13,4.8154) (14,4.9408) (15,5.1953) (16,5.4095) (17,5.6438) (18,5.8626) (19,5.8296) (20,6.0868) (21,5.8819) (22,5.7231) (23,5.561) (24,5.7231) (25,5.7232) (26,5.8081) (27,5.1638) (28,5.3073) (29,5.3057) (30,5.4293) (31,5.4516) (33,5.6133) (34,5.5921) (35,5.6362) (36,5.7334) (37,5.7929) (39,5.228) (40,5.3399) (41,5.4198) (43,5.4577) (44,5.2117) (46,5.0384) (48,5.0759) (49,4.602) (51,4.6654) (53,4.4526) (55,4.4432) (57,3.9751) (59,4.0893) (61,4.0707) (63,3.9681) (65,4.0779) (67,4.0477) (70,4.0207) (72,3.9479) (75,3.6149) (77,3.6554) (80,3.7262) (83,3.7401) (86,3.7604) (89,3.7945) (92,3.6649) (95,3.7114) (99,3.7642) (102,3.6848) (106,3.7694) (109,3.8031) (113,3.8748) (117,3.8479) (121,3.8152) (126,3.7818) (130,3.7409) (135,3.7858) (139,3.768) (144,3.7438) (149,3.6507) (155,3.6516) (160,3.627) (166,3.439) (172,3.3788) (178,3.3804) (184,3.3283) (190,3.1743) (197,3.1905) (204,3.2382) (211,3.1955) (219,3.1478) (226,3.1048) (234,3.0727) (243,3.0263) (247,3.0586) (251,2.9885) (260,3.0179) (269,2.9483) (279,2.9747) (289,2.9277) (299,2.875) (309,2.893) (320,2.8963) (332,2.9313) (343,2.8684) (355,2.8737) (368,2.88) (381,2.8644) (394,2.874) (408,2.8125) (423,2.7848) (438,2.759) (453,2.716) (469,2.6941) (486,2.6626) (503,2.6691) (520,2.6636) (539,2.6603) (558,2.6364) (577,2.6365) (598,2.5979) (619,2.5879) (641,2.5722) (663,2.5461) (687,2.5424) (711,2.5331) (736,2.5302) (762,2.5244) (789,2.4798) (817,2.4054) (845,2.3757) (875,2.3065) (906,2.2842) (938,2.2597) (971,2.2545) (1006,2.2183) (1041,2.202) (1078,2.1454) (1116,2.0978) (1155,2.0947) (1196,2.0868) (1238,2.0586)};
+\addplot[Accent!18, forget plot] fill between[of=loNIFTY50 and hiNIFTY50];
+\addplot[Rule, dotted, thin, forget plot] coordinates {(10,3) (1238,3)};
+\addplot[Rule, dotted, thin, forget plot] coordinates {(10,4) (1238,4)};
+\addplot[Accent, thick, forget plot] coordinates {(10,3.0533) (11,2.9042) (12,3.1152) (13,3.1196) (14,3.2423) (15,3.4496) (16,3.6305) (17,3.8253) (18,4.01) (19,4.0214) (20,4.232) (21,4.1198) (22,4.0364) (23,3.9476) (24,4.0877) (25,4.1115) (26,4.1954) (27,3.7495) (28,3.8728) (29,3.8899) (30,3.9985) (31,4.0322) (33,4.1853) (34,4.1853) (35,4.2336) (36,4.3217) (37,4.3812) (39,3.9791) (40,4.0766) (41,4.1496) (43,4.2018) (44,4.023) (46,3.9088) (48,3.9566) (49,3.5953) (51,3.6607) (53,3.5081) (55,3.5144) (57,3.1559) (59,3.258) (61,3.2541) (63,3.1823) (65,3.2804) (67,3.2657) (70,3.2575) (72,3.2071) (75,2.9477) (77,2.988) (80,3.0564) (83,3.0779) (86,3.1043) (89,3.1418) (92,3.0431) (95,3.09) (99,3.1447) (102,3.0859) (106,3.1666) (109,3.202) (113,3.2716) (117,3.2576) (121,3.2382) (126,3.2196) (130,3.1921) (135,3.2394) (139,3.2309) (144,3.2181) (149,3.1456) (155,3.1549) (160,3.1404) (166,2.9849) (172,2.9395) (178,2.9474) (184,2.9081) (190,2.7791) (197,2.7995) (204,2.8474) (211,2.8155) (219,2.7797) (226,2.7467) (234,2.7237) (243,2.6883) (247,2.7194) (251,2.6595) (260,2.6908) (269,2.6336) (279,2.6623) (289,2.625) (299,2.5823) (309,2.6028) (320,2.6103) (332,2.6466) (343,2.5939) (355,2.6029) (368,2.613) (381,2.603) (394,2.6157) (408,2.5638) (423,2.5425) (438,2.5228) (453,2.487) (469,2.4705) (486,2.4452) (503,2.4546) (520,2.4528) (539,2.4532) (558,2.4344) (577,2.4376) (598,2.4051) (619,2.3989) (641,2.3874) (663,2.366) (687,2.3655) (711,2.3596) (736,2.3597) (762,2.3571) (789,2.3181) (817,2.2511) (845,2.2256) (875,2.1632) (906,2.1446) (938,2.1237) (971,2.1211) (1006,2.0892) (1041,2.0759) (1078,2.0245) (1116,1.9816) (1155,1.9805) (1196,1.9749) (1238,1.95)};
+\addplot[densely dashed, Accent, forget plot] coordinates {(247,1) (247,8)};
+\addplot[only marks, mark=*, mark size=1.4pt, Accent, forget plot] coordinates {(247,2.7194)};
+\nextgroupplot[xmode=log, xmin=200, xmax=6500, xtick={250,500,1000,2000,4954}, xticklabels={250,500,1000,2000,4954}, minor tick num=0, ymin=1, ymax=8, ytick={2,3,4,6,8}]
+\addplot[only marks, mark=*, mark size=0.7pt, Accent, opacity=0.35, forget plot] coordinates {(250,3.9205) (250,5.8697) (250,3.3966) (250,4.5667) (250,6.3877) (250,6.7376) (250,3.9547) (250,6.2678) (250,3.9642) (250,4.1643) (250,5.0495) (250,3.4605) (250,3.3232) (250,2.0158) (250,2.9591) (250,4.8443) (250,5.5807) (250,2.6425) (250,3.5057) (500,4.7109) (500,2.9753) (500,5.9153) (500,4.1388) (500,4.3052) (500,3.3056) (500,2.0037) (500,3.8418) (500,3.5053) (750,3.9924) (750,5.3081) (750,4.0535) (750,4.4055) (750,2.0946) (750,3.3461) (1000,3.5062) (1000,5.0552) (1000,4.5263) (1000,2.334) (1500,3.1644) (1500,4.0543) (1500,2.4467) (2000,3.434) (2000,2.7913)};
+\addplot[Accent, thick, mark=*, mark size=1.2pt, forget plot] coordinates {(250,4.348) (500,3.8558) (750,3.8667) (1000,3.8554) (1500,3.2218) (2000,3.1126)};
+\addplot[only marks, mark=square, mark size=1.8pt, Accent, thick, forget plot] coordinates {(4954,2.7194)};
+\addplot[Rule, dotted, thin, forget plot] coordinates {(200,3) (6500,3)};
+\addplot[Rule, dotted, thin, forget plot] coordinates {(200,4) (6500,4)};
+\nextgroupplot[xmode=log, xmin=200, xmax=6500, xtick={250,500,1000,2000,4954}, xticklabels={250,500,1000,2000,4954}, minor tick num=0, ymin=0]
+\addplot[only marks, mark=*, mark size=0.7pt, Accent, opacity=0.35, forget plot] coordinates {(250,1.9265) (250,1.4556) (250,4.9414) (250,0.8659) (250,-0.089032) (250,0.38058) (250,2.0789) (250,0.9394) (250,4.3761) (250,1.0466) (250,1.5898) (250,0.9564) (250,3.4773) (250,13.089) (250,3.3752) (250,1.0252) (250,0.04854) (250,12.076) (250,2.5111) (500,2.4514) (500,9.2887) (500,0.15055) (500,1.9025) (500,3.2518) (500,1.2623) (500,18.828) (500,1.9558) (500,10.246) (750,5.8294) (750,0.33976) (750,2.9324) (750,1.4682) (750,20.693) (750,4.7341) (1000,7.213) (1000,0.8185) (1000,3.5053) (1000,18.386) (1500,8.279) (1500,2.8851) (1500,21.66) (2000,9.5469) (2000,19.666)};
+\addplot[Accent, thick, mark=*, mark size=1.2pt, forget plot] coordinates {(250,2.9511) (500,5.4819) (750,5.9995) (1000,7.4807) (1500,10.942) (2000,14.606)};
+\addplot[only marks, mark=square, mark size=1.8pt, Accent, thick, forget plot] coordinates {(4954,14.525)};
+\nextgroupplot[xmode=log, xmin=10, xmax=1215, ymin=1, ymax=8, ytick={2,3,4,6,8}, xtick={10,30,100,300,1000}, xticklabels={10,30,100,300,1000}, minor tick num=0, ylabel={\textbf{SHANGHAI}\quad$\hat\alpha$}, xlabel={$k$ (order statistics)}]
+\addplot[name path=loSHANGHAI, draw=none, forget plot] coordinates {(10,4.2874) (11,4.6052) (12,4.7952) (13,5.0123) (14,4.6411) (15,5.1276) (16,5.4506) (17,5.082) (18,5.194) (19,4.3973) (20,4.2623) (21,4.378) (22,4.026) (23,3.9158) (24,4.0064) (25,4.2144) (26,4.0668) (27,4.2402) (28,4.4023) (29,4.1807) (30,4.2998) (31,3.7918) (32,3.1449) (33,2.9742) (35,3.138) (36,3.0868) (37,2.9779) (38,2.9928) (40,2.9334) (41,2.9481) (43,3.0409) (44,3.0908) (46,3.0586) (47,3.0795) (49,3.1914) (51,3.2177) (52,3.269) (54,3.388) (56,3.3263) (58,3.3893) (60,3.3308) (62,3.253) (65,3.2016) (67,2.9967) (69,2.8987) (72,2.9564) (74,2.9663) (77,2.8903) (79,2.9357) (82,2.9977) (85,3.0379) (88,3.1167) (91,3.0369) (94,3.0803) (98,2.9966) (101,2.9823) (105,2.7895) (108,2.8206) (112,2.7937) (116,2.8016) (120,2.8355) (124,2.8749) (129,2.6519) (133,2.6884) (138,2.6189) (143,2.6234) (148,2.6211) (153,2.618) (158,2.6344) (164,2.6045) (170,2.617) (176,2.6193) (182,2.6401) (188,2.6132) (195,2.5188) (202,2.492) (209,2.418) (216,2.4135) (224,2.4039) (232,2.4315) (240,2.4244) (242,2.4233) (248,2.431) (257,2.4984) (266,2.5016) (275,2.4631) (285,2.4778) (295,2.4574) (305,2.4726) (316,2.4) (327,2.4091) (339,2.452) (350,2.4359) (363,2.4011) (376,2.4378) (389,2.4461) (402,2.4086) (417,2.416) (431,2.4146) (446,2.4032) (462,2.3814) (478,2.3567) (495,2.3217) (512,2.2703) (530,2.2608) (549,2.2749) (568,2.2417) (588,2.2155) (609,2.1918) (630,2.1818) (653,2.1738) (676,2.1753) (699,2.1659) (724,2.1302) (749,2.1195) (776,2.0906) (803,2.0893) (831,2.0705) (860,2.0317) (890,2.0163) (922,1.9638) (954,1.942) (988,1.9015) (1022,1.875) (1058,1.8445) (1095,1.8349) (1134,1.8225) (1174,1.7873) (1215,1.7624)};
+\addplot[name path=hiSHANGHAI, draw=none, forget plot] coordinates {(10,18.267) (11,17.912) (12,17.293) (13,16.952) (14,14.852) (15,15.635) (16,15.924) (17,14.292) (18,14.114) (19,11.583) (20,10.913) (21,10.922) (22,9.8061) (23,9.3286) (24,9.3501) (25,9.6488) (26,9.1454) (27,9.3764) (28,9.5823) (29,8.9654) (30,9.092) (31,7.9118) (32,6.4797) (33,6.0549) (35,6.2474) (36,6.082) (37,5.8092) (38,5.7831) (40,5.5681) (41,5.5492) (43,5.6337) (44,5.6835) (46,5.545) (47,5.5454) (49,5.6737) (51,5.652) (52,5.7093) (54,5.8527) (56,5.687) (58,5.7384) (60,5.5875) (62,5.4091) (65,5.2582) (67,4.8836) (69,4.689) (72,4.7325) (74,4.7168) (77,4.5528) (79,4.5968) (82,4.6538) (85,4.6782) (88,4.7631) (91,4.6076) (94,4.6413) (98,4.4762) (101,4.4274) (105,4.109) (108,4.1318) (112,4.0637) (116,4.0481) (120,4.0714) (124,4.1031) (129,3.758) (133,3.7893) (138,3.6678) (143,3.652) (148,3.6279) (153,3.6039) (158,3.6077) (164,3.5458) (170,3.543) (176,3.5274) (182,3.5377) (188,3.485) (195,3.3414) (202,3.2893) (209,3.1765) (216,3.1563) (224,3.1284) (232,3.1497) (240,3.1267) (242,3.1219) (248,3.1221) (257,3.1944) (266,3.185) (275,3.1233) (285,3.1288) (295,3.0905) (305,3.0978) (316,2.9948) (327,2.9948) (339,3.0363) (350,3.006) (363,2.9518) (376,2.9861) (389,2.9859) (402,2.9305) (417,2.929) (431,2.9181) (446,2.8949) (462,2.8593) (478,2.8209) (495,2.7703) (512,2.7009) (530,2.6816) (549,2.6903) (568,2.6435) (588,2.6051) (609,2.57) (630,2.5514) (653,2.535) (676,2.53) (699,2.5127) (724,2.465) (749,2.4465) (776,2.4071) (803,2.3998) (831,2.3726) (860,2.3228) (890,2.2999) (922,2.2348) (954,2.2052) (988,2.1544) (1022,2.1199) (1058,2.081) (1095,2.0659) (1134,2.0477) (1174,2.0041) (1215,1.9724)};
+\addplot[Accent!18, forget plot] fill between[of=loSHANGHAI and hiSHANGHAI];
+\addplot[Rule, dotted, thin, forget plot] coordinates {(10,3) (1215,3)};
+\addplot[Rule, dotted, thin, forget plot] coordinates {(10,4) (1215,4)};
+\addplot[Accent, thick, forget plot] coordinates {(10,11.277) (11,11.259) (12,11.044) (13,10.982) (14,9.7468) (15,10.381) (16,10.687) (17,9.6869) (18,9.6539) (19,7.9901) (20,7.5878) (21,7.6499) (22,6.9161) (23,6.6222) (24,6.6782) (25,6.9316) (26,6.6061) (27,6.8083) (28,6.9923) (29,6.5731) (30,6.6959) (31,5.8518) (32,4.8123) (33,4.5145) (35,4.6927) (36,4.5844) (37,4.3936) (38,4.3879) (40,4.2508) (41,4.2487) (43,4.3373) (44,4.3872) (46,4.3018) (47,4.3125) (49,4.4326) (51,4.4349) (52,4.4891) (54,4.6203) (56,4.5067) (58,4.5639) (60,4.4592) (62,4.331) (65,4.2299) (67,3.9401) (69,3.7939) (72,3.8445) (74,3.8415) (77,3.7216) (79,3.7662) (82,3.8257) (85,3.858) (88,3.9399) (91,3.8223) (94,3.8608) (98,3.7364) (101,3.7048) (105,3.4492) (108,3.4762) (112,3.4287) (116,3.4249) (120,3.4535) (124,3.489) (129,3.2049) (133,3.2388) (138,3.1434) (143,3.1377) (148,3.1245) (153,3.1109) (158,3.1211) (164,3.0752) (170,3.08) (176,3.0734) (182,3.0889) (188,3.0491) (195,2.9301) (202,2.8907) (209,2.7972) (216,2.7849) (224,2.7662) (232,2.7906) (240,2.7755) (242,2.7726) (248,2.7765) (257,2.8464) (266,2.8433) (275,2.7932) (285,2.8033) (295,2.7739) (305,2.7852) (316,2.6974) (327,2.702) (339,2.7442) (350,2.721) (363,2.6764) (376,2.712) (389,2.716) (402,2.6696) (417,2.6725) (431,2.6664) (446,2.6491) (462,2.6204) (478,2.5888) (495,2.546) (512,2.4856) (530,2.4712) (549,2.4826) (568,2.4426) (588,2.4103) (609,2.3809) (630,2.3666) (653,2.3544) (676,2.3527) (699,2.3393) (724,2.2976) (749,2.283) (776,2.2488) (803,2.2445) (831,2.2216) (860,2.1773) (890,2.1581) (922,2.0993) (954,2.0736) (988,2.0279) (1022,1.9974) (1058,1.9628) (1095,1.9504) (1134,1.9351) (1174,1.8957) (1215,1.8674)};
+\addplot[densely dashed, Accent, forget plot] coordinates {(242,1) (242,8)};
+\addplot[only marks, mark=*, mark size=1.4pt, Accent, forget plot] coordinates {(242,2.7726)};
+\nextgroupplot[xmode=log, xmin=200, xmax=6500, xtick={250,500,1000,2000,4860}, xticklabels={250,500,1000,2000,4860}, minor tick num=0, ymin=1, ymax=8, ytick={2,3,4,6,8}, xlabel={$n$ (block length)}]
+\addplot[only marks, mark=*, mark size=0.7pt, Accent, opacity=0.35, forget plot] coordinates {(250,3.7333) (250,4.3845) (250,3.589) (250,3.9124) (250,4.8058) (250,4.4135) (250,4.4759) (250,4.8756) (250,4.6021) (250,2.5534) (250,3.0422) (250,3.5534) (250,3.4936) (250,2.1072) (250,7.7897) (250,4.3975) (250,4.9121) (250,2.8792) (250,2.9282) (500,3.9366) (500,3.2153) (500,4.9959) (500,3.5632) (500,3.2964) (500,3.6042) (500,2.6931) (500,5.2832) (500,2.8848) (750,3.8153) (750,4.5804) (750,2.7403) (750,3.0191) (750,3.032) (750,3.1796) (1000,4.2664) (1000,4.4198) (1000,2.7048) (1000,3.7298) (1500,3.8272) (1500,2.7287) (1500,3.1564) (2000,3.4967) (2000,2.4771)};
+\addplot[Accent, thick, mark=*, mark size=1.2pt, forget plot] coordinates {(250,4.0236) (500,3.7192) (750,3.3944) (1000,3.7802) (1500,3.2375) (2000,2.9869)};
+\addplot[only marks, mark=square, mark size=1.8pt, Accent, thick, forget plot] coordinates {(4860,2.7726)};
+\addplot[Rule, dotted, thin, forget plot] coordinates {(200,3) (6500,3)};
+\addplot[Rule, dotted, thin, forget plot] coordinates {(200,4) (6500,4)};
+\nextgroupplot[xmode=log, xmin=200, xmax=6500, xtick={250,500,1000,2000,4860}, xticklabels={250,500,1000,2000,4860}, minor tick num=0, ymin=0, xlabel={$n$ (block length)}]
+\addplot[only marks, mark=*, mark size=0.7pt, Accent, opacity=0.35, forget plot] coordinates {(250,3.8756) (250,0.92901) (250,1.3727) (250,1.1598) (250,1.4509) (250,1.0862) (250,2.4104) (250,0.82892) (250,1.8106) (250,6.9945) (250,2.3928) (250,2.0374) (250,5.0441) (250,7.0654) (250,0.38867) (250,3.3913) (250,1.1895) (250,11.414) (250,26.571) (500,1.5618) (500,2.1866) (500,1.3993) (500,2.5218) (500,3.5263) (500,4.2801) (500,6.5681) (500,2.7415) (500,10.837) (750,1.5201) (750,1.4447) (750,5.384) (750,8.108) (750,6.3584) (750,7.9914) (1000,1.9419) (1000,1.8954) (1000,6.146) (1000,5.6618) (1500,2.8179) (1500,6.9209) (1500,7.0787) (2000,3.5892) (2000,7.2083)};
+\addplot[Accent, thick, mark=*, mark size=1.2pt, forget plot] coordinates {(250,4.2849) (500,3.958) (750,5.1344) (1000,3.9113) (1500,5.6059) (2000,5.3987)};
+\addplot[only marks, mark=square, mark size=1.8pt, Accent, thick, forget plot] coordinates {(4860,5.7746)};
+\end{groupplot}
+\end{tikzpicture}
+\caption{Hill plots and sample-size dependence, one row per market, full series 2006--2026. \emph{Left:} $\hat\alpha$ against the number of order statistics $k$ (log axis). The band is $\hat\alpha(1\pm1.96/\sqrt{k})$, the asymptotic band for i.i.d.\ data, which understates the uncertainty under volatility clustering. The dashed line and dot mark the top 5\,\% used by \texttt{tail\_index\_diff} and Table~\ref{tab:data}; dotted lines mark $\alpha=3$ and $\alpha=4$, below which skewness and kurtosis do not exist. \emph{Centre and right:} top-5\,\% $\hat\alpha$ and sample excess kurtosis on disjoint blocks of $n$ days. Dots are single blocks, the line is their mean, the square is the whole series (Table~\ref{tab:data}'s value). The left and centre vertical axes are common to all rows; the right one is free. Values above the axis limit are clipped: SHANGHAI's curve leaves the axis for $k\le18$ ($11.3$ at $k=10$).}
+\label{fig:hill}
+\end{figure}
 
 \paragraph{Why both ARCH-LM variants are descriptive-only} \texttt{arch\_pvalue\_diff} identifies the better-fitting model $99\%$ of the time on simulated GARCH but saturates completely on real data: real and shuffled both underflow to $p=0.0$, giving $|\Delta p|=0.000000$ and rating the adversarial control a perfect match. \texttt{arch\_stat\_diff} scores $76\%$ with a null sd of $46.4$ --- two draws from the same process gave LM $56.8$ and $124.8$. Neither is reliable across both regimes. ACF-MAE replaces them as the primary volatility-clustering signal: continuous, no saturation, $88\%$ Monte Carlo accuracy.
 
@@ -380,106 +499,176 @@ Phases 1--2 are pre-training and are excluded from budget parity; only phase-3 j
 \label{sec:pipeline}
 Figure~\ref{fig:pipeline} shows the pipeline from price files to ranked results. Each stage is described below in the order it runs.
 
-\begin{landscape}
 \begin{figure}[p]
 \centering
 \resizebox{\linewidth}{!}{%
 \begin{tikzpicture}[
-  every node/.style={font=\footnotesize},
-  pp/.style={rectangle, rounded corners=3pt, draw=Navy, fill=LBg,
-             text width=2.1cm, align=center, minimum height=0.85cm, inner sep=4pt},
-  sp/.style={rectangle, rounded corners=3pt, draw=Sky!80!black, fill=BBg,
-             text width=2.1cm, align=center, minimum height=0.85cm, inner sep=4pt},
-  ev/.style={rectangle, rounded corners=3pt, draw=Teal, fill=TealBg,
-             text width=2.1cm, align=center, minimum height=0.85cm, inner sep=4pt},
-  rk/.style={rectangle, rounded corners=5pt, draw=FGreen, fill=GBg,
-             text width=2.1cm, align=center, minimum height=1.1cm, inner sep=5pt},
-  arr/.style={-Stealth, semithick, draw=Navy!70},
-  sarr/.style={-Stealth, thin, draw=Navy!40, dashed},
+  x=1cm, y=1cm,
+  every node/.style={font=\fontsize{7}{8.3}\selectfont},
+  box/.style={rectangle, rounded corners=2pt, draw=Accent, fill=white, line width=0.5pt,
+              align=center, inner sep=3pt},
+  arr/.style={-{Stealth[length=4pt,width=3.4pt]}, line width=0.6pt, draw=Accent},
+  darr/.style={arr, dashed, draw=RefitCol},
+  tarr/.style={arr, densely dotted, draw=Accent!75},
+  hdr/.style={font=\sffamily\bfseries\fontsize{7.5}{9}\selectfont, text=Accent, anchor=north west},
+  stg/.style={font=\sffamily\fontsize{6}{7}\selectfont, text=Rule!80!black, rotate=90},
+  tiny/.style={font=\fontsize{5.6}{6.4}\selectfont, text=Accent!85!black},
+  seg/.style={draw=Accent, line width=0.4pt, inner sep=0pt, minimum height=0.55cm, align=center},
+  rost/.style={box, text width=1.6cm, anchor=north west},
+  cont/.style={rectangle, rounded corners=4pt, draw=Accent!55, fill=Accent!3, line width=0.6pt},
 ]
-\node[pp] (csv)  at (0.0,  0.0) {\textbf{5 BRICS}\\CSV Files};
-\node[pp] (lr)   at (3.2,  0.0) {Log Returns\\$r_t=\ln\!\tfrac{P_t}{P_{t-1}}$};
-\node[pp] (spl)  at (6.4,  0.0) {Temporal Split\\80\,/\,10\,/\,10};
-\node[sp] (trn)  at (9.5,  1.3) {Train (80\,\%)\\Parquet};
-\node[sp] (val)  at (9.5,  0.0) {Validation (10\,\%)\\Parquet};
-\node[sp] (tst)  at (9.5, -1.3) {Test (10\,\%)\\Parquet};
-\node[sp] (poo)  at (12.5,  1.3) {Per-Market\\Windows (128)};
-\node[rectangle,rounded corners=3pt,draw=TGcol,fill=ABg,
-      text width=2.1cm,align=center,minimum height=0.85cm,inner sep=4pt]
-     (tga) at (15.5,  2.1) {\textcolor{TGcol}{\bfseries TimeGAN}\\GRU-based};
-\node[rectangle,rounded corners=3pt,draw=QGcol,fill=BBg,
-      text width=2.1cm,align=center,minimum height=0.85cm,inner sep=4pt]
-     (qga) at (15.5,  0.8) {\textcolor{QGcol}{\bfseries QuantGAN}\\TCN-based};
-\node[rectangle,rounded corners=3pt,draw=FGcol,fill=GBg,
-      text width=2.1cm,align=center,minimum height=0.85cm,inner sep=4pt]
-     (fga) at (15.5, -0.3) {\textcolor{FGcol}{\bfseries CNN-WGAN-GP}\\CNN-based};
-\node[rectangle,rounded corners=3pt,draw=Purple,fill=LBg,
-      text width=2.1cm,align=center,minimum height=0.85cm,inner sep=4pt]
-     (gar) at (15.5, -1.5) {\textcolor{Purple}{\bfseries GARCH-$t$}\\MLE fit};
-\node[rectangle,rounded corners=3pt,draw=Indigo,fill=IBg,
-      text width=2.1cm,align=center,minimum height=0.85cm,inner sep=4pt]
-     (gjr) at (15.5, -2.7) {\textcolor{Indigo}{\bfseries GJR-GARCH-$t$}\\MLE fit};
-\node[sp] (syn)  at (19.0,  0.8) {Synthetic\\Returns};
-\node[ev] (sfm)  at (22.5,  1.6) {19 Metrics\\7 Fidelity + 7 Temporal\\+ 5 Descriptive};
-\node[ev] (wfv)  at (22.5, -0.8) {Walk-Forward\\(5 folds)};
-\node[ev] (wfd)  at (22.5, -2.6) {Per-fold\\Diagnostics\\(\S\ref{sec:walkforward})};
-\node[rk] (rnk)  at (26.0,  0.4) {\textbf{Rankings}\\fidelity / temporal\\composite};
-\draw[arr] (csv.east) -- (lr.west);
-\draw[arr] (lr.east)  -- (spl.west);
-\draw[arr] (spl.east) to[out= 30,in=155] (trn.west);
-\draw[arr] (spl.east) --                 (val.west);
-\draw[arr] (spl.east) to[out=-30,in=205] (tst.west);
-\draw[arr] (trn.east) -- (poo.west);
-\draw[arr] (poo.east) to[out= 30,in=180] (tga.west);
-\draw[arr] (poo.east) --                 (qga.west);
-\draw[arr] (poo.east) to[out=-20,in=180] (fga.west);
-%% The econometric arm is fed from the raw training returns, not the
-%% normalised 128-step windows: the tanh squash would compress exactly the
-%% variance dynamics GARCH exists to model (Section~\ref{sec:decisions}).
-%% Routed through the corridor left of Per-Market Windows so the curve
-%% clears the Validation and Test nodes rather than crossing through them.
-\draw[arr, rounded corners=6pt] (trn.east) -- (11.0, 1.3) -- (11.0, -1.5) -- (gar.west);
-\draw[arr, rounded corners=6pt] (trn.east) -- (11.3, 1.3) -- (11.3, -2.7) -- (gjr.west);
-\draw[arr] (tga.east) to[out=  0,in=120] (syn.north);
-\draw[arr] (qga.east) --                 (syn.west);
-\draw[arr] (fga.east) to[out=  0,in=240] (syn.south);
-\draw[arr] (gar.east) to[out=  0,in=250] (syn.south);
-\draw[arr] (gjr.east) to[out=  0,in=260] (syn.south);
-\draw[arr]  (syn.east) to[out= 30,in=180] (sfm.west);
-\draw[sarr] (tst.east) to[out=10,in=200]  (sfm.south);
-\draw[arr] (sfm.east) to[out=0,in=130] (rnk.north west);
-%% Walk-forward never sees the Track A test split or its synthetic draws: it
-%% reassembles the complete series and retrains every model from scratch per
-%% fold (Section~\ref{sec:pipeline-reading}). Restricting it to the
-%% 496-point test split gave folds of 168--414 points and AUC = 1.000 in
-%% every fold (Section~\ref{sec:pipeline}, Walk-forward validation).
-\draw[arr] (spl.north) -- (6.4, 3.3) -- (24.0, 3.3) -- (24.0, -0.8) -- (wfv.east);
-\node[font=\scriptsize,text=Navy!80,align=center] at (15.2, 3.6)
-     {full series (train + valid + test)};
-\draw[arr] (wfv.south) -- (wfd.north);
-\node[font=\scriptsize\bfseries,text=Navy!80]  at ( 4.0,-3.6) {Stage 1 $\cdot$ Data Preprocessing};
-\node[font=\scriptsize\bfseries,text=Navy!80]  at (14.0,-3.6) {Stage 2 $\cdot$ Per-Market Fitting};
-\node[font=\scriptsize\bfseries,text=Teal]     at (23.5,-3.6) {Stage 3 $\cdot$ Evaluation};
-\draw[very thin,dashed,Navy!25] ( 8.0, 2.7) -- ( 8.0,-3.4);
-\draw[very thin,dashed,Navy!25] (17.8, 2.7) -- (17.8,-3.4);
-\end{tikzpicture}
+%% Geometry: Track A occupies x = 0..9.9, Track B x = 11.4..16.0. Stages run
+%% top to bottom: 1 data preparation, 2 fitting, 3 evaluation. Both tracks flow
+%% downward; nothing runs against that direction.
+
+%% ── Stage separators and labels (drawn first, under everything) ────────────
+\draw[Rule, densely dotted, line width=0.5pt] (-1.0,-5.35) -- (16.25,-5.35);
+\draw[Rule, densely dotted, line width=0.5pt] (-1.0,-8.35) -- (16.25,-8.35);
+\node[stg] at (-0.72,-3.25) {1 $\cdot$ DATA PREPARATION};
+\node[stg] at (-0.72,-6.85) {2 $\cdot$ FITTING};
+\node[stg] at (-0.72,-12.05) {3 $\cdot$ EVALUATION};
+
+%% ── Track containers ───────────────────────────────────────────────────────
+\node[cont, minimum width=10.75cm, minimum height=14.6cm, anchor=north west] at (-0.25,-1.15) {};
+\node[cont, minimum width=5.1cm,  minimum height=14.6cm, anchor=north west] at (11.15,-1.15) {};
+\node[hdr] at (0,-1.22) {TRACK A \,$\cdot$\, fixed split};
+\node[hdr] at (11.4,-1.22) {TRACK B \,$\cdot$\, walk-forward};
+
+%% ── Shared node ────────────────────────────────────────────────────────────
+\node[box, text width=6.4cm, anchor=north] (shared) at (8.1,0)
+     {\textbf{Log returns}, 5 BRICS indices, 24,758 observations\\$r_t=\ln(P_t/P_{t-1})$, no clipping};
+
+%% ── Track A: the 80 / 10 / 10 split, drawn to scale (width 9.9 = 100 %) ────
+\node[seg, fill=Accent!12, minimum width=7.92cm, anchor=north west] (trn) at (0,-2.05) {Train \;80\,\%};
+\node[seg, fill=Accent!30, minimum width=0.99cm, anchor=north west] (val) at (7.92,-2.05) {10\,\%};
+\node[seg, fill=Accent!50, minimum width=0.99cm, anchor=north west] (tst) at (8.91,-2.05) {10\,\%};
+\node[tiny, anchor=south] at (8.415,-2.03) {Valid};
+\node[tiny, anchor=south] at (9.405,-2.03) {Test};
+\draw[arr] (7.0,-0.8) -- (7.0,-2.05);
+
+%% ── Track B: expanding folds, drawn to scale (width 4.6 = full series) ─────
+\draw[arr] (shared.east) -- (14.75,-0.4) -- (14.75,-2.0);
+\node[tiny, align=right, anchor=south east] at (14.6,-0.38) {full series\\(train + valid + test)};
+\foreach \k in {0,...,4} {
+  \pgfmathsetmacro{\yy}{-2.15-0.44*\k}
+  \pgfmathsetmacro{\wtr}{4.6*(\k+1)/(5+1)}
+  \pgfmathsetmacro{\wte}{4.6/(5+1)}
+  \pgfmathtruncatemacro{\pct}{round(100*(\k+1)/(5+1))}
+  \node[seg, fill=Accent!12, minimum height=0.32cm, minimum width=\wtr cm, anchor=north west]
+       at (11.4,\yy) {\fontsize{5.6}{6}\selectfont\pct\,\%};
+  \node[seg, fill=Accent!50, minimum height=0.32cm, minimum width=\wte cm, anchor=north west]
+       at ($(11.4,\yy)+(\wtr,0)$) {};
 }
-\caption{The pipeline. Data are prepared once; every model is then fitted independently per market and seed, evaluated against the real test series and in walk-forward folds, and ranked.}
+\draw[densely dotted, draw=Accent, line width=0.7pt] (15.08,-2.05) -- (15.08,-4.5);
+\draw[densely dotted, draw=Accent, line width=0.7pt] (15.54,-2.05) -- (15.54,-4.5);
+\node[tiny, anchor=north] at (15.08,-4.5) {80};
+\node[tiny, anchor=north] at (15.54,-4.5) {90};
+\node[tiny, anchor=north west, align=left, text width=4.1cm] at (11.4,-4.72)
+     {Train (light) grows from 17\,\% to 83\,\%; test block (dark) 17\,\%. Dotted: Track A's Valid (80) and Test (90\,\%) start.};
+\draw[arr] (15.85,-4.3) -- (15.85,-5.75);
+
+%% ── Preprocessing: an explicit fork ────────────────────────────────────────
+\draw[arr] (trn.south) -- (3.96,-3.45);
+\draw[line width=0.6pt, draw=Accent] (2.8,-3.45) -- (7.9,-3.45);
+\draw[arr] (2.8,-3.45) -- (2.8,-3.75);
+\draw[arr] (7.9,-3.45) -- (7.9,-3.75);
+\node[box, text width=5.4cm, anchor=north west] (gp) at (0,-3.75)
+     {\textbf{Gradient path}\\128-step windows, stride 1;\\z-score, then $\tanh(z/3)$};
+\node[box, text width=3.9cm, anchor=north west] (ep) at (5.9,-3.75)
+     {\textbf{Econometric path}\\raw returns $\times100$, no normalisation, no windows};
+
+%% ── Model roster, with parameter counts ────────────────────────────────────
+\node[rost] (tg) at (0,-5.75)
+     {{\fontsize{6}{7}\selectfont\bfseries TimeGAN}\\GRU\\[1pt]\textbf{11,400}\\[-1pt]\tiny params};
+\node[rost] (qg) at (1.9,-5.75)
+     {{\fontsize{6}{7}\selectfont\bfseries QuantGAN}\\TCN\\[1pt]\textbf{276,481}\\[-1pt]\tiny params};
+\node[rost] (cg) at (3.8,-5.75)
+     {{\fontsize{6}{7}\selectfont\bfseries CNN-WGAN-GP}\\CNN\\[1pt]\textbf{55,401}\\[-1pt]\tiny params};
+\node[rost, text width=1.75cm] (ga) at (5.9,-5.75)
+     {{\fontsize{6}{7}\selectfont\bfseries GARCH}\\(1,1)-$t$, MLE\\[1pt]\textbf{5}\\[-1pt]\tiny params};
+\node[rost, text width=1.75cm] (gj) at (7.95,-5.75)
+     {{\fontsize{6}{7}\selectfont\bfseries GJR-GARCH}\\(1,1)-$t$, MLE\\[1pt]\textbf{6}\\[-1pt]\tiny params};
+\foreach \n in {tg,qg,cg} { \draw[arr] (\n.north |- gp.south) -- (\n.north); }
+\foreach \n in {ga,gj} { \draw[arr] (\n.north |- ep.south) -- (\n.north); }
+\node[tiny, anchor=north] at (2.8,-7.2) {gradient group: 9,000 generator updates each};
+\node[tiny, anchor=north] at (7.9,-7.2) {econometric group: maximum likelihood, two-stage fit};
+
+%% ── Track A: synthetic returns, metrics, rankings ──────────────────────────
+\node[box, text width=9.7cm, anchor=north west] (syn) at (0,-8.65)
+     {\textbf{Synthetic returns}: one series per model, of Test length, set against the real Test series. A shuffled copy of the Test series is scored beside them as a control.};
+\draw[arr] (2.8,-7.5) -- (2.8,-8.65);
+\draw[arr] (7.9,-7.5) -- (7.9,-8.65);
+\draw[tarr, preaction={draw=white, line width=3pt}]
+     (tst.south) -- (9.405,-3.05) -- (10.25,-3.05) -- (10.25,-9.05) -- (syn.east |- 0,-9.05);
+\node[tiny, rotate=90, anchor=south] at (10.47,-4.9) {real Test series};
+
+\node[box, anchor=north west, inner sep=3pt] (fid) at (0,-9.9)
+     {\parbox[t][3.95cm][t]{3.0cm}{\raggedright\textbf{Fidelity}\;(7, ranked)\\\emph{marginal distribution only; shuffling leaves it unchanged}\\[2pt]
+      mean, sd: location and scale\\
+      Wasserstein, energy distance: distance between the distributions\\
+      quantile MSE: body and tails\\
+      tail index: gap in Hill $\hat\alpha$\\
+      extreme events: share of days with $|r|>2\sigma$}};
+\node[box, anchor=north west, inner sep=3pt] (tmp) at (3.34,-9.9)
+     {\parbox[t][3.95cm][t]{3.0cm}{\raggedright\textbf{Temporal}\;(7, ranked)\\\emph{depend on the order of the days}\\[2pt]
+      ACF of $r$, $|r|$, $r^2$: MAE over lags (predictability, volatility clustering)\\
+      Hurst exponent of $|r|$: long memory\\
+      residual kurtosis: tails beyond GARCH\\
+      discriminative AUC: $|\mathrm{AUC}-0.5|$, and $z$ against the null}};
+\node[box, anchor=north west, inner sep=3pt] (dsc) at (6.68,-9.9)
+     {\parbox[t][3.95cm][t]{3.0cm}{\raggedright\textbf{Descriptive}\;(5)\\\emph{reported, not ranked}\\[2pt]
+      skewness, kurtosis: infinite moments ($\alpha<3$, $\alpha<4$)\\
+      ARCH-LM $p$-value and statistic: saturates; too noisy\\
+      raw AUC: optimum $0.5$, not $0$}};
+\foreach \n in {fid,tmp,dsc} { \draw[arr] (\n.north |- syn.south) -- (\n.north); }
+
+\node[box, text width=9.7cm, anchor=north west] (rnk) at (0,-14.55)
+     {\textbf{Composite rank} $=\tfrac12(\text{fidelity rank}+\text{temporal rank})$, each the mean of its metrics' ranks over the five generators. The control is not ranked.};
+\draw[arr] (fid.south) -- (fid.south |- rnk.north);
+\draw[arr] (tmp.south) -- (tmp.south |- rnk.north);
+
+%% ── Track B: refit (fitting stage), synthetic per fold, diagnostics ────────
+\node[box, text width=4.4cm, anchor=north west, line width=1.8pt, draw=RefitCol, fill=RefitCol!14] (refit) at (11.4,-5.75)
+     {{\bfseries\color{RefitCol}Refit on every fold}\\[1pt]
+      fresh initialisation each fold, same five architectures\\[2pt]
+      5\,folds $\times$ 5\,models $\times$ 15\,evaluations\\
+      $=$ \textbf{375 trainings}, 83\,\% of all trainings\\[1pt]
+      {\bfseries\color{RefitCol}the only expensive node}};
+\draw[darr, line width=0.9pt] (gj.east) -- node[tiny, above, align=center, fill=white, inner sep=0.5pt, text=RefitCol] {re-initialised} (refit.west |- gj.east);
+
+\node[box, text width=4.4cm, anchor=north west] (sf) at (11.4,-8.65)
+     {\textbf{Synthetic per fold}: a series of test-block length from each refitted model};
+\draw[arr] (refit.south -| sf.north) -- (sf.north);
+\node[box, anchor=north west, inner sep=3pt] (diag) at (11.4,-9.9)
+     {\parbox[t][2.75cm][t]{4.4cm}{\raggedright\textbf{Per-fold diagnostics}\;(6 metrics)\\\emph{read one by one, never ranked}\\[2pt]
+      Wasserstein, energy distance, quantile MSE\\
+      Hurst gap\\
+      ARCH-LM statistic$^{\dagger}$: too noisy to rank\\
+      raw discriminative AUC$^{\dagger}$: optimum $0.5$, not $0$, so read against its null\\[3pt]
+      {\fontsize{5.8}{6.6}\selectfont $^{\dagger}$ also left unranked in Track A}}};
+\draw[arr] (sf.south) -- (sf.south |- diag.north);
+\node[tiny, anchor=north west, align=left, text width=4.4cm] at (11.4,-12.9)
+     {Track B ends here. No edge leads to the composite rank, and the tracks are never pooled.};
+\end{tikzpicture}}
+\caption{The pipeline, top to bottom, in three stages: data preparation, fitting, evaluation. Each market's return series is split in time into Train, Valid and Test, drawn to scale. \textbf{Track A} fits every model once on Train, generates a series of Test length, scores it on the 19 per-market metrics ($7+7+5$) and ranks on the fourteen fidelity and temporal ones. \textbf{Track B} refits every model on 5 expanding folds of the full series and records six diagnostics per fold. Two of the six are metrics Track A declines to rank: \texttt{arch\_stat\_diff} (too noisy) and the raw \texttt{discriminative\_auc} (optimum $0.5$, not $0$, so it cannot enter a lower-is-better rank). The dashed edge means the same five architectures are trained again from fresh initialisation; the orange refit node is the only expensive one. Sizes are fractions of the series, not of any one market, and parameter counts are generator parameters.}
 \label{fig:pipeline}
 \end{figure}
-\end{landscape}
 
 \subsection{Reading the diagram}
 \label{sec:pipeline-reading}
-Figure~\ref{fig:pipeline} runs left to right in three stages, separated by the dashed vertical rules. \textbf{Stage 1} turns the five markets' CSV files into log returns and splits each market's series in time into Train (80\,\%), Validation (10\,\%) and Test (10\,\%) Parquet files; the training split is then cut into overlapping 128-step windows. \textbf{Stage 2} fits every model independently per market and seed: the three gradient-trained generators (TimeGAN, QuantGAN, CNN-WGAN-GP) read the windowed training data, while the two econometric models (GARCH-$t$, GJR-GARCH-$t$) are fed directly from the raw training returns, bypassing the windowing node --- the $\tanh(z/3)$ squash used to bound the GAN inputs would compress exactly the variance dynamics GARCH exists to model (Section~\ref{sec:decisions}). All five write to Synthetic Returns.
+Figure~\ref{fig:pipeline} runs top to bottom in three stages, marked at the left: \emph{data preparation}, \emph{fitting} and \emph{evaluation}. Every size in it is a fraction of the series, not a count for one market; the split bar and the fold bars are drawn to scale. Both tracks flow in the same direction, and no arrow runs against it.
 
-\textbf{Stage 3} is where the diagram forks into two tracks that both read from the Temporal Split node and never from each other.
+\textbf{Shared input.} The \emph{Log returns} node holds the 24,758 observations of the five BRICS indices. Each market's series is then read by two tracks that never read from each other.
 
-\emph{Track A}, along the bottom, is the fixed-split evaluation: Test and Synthetic Returns both feed 19 Metrics, which feeds Rankings. This is Table~\ref{tab:ranking} --- fidelity, temporal and composite rank on one held-out test series per market and seed, 15 evaluations in total, one training per model per evaluation: 5~models~$\times$~15~evaluations~=~75 trainings.
+\textbf{Preprocessing forks.} In Track A the split bar cuts each market into Train (80\,\%), Valid (10\,\%) and Test (10\,\%), and Train reaches the models by two paths. The \emph{gradient path} feeds TimeGAN, QuantGAN and CNN-WGAN-GP with z-scored returns squashed by $\tanh(z/3)$ and cut into overlapping 128-step windows. The \emph{econometric path} feeds GARCH(1,1)-$t$ and GJR-GARCH(1,1)-$t$ with raw returns scaled by 100, without normalisation or windows, because the squash would compress exactly the variance dynamics GARCH exists to model (Section~\ref{sec:decisions}). The roster carries each model's generator-parameter count, from 276,481 for QuantGAN to 6 for GJR-GARCH(1,1)-$t$.
 
-\emph{Track B}, along the top, is walk-forward: an arrow leaves the Temporal Split node directly, labelled ``full series (train + valid + test)'', and feeds Walk-Forward, which terminates in its own Per-fold Diagnostics node (Section~\ref{sec:walkforward}) rather than in Rankings --- composite rank never includes a walk-forward number. Walk-forward retrains every model from scratch on each of 5 rolling-origin folds, so it runs 5$\times$ as many trainings as Track A: 5~folds~$\times$~5~models~$\times$~15~evaluations~=~375 trainings, against Track A's 75. That is why walk-forward dominates the pipeline's wall-clock time, independent of any per-model cost difference (Table~\ref{tab:compute}).
+\emph{Track A}, on the left, is the fixed-split evaluation. Each model is fitted once on Train and generates a series of Test length (\emph{Synthetic returns}), which is set against the real Test series (the dotted edge) on the 19 per-market metrics: seven ranked fidelity metrics, seven ranked temporal metrics and five descriptive ones that are reported but not ranked. Only the fidelity and temporal groups feed the \emph{Composite rank}. This is Table~\ref{tab:ranking}: 15 evaluations in total, one training per model per evaluation, 5~models~$\times$~15~evaluations~=~75 trainings.
 
-Track B reassembles the complete series rather than reading the Test split because the test split alone is too short for what it evaluates: at 496 points, walk-forward's rolling-origin folds ranged 168--414 points, which at \texttt{seq\_len}~$=$~128 and \texttt{batch\_size}~$=$~64 gives 0--2 batches per epoch --- the gradient-trained models were evaluated essentially untrained, and discriminative AUC read 1.000 in every fold as a result (Section~\ref{sec:pipeline}, Walk-forward validation). Reassembling the full series before folding is the fix, and it has a consequence worth stating before it is found some other way: Track A and Track B overlap in what they see. Walk-forward's later folds train on data that includes the years Track A held out as its own test split. This is inherent to rolling-origin evaluation on a single series --- there is no second independent series to hold out a second time (Tashman 2000\tcite{13}; Bergmeir \& Ben\'{\i}tez 2012\tcite{14}) --- which is why the two tracks are reported separately throughout, Table~\ref{tab:ranking} against Table~\ref{tab:auc}, and never pooled into one score.
+\emph{Track B}, on the right, is walk-forward. It reads the full series (train, valid and test) as 5 expanding folds: fold $k$ trains on the first $(k+1)/(5+1)$ of the series, from 17\,\% to 83\,\%, and is tested on the next block of 17\,\%. The \emph{Refit} node is a fitting operation and sits in the fitting stage, level with the roster. The dashed edge from the roster means the same five architectures, freshly initialised, are trained again on each fold's training window. It is drawn in colour because it is the only expensive node: 5~folds~$\times$~5~models~$\times$~15~evaluations~=~375 trainings, 83\,\% of all trainings and 5$\times$ Track A's 75. That count is the basis for expecting walk-forward to dominate the pipeline's wall-clock time, independent of any per-model cost difference (Table~\ref{tab:compute}); per-fold training time was not recorded, so the wall-clock share itself is not measured. Each refitted model generates a series per fold (\emph{Synthetic per fold}), scored on six metrics in \emph{Per-fold diagnostics} (Section~\ref{sec:walkforward}). Track B ends there: composite rank never includes a walk-forward number.
+
+Track B reassembles the complete series rather than reading the Test split because the test split alone is too short for what it evaluates: at 496 points, walk-forward's rolling-origin folds ranged 168--414 points, which at \texttt{seq\_len}~$=$~128 and \texttt{batch\_size}~$=$~64 gives 0--2 batches per epoch --- the gradient-trained models were evaluated essentially untrained, and discriminative AUC read 1.000 in every fold as a result (Section~\ref{sec:pipeline}, Walk-forward validation). Reassembling the full series before folding is the fix.
+
+\textbf{How the tracks overlap.} No Track B fold trains on Track A's test block, but the two tracks do share observations, and the arithmetic is set out with the walk-forward description in Section~\ref{sec:pipeline-wf}. It is why they are never pooled.
 
 \subsection{Data preparation}
 Closing prices are read with an explicit date format and sorted chronologically before anything else is computed; daily log returns are $r_t=\ln(P_t/P_{t-1})$, with no clipping of outliers. Each market's series is split in time into training, validation and test parts (80/10/10) and stored as Parquet files. For the gradient-trained models the training part is cut into overlapping windows of 128 returns with stride 1.
@@ -488,7 +677,10 @@ Closing prices are read with an explicit date format and sorted chronologically 
 Every model is trained or fitted independently for each market and each seed (42, 43, 44), on that market's training split only. The three GANs standardise returns and squash them with $\tanh(z/3)$, and train for exactly 9,000 generator updates; the pipeline asserts that the three budgets are equal and refuses to run otherwise. TimeGAN first runs its autoencoder and supervisor pre-training. The two econometric models are fitted by maximum likelihood on returns scaled by 100, in two stages: an unconstrained fit whose persistence is always recorded, and a refit under a stationarity bound only when that persistence reaches 1 (Section~\ref{sec:boundary}). Weights and fitted parameters are saved for every production model.
 
 \subsection{Walk-forward validation}
-Walk-forward validation re-runs training on growing windows of the full series. With $n$ observations and $K=5$ folds, each test block has $L=\lfloor n/(K+1)\rfloor$ observations; fold $k$ trains a fresh model on the first $n-L(K-k)$ observations and generates a series the length of the following block. Training data therefore always precede test data, and later folds train on more history. Each fold records Wasserstein and energy distance, quantile MSE, the Hurst and ARCH-LM differences and discriminative AUC.
+\label{sec:pipeline-wf}
+Walk-forward validation re-runs training on growing windows of the full series. With $n$ observations and $K=5$ folds, each test block has $L=\lfloor n/(K+1)\rfloor$ observations; fold $k$ trains a fresh model on the first $n-L(K-k)$ observations and generates a series the length of the following block. Training data therefore always precede test data, and later folds train on more history. Each fold records six metrics: Wasserstein and energy distance, quantile MSE, the Hurst difference, the ARCH-LM statistic difference and discriminative AUC. Two of the six are metrics Track A declines to rank: \texttt{arch\_stat\_diff}, excluded from ranking as too noisy, and the raw \texttt{discriminative\_auc}, whose optimum is 0.5, not 0, so it cannot enter a lower-is-better rank. Track B ranks nothing, so both are reported and read one by one, the AUC as a distance from its null (Section~\ref{sec:walkforward}).
+
+No Track B fold ever trains on Track A's test block: the largest training window reaches $K/(K+1)\approx 0.833$ of the series, while that block begins at 0.900. The tracks nevertheless overlap in what they see. Fold 4 trains into Track A's Valid block (80--90\,\%), and fold 3 is evaluated on observations Track A trains on. This is inherent to rolling-origin evaluation on a single series --- there is no second independent series to hold out a second time (Tashman 2000\tcite{13}; Bergmeir \& Ben\'{\i}tez 2012\tcite{14}) --- and it is why the two tracks are reported separately, Table~\ref{tab:ranking} against Table~\ref{tab:auc}, and never pooled into one score.
 
 \subsection{Evaluation}
 Each fitted model generates one series with as many observations as the market's real test split. Every metric in Table~\ref{tab:metrics} compares it with the real test series. A shuffled control --- a fixed random permutation of the same real test series --- is scored by the same code. For downstream utility each model's per-market draws are saved, then concatenated across all markets for each seed, and a single variance-forecasting backtest is run on the pooled sample.
@@ -597,7 +789,7 @@ The figures in this section are crops of one figure drawn by the pipeline for BO
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\linewidth,trim=582.48 887.04 0.00 1090.32,clip]{thesis_results/production/BOVESPA/seed42/BOVESPA_stylized_facts.png}
-\caption{Empirical survival function $P(|r|>x)$ of each series on log--log axes. A power-law tail $P(|r|>x)\propto x^{-\alpha}$ is a straight line on these axes, and its slope is $-\alpha$, the tail index. Lines stop at roughly $1/n$, where a single observation fixes the estimate.}
+\caption{Empirical survival function $P(|r|>x)$ on log--log axes for one market and one seed, not across markets: BOVESPA, seed 42, the real series against all five generators and the shuffled control, cropped from \texttt{BOVESPA/seed42/BOVESPA\_stylized\_facts.png}. A power-law tail $P(|r|>x)\propto x^{-\alpha}$ is a straight line on these axes, and its slope is $-\alpha$, the tail index. Lines stop at roughly $1/n$, where a single observation fixes the estimate.}
 \label{fig:survival}
 \end{figure}
 
@@ -676,7 +868,7 @@ The figures in this section are crops of one figure drawn by the pipeline for BO
 
 A metric is counted as permutation-invariant in practice when the control's mean value is negligible against the best real generator's on the same metric. On this run that criterion separates cleanly: every metric it selects has a ratio below 3.6e-05, and the smallest ratio among the metrics it does not select is 0.36. There is nothing in the gap, so the cut is not a judgement call.
 
-\textbf{9 of 19} computed metrics are permutation-invariant:
+\textbf{9 of 19} per-market metrics are permutation-invariant:
 {\footnotesize\texttt{mean\_diff, std\_diff, skewness\_diff, kurtosis\_diff, wasserstein, energy\_distance, quantile\_mse, tail\_index\_diff, extreme\_events\_diff}}
 
 Under an unweighted mean over all metrics, the control ranks first --- the finding that produced the two-family composite. That is a structural property of any metric defined on the marginal distribution alone, not a quirk of these choices: mean, variance, kurtosis, Wasserstein distance and energy distance all belong to that class. Any evaluation of synthetic financial data built only from distributional metrics cannot distinguish a working generator from a shuffled deck.
@@ -713,7 +905,7 @@ Hurst diff & \textbf{0.0759} & \textbf{0.0369} & \textbf{0.0397} & \textbf{0.034
 
 \textbf{Therefore: permutation-invariance in practice is a property of the comparison set, not of a metric in isolation.} The same metric is discriminating against one model and uninformative against another, in the same run, on the same data. A count of ``how many metrics are permutation-invariant'' is only meaningful once the set of models being compared is fixed --- and reporting one without the other is how a suite comes to look more discriminating than it is.
 
-We keep the headline at 9 of 19: the metrics that are invariant by construction. The ACF results are reported as what they are: 4 of the 5 generators lose to the control on at least one ordering-sensitive metric, on the metrics most often used to claim success --- and \texttt{FIDELITY\_COLS} and \texttt{TEMPORAL\_COLS} are unchanged.
+We keep the headline at 9 of 19 per-market metrics: the metrics that are invariant by construction. The ACF results are reported as what they are: 4 of the 5 generators lose to the control on at least one ordering-sensitive metric, on the metrics most often used to claim success --- and \texttt{FIDELITY\_COLS} and \texttt{TEMPORAL\_COLS} are unchanged.
 
 The practical recommendation follows: a shuffled control belongs in every evaluation table for synthetic time series, permanently, in the role a positive control plays in a biology experiment. It costs one permutation and it is the only line in the table that cannot be gamed by learning the marginal.
 
@@ -723,7 +915,7 @@ The practical recommendation follows: a shuffled control belongs in every evalua
 
 \begin{table}[htbp]
 \centering
-\caption{Discriminative AUC over every walk-forward fold of every evaluation. $|\mathrm{AUC}-0.5|$ is the ranked quantity; $z$ is the distance of the mean AUC from the empirical null of $0.506\pm0.084$, in null standard deviations.}
+\caption{Discriminative AUC over every walk-forward fold of every evaluation. $|\mathrm{AUC}-0.5|$ is the quantity Track A ranks. $z$ is the distance of the mean AUC from the empirical null mean $\mu_0=0.506$ in units of $\sigma_0=0.084$, the standard deviation of individual null draws (the standard error of the null mean is 0.022); it is a distance, not a test statistic, and no $p$-value is tabulated (see text). The raw AUC is shown although Track A does not rank it, because its optimum is $0.5$, not $0$; nothing in Track B is ranked, so it is read against the null instead.}
 \label{tab:auc}
 \begin{tabular}{@{}lcccr@{}}
 \toprule
@@ -740,7 +932,7 @@ TimeGAN & 0.814 $\pm$ 0.144 & 0.314 & 3.66 & 75 \\
 
 \begin{table}[htbp]
 \centering
-\caption{Mean discriminative AUC by walk-forward fold, over all models and markets. The training window grows with the fold.}
+\caption{Mean discriminative AUC by walk-forward fold, over all models and markets. Every fold starts at the same point, so the training window and the calendar period it covers grow together: fold 0 covers 2006 to December 2009--January 2010 and fold 4 covers 2006 to April--May 2023, so length and period are confounded.}
 \label{tab:folds}
 \begin{tabular}{@{}lccc@{}}
 \toprule
@@ -759,9 +951,13 @@ Fold & Training length & Mean AUC & sd \\
 
 \paragraph{How they are computed} In each of the 5 walk-forward folds (Section~\ref{sec:pipeline}) a freshly trained model generates a series the length of the fold's test block. A logistic regression then tries to separate real from synthetic 20-day windows described by their mean, standard deviation, mean absolute return and mean squared return, scored by five-fold cross-validation without shuffling. An AUC of 0.5 means the two are indistinguishable.
 
-\paragraph{Why this measure} A classifier-based discriminative score is the indistinguishability test of TimeGAN\tcite{4}, adopted by CTBench\tcite{16}. Walk-forward evaluation keeps test data strictly after training data, as time-series evaluation requires (Tashman\tcite{13}; Bergmeir \& Ben\'{\i}tez\tcite{14}). The null is not exactly 0.5: over 15 real-versus-real half-splits it was $0.506\pm0.084$, a prior measurement, so each AUC is read as a distance from that null.
+\paragraph{Why this measure} A classifier-based discriminative score is the indistinguishability test of TimeGAN\tcite{4}, adopted by CTBench\tcite{16}. Walk-forward evaluation keeps test data strictly after training data, as time-series evaluation requires (Tashman\tcite{13}; Bergmeir \& Ben\'{\i}tez\tcite{14}); this is the AUC quoted in the Highlights and throughout the text, not the fixed-split \texttt{discriminative\_auc\_dist} of Table~\ref{tab:metrics}. The null is not exactly 0.5: over $B=15$ real-versus-real half-splits it was $\mu_0=0.506$ with $\sigma_0=0.084$, a prior measurement. $\sigma_0$ is the standard deviation of individual null draws, not the standard error of the null mean ($\sigma_0/\sqrt{B}=0.022$). Each AUC is read as a distance from that null in units of $\sigma_0$.
 
-\paragraph{What this result tells us} 3 of 5 models sit more than 1.96 null standard deviations from it (TimeGAN, QuantGAN, GARCH). The rest (CNN-WGAN-GP, GJR-GARCH) lie within that distance on the fold-averaged mean, so on this metric alone they cannot be distinguished from a perfect generator at the 5\% level; 5 of 5 mean AUCs lie above the null mean. AUC falls as the training window grows, from 0.811 at fold 0 (training on 810--837 observations) to 0.664 at fold 4 (4,050--4,165), but the decline is not monotonic: fold(s) 2, 4 rise above the fold before. Fold index, training length and the calendar period a fold covers all advance together, so this design cannot separate ``more training data helps'' from ``the later period is easier to imitate''.
+\paragraph{What this result tells us} \emph{Significance.} 5 of 5 fold-averaged AUCs lie above the null mean; Table~\ref{tab:auc} reports each as a distance from the null mean in units of $\sigma_0$ (the $z$ column), not as a test at a fixed level. Whether an AUC is unusually high for real data is a Monte Carlo question: against $B$ null draws the $p$-value of an observed AUC $a$ is
+\[ p=\frac{1+\#\{\text{null}\ge a\}}{B+1}. \]
+With $B=15$ its smallest attainable value is $1/16=0.0625$, so \emph{no result reaches the 5\,\% level}, however far above the null it lies. The individual null draws were not kept in this run's artifacts, so no per-model $p$-value is tabulated; the floor holds whatever they were. The draws are also not independent: they are half-splits of the same realized series, so the null describes variability conditional on this path, not across independent market histories. A normal-theory threshold such as $z>1.96$ is not used, because it would claim a significance the null cannot support. On multiple comparisons: five models each tested at 5\,\% give 0.25 expected false flags, and a Bonferroni correction would use $z=2.58$, an AUC threshold of $\mu_0+2.58\,\sigma_0=0.723$ (normal approximation).
+
+\emph{Trend and its confound.} AUC falls as the training window grows, from 0.811 at fold 0 (training on 810--837 observations) to 0.664 at fold 4 (4,050--4,165), but that is an aggregate over models, markets and seeds, and the decline is not monotonic: fold(s) 2, 4 rise above the fold before. Below the aggregate it is no more monotone: of the 75 individual (model, market, seed) series, 0 fall at every step, and of the 5 models' fold-mean curves, 0 do. Every fold starts at the same point, so training length and historical period grow together: fold 0 covers 2006 to December 2009--January 2010 and fold 4 covers 2006 to April--May 2023 (the ends differ by market), so this design cannot separate ``more training data helps'' from ``the later period is easier to imitate''.
 
 %% ── Tail index ──
 \subsection{Tail index}
@@ -797,7 +993,7 @@ The pipeline's post-generation guard checks every generated series and prints a 
 
 In this run the guard fired \textbf{18 times}, across 2 model(s) --- TimeGAN (16), QuantGAN (2). Mean \(|\text{ACF}(1)| = 0.533\), over the range \(-0.622\) to \(0.942\); generated sd 0.0002--0.0440. Read from \texttt{run\_log\_20260912\_131816.log}.
 
-The ranking agrees. TimeGAN is the worst of the five on \textbf{all 7 of 7 temporal metrics}, on 5 of 7 fidelity metrics, and on 14 of the 19 computed metrics overall. It is \emph{not} worst on std\_diff (QuantGAN), skewness\_diff (QuantGAN), quantile\_mse (QuantGAN), arch\_pvalue\_diff (GARCH), arch\_stat\_diff (QuantGAN) --- the model in brackets is worse there --- so ``worst on every metric'' would be an overstatement, and the scope is stated instead.
+The ranking agrees. TimeGAN is the worst of the five on \textbf{all 7 of 7 temporal metrics}, on 5 of 7 fidelity metrics, and on 14 of the 19 per-market metrics overall. It is \emph{not} worst on std\_diff (QuantGAN), skewness\_diff (QuantGAN), quantile\_mse (QuantGAN), arch\_pvalue\_diff (GARCH), arch\_stat\_diff (QuantGAN) --- the model in brackets is worse there --- so ``worst on every metric'' would be an overstatement, and the scope is stated instead.
 
 \textbf{An earlier explanation is withdrawn.} A previous draft attributed this to tanh saturation in the Recovery network. This run's own \texttt{[DIAG]} latent instrumentation does not support that: across 90 latent readings saturation never exceeds 3.1\% against the 50\% threshold the diagnostic exists to detect, and across 90 reconstruction readings output sd never differs from target sd by more than 0.0014, so the autoencoder is functioning. The collapse is real and the mechanism is open.
 
@@ -921,7 +1117,7 @@ This is why the econometric arm was added. A benchmark of GANs against GANs answ
 \subsection{The audit as a methodological contribution}
 The shuffled control is the cheapest useful thing in this pipeline: one permutation of the test set, scored by the same code as everything else.
 
-It establishes two things. First, 9 of 19 computed metrics score it perfectly by construction, so any composite that mixes families without balancing them is won by a sequence with no temporal content. The fix --- taxonomise metrics by invariance, weight families rather than metrics, exclude the control from rank competition --- needs no additional computation.
+It establishes two things. First, 9 of 19 per-market metrics score it perfectly by construction, so any composite that mixes families without balancing them is won by a sequence with no temporal content. The fix --- taxonomise metrics by invariance, weight families rather than metrics, exclude the control from rank competition --- needs no additional computation.
 
 Second, and less comfortably: on the ordering-sensitive metrics the control still outperforms genuine GAN generators. That is not a metric failure. It is a measurement of the generators, made possible only because a control was present to make it against.
 
@@ -931,7 +1127,7 @@ The general form of the caveat is the part we would ask others to adopt. \textbf
 \label{sec:directions}
 Four questions follow directly from the results above. Each is stated with the measurement it would take to answer it.
 
-\paragraph{A metric suite validated against adversarial controls by construction} The shuffled control audits one failure: blindness to ordering. It was added after the fact, and it found that 9 of 19 metrics fail it. The direction is to reverse that order and admit a metric to the ranked suite only after it has been shown to separate the real series from a fixed battery of controls, each of which destroys exactly one property: a random permutation (destroys all dependence), a stationary block bootstrap (keeps short-range dependence, destroys long memory), phase-randomised surrogates that keep the linear autocorrelation and destroy nonlinear dependence such as volatility clustering (Theiler et al.\tcite{45}), and a GARCH-filtered residual shuffle (keeps conditional variance, destroys conditional tails). For each metric and control the quantity to report is the separation at the pooled test length, $n\approx2{,}480$, against its real-versus-real null. The output would be a table stating, for each metric, which properties it can detect --- the permutation-invariance count generalised to every property the fidelity and temporal families claim to measure.
+\paragraph{A metric suite validated against adversarial controls by construction} The shuffled control audits one failure: blindness to ordering. It was added after the fact, and it found that 9 of 19 per-market metrics fail it. The direction is to reverse that order and admit a metric to the ranked suite only after it has been shown to separate the real series from a fixed battery of controls, each of which destroys exactly one property: a random permutation (destroys all dependence), a stationary block bootstrap (keeps short-range dependence, destroys long memory), phase-randomised surrogates that keep the linear autocorrelation and destroy nonlinear dependence such as volatility clustering (Theiler et al.\tcite{45}), and a GARCH-filtered residual shuffle (keeps conditional variance, destroys conditional tails). For each metric and control the quantity to report is the separation at the pooled test length, $n\approx2{,}480$, against its real-versus-real null. The output would be a table stating, for each metric, which properties it can detect --- the permutation-invariance count generalised to every property the fidelity and temporal families claim to measure.
 
 \paragraph{Budget dependence of the ranking} Among the gradient-trained models the ordering at a smoke-test budget of 1{,}000 generator updates was reversed at 9,000 (Section~\ref{sec:budget}). Two budgets cannot say whether the ranking converges, keeps changing, or reverses again. The experiment is a budget sweep at fixed seeds --- for example 1{,}000, 2{,}000, 4{,}000, 9{,}000 and 18{,}000 generator updates --- reporting each model's composite rank as a function of budget together with its across-seed spread. The question it answers is whether a single-budget benchmark in this literature is reporting a ranking or a point on a curve. The run-to-run nondeterminism of QuantGAN (Section~\ref{sec:nondeterminism}) sets how many seeds each point needs.
 
@@ -1139,7 +1335,7 @@ In order of the value of the information each would add:
 \item[Kupiec and Christoffersen tests] Backtests of a value-at-risk model. The Kupiec test\tcite{34} checks whether violations --- days the loss exceeds the VaR --- occur at the nominal rate; the Christoffersen test\tcite{35} checks whether they are independent rather than clustered. Both are likelihood-ratio tests; a small $p$-value rejects the model.
 \item[Walk-forward validation] Evaluation of a time-series model on test blocks that always follow its training data in time, retraining as the training window moves forward\tcite{13}. It avoids the leakage random cross-validation causes when observations are serially dependent\tcite{14}.
 \item[Discriminative AUC] The area under the ROC curve of a classifier trained to tell real from synthetic windows\tcite{4}. 0.5 means the classifier cannot separate them; 1.0 means it separates them perfectly. The ranked quantity is the distance from 0.5.
-\item[Permutation invariance] A metric is permutation-invariant if its value does not change when the observations are put in a different order. Every metric defined on the marginal distribution alone is permutation-invariant, so it scores a shuffled copy of the real data as a perfect match.
+\item[Permutation invariance] A metric is permutation-invariant if its value does not change when the observations are put in a different order. Every metric defined on the marginal distribution alone is permutation-invariant, so it scores a shuffled copy of the real data as a perfect match. 9 of the 19 per-market metrics are; seven of them are ranked.
 \item[Mode collapse] A failure of GAN training in which the generator produces a narrow range of outputs --- in this setting, a near-constant or smooth path rather than a return series --- because that output fools the discriminator well enough.
 \item[Gradient penalty] The term $\lambda\,\E[(\|\nabla_{\hat x}D(\hat x)\|_2-1)^2]$ added to the critic loss of a Wasserstein GAN, evaluated at random interpolations between real and generated samples. It keeps the critic approximately 1-Lipschitz, as the Wasserstein objective requires (Gulrajani et al.\tcite{3}). Here $\lambda=10$.
 \item[$n_\text{critic}$] The number of critic updates per generator update in WGAN-GP training. The critic must approximate the Wasserstein distance before its gradient is useful to the generator; $n_\text{critic}=5$ is the standard setting\tcite{3} and is used here.
@@ -1352,7 +1548,7 @@ Each entry records an issue found in the pipeline's code or design, the evidence
 
 \auditrow{OPEN}{Indigo}{IBg}%
   {Shuffled control outperforms genuine GANs on ordering-sensitive metrics}%
-  {On ACF$(r^2)$ MAE the control beats all 3 GANs, and on ACF$(r)$ MAE the models that clear it do so by 0.0003--0.0006. These metrics are \emph{not} permutation-invariant --- they separate the econometric models from the control cleanly --- so the headline count stays at 9 of 19 and \texttt{FIDELITY\_COLS}/\texttt{TEMPORAL\_COLS} are unchanged. Recorded as a result about the generators, and as evidence that permutation-invariance in practice is a property of the comparison set rather than of a metric alone.}
+  {On ACF$(r^2)$ MAE the control beats all 3 GANs, and on ACF$(r)$ MAE the models that clear it do so by 0.0003--0.0006. These metrics are \emph{not} permutation-invariant --- they separate the econometric models from the control cleanly --- so the headline count stays at 9 of 19 per-market metrics and \texttt{FIDELITY\_COLS}/\texttt{TEMPORAL\_COLS} are unchanged. Recorded as a result about the generators, and as evidence that permutation-invariance in practice is a property of the comparison set rather than of a metric alone.}
 
 \auditrow{WITHDRAWN}{Amber}{ABg}%
   {Earlier attribution of TimeGAN's collapse to tanh saturation}%

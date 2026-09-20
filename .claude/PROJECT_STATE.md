@@ -1,107 +1,116 @@
-# PROJECT_STATE.md — local copy
+PROJECT_STATE — synthetic financial time series benchmark
 
-**Provenance of this file.** The canonical PROJECT_STATE lives in the claude.ai
-web project. This local copy was reconstructed on 2026-09-10 from
-`.claude/CLAUDE.md` and from the production run artifacts, because the web
-version could not be read from this session. Where the two disagree, the web
-version was written first and this one was measured from disk — check both.
+Last updated: after the five-model production run (commit f03ab89), report restructured to Nature-style, knowledge base partially updated.
 
-Run described: 5 models × 5 markets × 3 seeds × 5 folds, 9,000 generator
-updates. Executed at commit `7352a02` (`run_config.json`,
-`pipeline_run_metadata.json`), results committed as `33cc769`.
-`SMOKE_TEST = False`.
+1. What this is
 
-CNN-WGAN-GP was named `FinGAN` in this run; its result files carry that name (renamed 2026-09-10 — see CLAUDE.md §6, *Model naming*).
+Research project with UPC, co-author Ariel Duarte López. Began as a BSE master's thesis, now beyond that scope. Target venue: Quantitative Finance or ACM ICAIF (NMI assessed and rejected — domain benchmark, small dataset, niche occupied by CTBench/TSGBench/SFAG).
 
----
+Repo: github.com/victorsobottka/bse-thesis-synthetic-data (public, contains unpublished research) Main artifact: 3_4_integrated_pipeline.ipynb Standing constraints: .claude/CLAUDE.md (262 lines, tracked) Knowledge base: 191+ pages, 16 chapters — gitignored, sources local only
 
-## §4 Design decisions and the evidence behind them
+2. Data
 
-| Decision | Evidence |
-|---|---|
-| Budgets in gradient steps, never epochs | Epoch-based budgets produced a 492× asymmetry in generator updates in one run; the affected model looked like an architectural failure until the budget was measured. Walk-forward folds differ in length ~5× (fold 0 trains on 810–837 points, fold 4 on 4,050–4,165). |
-| Parity on generator updates, gradient family only | TimeGAN `ae_steps`/`sup_steps` are four-phase pre-training (Yoon et al. 2019), excluded. QuantGAN/CNN-WGAN-GP `n_critic=5` is intrinsic to WGAN-GP (Gulrajani et al. 2017). GARCH/GJR exempt: MLE has no gradient-step analogue. Equal updates ≠ equal compute: at 1,000 steps TimeGAN 20.5 s, CNN-WGAN-GP 42.4 s, QuantGAN 178 s. |
-| z-score + tanh(z/3), not min-max | Min-max on MOEX to [−1,1]: 98% of data in 14.3% of the range, median +0.233 (measured, `report_data._build_minmax_evidence`). Switching moved QuantGAN output sd from 3.7× to 1.2× real at identical budget (prior measurement, no artifact in this run). |
-| GARCH on raw returns ×100 | tanh squash compresses the variance dynamics GARCH models; `arch` converges poorly near 1e-2. |
-| `kurtosis_diff`, `skewness_diff` descriptive-only | Hill α 2.54–3.21 ⇒ kurtosis infinite in 5/5 markets, skewness in 4/5. Sample kurtosis grows with block length in 5/5 markets; BOVESPA 2.00 (n=250) → 10.09 (n=2,000), disjoint blocks. |
-| Fidelity/temporal split, equal-weighted composite | Unweighted mean won by shuffled control, 1.24 vs 2.47. 9 of 19 computed metrics permutation-invariant (control/best ratio < 3.4e-5; next metric 0.35). |
-| Control excluded from rank | Its fidelity_rank is 1.000 by construction. |
-| Both ARCH-LM variants descriptive-only | pvalue_diff 99% on simulated GARCH, saturates on real data (both p = 0.0). stat_diff 76%, null sd 46.4. |
-| Conditional VaR, intended pooled | Unconditional VaR: Gaussian noise = real (0.0276). QLIKE inverts at n≈126, stable at n=623 pooled. **As run, files are per-market (n 486–501) — see Discrepancies.** |
-| Walk-forward, unshuffled CV | Shuffling moves the AUC null 0.506 → 0.584 (20-day windows overlap by 19). |
-| MOEX replaces MSCI World | MSCI World is not BRICS. −33.3% on 2022-02-24 + 27-day suspension kept as a gap, never interpolated. |
-| Determinism not enforced | TimeGAN/control bit-identical over 5 runs; CNN-WGAN-GP Wasserstein CV 1.6%; QuantGAN CV 37%, tail_index_diff CV 79%. No single-run winner reported on tail_index_diff, hurst_diff, mean_diff. |
-| Two GARCH variants only | GARCH(1,1)-t is the universal baseline; GJR adds leverage (Cont fact 5), which no GAN models explicitly. |
-| Per-market training | Pooling adds ~4 cross-market transitions in ~3,900 windows but risks cross-market contamination. |
+Five BRICS indices, 20 years, 24,758 observations (2006-08-30 → 2026-08-28):
 
-**Reversed:** TimeGAN collapse was attributed to tanh saturation in Recovery.
-This run's `[DIAG]` shows latent saturation ≤ 3.1% (threshold 50%) and
-reconstruction sd matching target to 3 decimals — explanation withdrawn,
-mechanism open.
+Market	n	vol %	excess kurtosis	Hill α
+BOVESPA	4,953	1.63	10.36	2.89
+FTSE_JSE	4,997	1.20	5.72	3.21
+MOEX	4,994	1.87	65.63	2.54
+NIFTY50	4,954	1.29	14.52	2.71
+SHANGHAI	4,860	1.48	5.77	2.77
 
----
+Splits 80/10/10 (~3,970 / ~496 / ~496). Pooled test = 2,479. MOEX has a −33.3% day (2022-02-24) and 27-day suspension — real, never interpolated.
 
-## §5 Reference values from the production run
+3. Current results (5 models × 5 markets × 3 seeds × 5 folds, 9,000 generator updates)
+Model	Family	Composite	Fidelity	Temporal	Wins	Fit (s)
+GJR-GARCH	econometric	2.524	2.667	2.381	2/15	<1
+CNN-WGAN-GP	gradient	2.605	2.429	2.781	6/15	180
+GARCH	econometric	2.967	3.152	2.781	3/15	<1
+QuantGAN	gradient	3.041	3.138	2.943	2/15	481
+TimeGAN	gradient	3.864	3.614	4.114	2/15	81
 
-All computed from `thesis_results/production/` and
-`reports/production/run_log_20260908_222254.log`.
+Headline: a six-parameter GJR-GARCH fitted in under a second ranks first overall and leads the temporal family, against a 276,481-parameter QuantGAN trained for 481 s per market-seed. Deep models lead fidelity; econometric models lead dynamics.
 
-**Ranks (overall_performance.csv)**
+Gradient family takes 10 of 15 composite wins; econometric 5. The econometric edge is in mean rank, not a sweep.
 
-| Model | composite | fidelity | temporal | params | mean fit s |
-|---|---|---|---|---|---|
-| GJR-GARCH | 2.543 | 2.705 | 2.381 | 6 | 0.017 |
-| CNN-WGAN-GP | 2.714 | 2.486 | 2.943 | 55,401 | 172.9 |
-| QuantGAN | 2.912 | 3.062 | 2.762 | 276,481 | 464.7 |
-| GARCH | 2.950 | 3.138 | 2.762 | 5 | 0.018 |
-| TimeGAN | 3.881 | 3.610 | 4.152 | 11,400 | 77.1 |
+4. Architecture
 
-**Per-market-seed wins (of 15)** — composite: GARCH 5, QuantGAN 5, GJR 3,
-CNN-WGAN-GP 2 (econometric 8). Temporal: GJR 5, GARCH 4, QuantGAN 4, CNN-WGAN-GP 2
-(econometric 9). Fidelity: CNN-WGAN-GP 6, GJR 4, QuantGAN 3, GARCH 2 (gradient 9).
-Among the three GANs only, by composite_rank within the five-model ranking:
-CNN-WGAN-GP 8, QuantGAN 6, TimeGAN 1.
+Two families, parity scoped to the gradient family:
 
-**Control audit (means over 15 market-seeds)**
+Gradient: TimeGAN (GRU autoencoder, four-phase), QuantGAN (TCN-WGAN-GP), CNN-WGAN-GP (CNN-WGAN-GP)
+Econometric: GARCH(1,1)-t, GJR-GARCH(1,1)-t, MLE
 
-| Metric | Control | CNN-WGAN-GP | GARCH | GJR | QuantGAN | TimeGAN |
-|---|---|---|---|---|---|---|
-| acf_returns_mae | 0.0517 | 0.0512 | 0.0514 | 0.0514 | 0.0535 | 0.0685 |
-| acf_squared_mae | 0.0570 | 0.0576 | 0.0541 | 0.0544 | 0.0732 | 0.1002 |
-| acf_absolute_mae | 0.0730 | 0.0636 | 0.0593 | 0.0610 | 0.0839 | 0.1232 |
-| hurst_diff | 0.0759 | 0.0381 | 0.0404 | 0.0341 | 0.0410 | 0.0881 |
+Two evaluation tracks:
 
-**Walk-forward AUC** — CNN-WGAN-GP 0.640±0.146, GJR 0.658±0.160, GARCH 0.699±0.168,
-QuantGAN 0.737±0.193, TimeGAN 0.814±0.144. By fold 0→4: 0.818, 0.694, 0.743,
-0.635, 0.658 (declining, **not monotonic**).
+Track A — fixed 80/10/10 split, models trained once, produces the 19 metrics and all rankings (75 trainings)
+Track B — walk-forward, reassembles the full series, retrains from scratch each fold, produces per-fold diagnostics only (375 trainings, ~83% of wall-clock)
+5. Key decisions and evidence
 
-**tail_index_diff** — QuantGAN 1.098, GARCH 1.238, CNN-WGAN-GP 1.242, GJR 1.316,
-TimeGAN 2.682 (sd 3.33, range 0.024–9.825).
+Budgets in gradient steps, never epochs — epochs gave a 492× asymmetry. Parity on generator updates; TimeGAN pre-training excluded (Yoon 2019); n_critic=5 (Gulrajani 2017).
 
-**Guard** — 16 `[WARNING]` firings, all TimeGAN; mean |ACF(1)| 0.568, range
-−0.622 to 0.942. TimeGAN worst on 7/7 temporal, 5/7 fidelity, 15/19 metrics.
+z-score + tanh(z/3), not min-max — at Hill α 2.54–3.21 one extreme day sets the scale; 98% of MOEX occupied 15% of [−1,1]. Changing only this moved QuantGAN std from 3.7× to 1.2× real.
 
-**Known defects in this run's artifacts** (pipeline changed 2026-09-10 — two-stage GARCH fitting with a constrained refit on boundary windows, a raising generation guard, pooled downstream utility; `thesis_results/production/` deleted pending a full rerun; CLAUDE.md §6)
-- Downstream GARCH fit degenerates in 4/90 cells: GARCH MOEX seed 42 (QLIKE
-  33,081), control FTSE seeds 42/43/44 (16,975).
-- Walk-forward GARCH SHANGHAI fold 3: Wasserstein 74.8 / 43.0 / 7.8 across
-  seeds (median across all folds 0.0025), AUC 1.000.
-- `pooled_downstream_utility.csv` is per-market (n 486–501), not pooled.
+GARCH fits raw returns ×100, no normalisation — tanh squash would destroy the variance dynamics it models.
 
----
+Two-stage GARCH fit at the integrated boundary — fit unconstrained, record persistence, refit at α+β ≤ 1−δ (δ=1e-4) only when within 1e-6 of 1. Justified by bimodality: 6 of 110 refits within 1.7e-13 of 1, all others ≥1.23e-4 below. Cost 0.0006–0.0197 log-likelihood. (Lamoureux & Lastrapes 1990; Mikosch & Stărică 2004.)
 
-## Discrepancies with numbers previously stated
+kurtosis/skewness descriptive-only — population kurtosis infinite at α<4. tail_index_diff (Hill 1975) is the ranked tail metric.
 
-| Claim | Measured |
-|---|---|
-| TimeGAN guard ACF(1) = 0.429 | 16 firings, mean \|ACF(1)\| 0.568; 0.429 came from an older log (`run_log_20260907_221734.log`) |
-| AUC falls monotonically with fold length | Declines overall; folds 2 and 4 rise |
-| TimeGAN worst on every metric | 15/19; QuantGAN worse on std_diff, skewness_diff, quantile_mse |
-| "Only GARCH clears" control on both volatility-clustering ACFs | True for acf_squared_mae; CNN-WGAN-GP also clears acf_absolute_mae |
-| CNN-WGAN-GP won 11/15 at 9,000 updates (three-GAN run) | No three-GAN 9,000-update artifact on disk; this run gives 8/15 |
-| Kurtosis 2.53 (n=250) → 11.84 (n=2,000), BOVESPA | 2.00 → 10.09 by disjoint-block mean; method difference likely |
-| Downstream utility pooled at n≈2,480 | Per-market, n 486–501 |
-| Every model distinguishable from the AUC null | 3/5 beyond 1.96 null sd (TimeGAN z 3.66, QuantGAN 2.75, GARCH 2.30); CNN-WGAN-GP (1.60) and GJR-GARCH (1.80) within |
-| TimeGAN's non-worst metrics are all QuantGAN's | std_diff, skewness_diff, quantile_mse → QuantGAN; arch_pvalue_diff → GARCH |
-| resid_kurtosis_diff favours the GARCH generators | GARCH 3.12, GJR 3.04 vs GANs 2.68–4.02 and control 0.94 — neither GARCH variant beats the control |
-| Latent saturation "≤3.1%" | Confirmed: max 3.1% over 90 `[DIAG]` readings; reconstruction sd within 0.0014 of target over 90 |
+Fidelity/temporal rank split — unweighted mean won by the shuffled control, 1.24 vs 2.47.
+
+Control excluded from rank competition — its fidelity_rank is 1.000 by construction.
+
+Downstream utility pooled — n=2,479. QLIKE needs n≳600; per-market at ~496 the control wins qlike_rank in 33 of 75 comparisons (44%).
+
+Walk-forward over random CV — shuffling moves the AUC null 0.506 → 0.584.
+
+Determinism deliberately not enforced, cost measured.
+
+6. Verified evidence
+Claim	Value
+Permutation-invariant metrics	9 of the 19 per-market metrics (7 fidelity + skewness_diff + kurtosis_diff); DESCRIPTIVE_COLS has 7 members, 5 of them in {market}_metrics.csv
+Discriminative AUC null	0.506 ± 0.084 (15 seeds)
+Wasserstein floor = real MAD	BOVESPA 0.00770; collapsed model 0.0077 beat working model 0.0083
+Integrated-boundary hits	12 of 180 windows — SHANGHAI main (3,888) + fold 3 (3,240); NIFTY50 fold 0 (829); identical across all 3 seeds
+Pre-constraint explosions	Wasserstein 74.795 / 7.814 / 43.006 vs median 0.0025, AUC exactly 1.000
+Nondeterminism at fixed seed	TimeGAN + control bit-identical; QuantGAN Wasserstein CV 37%, tail_index_diff CV 79%
+Ranking is budget-dependent	QuantGAN won 5/5 at 1,000 updates; loses at 9,000
+Control on acf_absolute_mae	0.0730 — beats QuantGAN (0.0981) and TimeGAN (0.1232)
+Walk-forward AUC fold effect	QuantGAN 0.921 (fold 0, ~830 pts) → 0.647 (fold 4, ~4,050 pts)
+Kupiec power	n=125: 17%; n=623: 56%; n=2500: 99%
+7. Gotchas
+
+Persistent volume state. Three production launches were lost to stale state: old thesis_results/ inherited by a new pod, git reset --hard restoring deleted results, and once running executed_run.ipynb (the previous run's output) instead of the source notebook. Always verify before launching: git log --oneline -1 plus a check that FinGAN is absent and constraint_applied present in the notebook source. run_production.sh now does this.
+
+VS Code / Claude Code write conflict — close the notebook tab first. verify_notebook.py must exit 0 before every commit.
+
+run_config.json now records the model roster — a roster mismatch forces re-run.
+
+Library versions recorded: Python 3.12.3, torch 2.13.0+cu130, arch 8.0.0, statsmodels 0.15.0, scipy 1.18.1, numpy 2.5.3, pandas 2.3.3.
+
+8. Contribution
+9 of 19 standard metrics are permutation-invariant; a shuffled control wins an unweighted composite
+Wasserstein has a hard floor at the real data's MAD
+Kurtosis is undefined for this data (α < 4)
+Normalisation can matter more than architecture
+Nominal budget parity is not parity
+A collapsed generator wins ACF volatility-clustering metrics, beating the shuffled control
+Run-to-run nondeterminism can exceed between-model differences
+Model ranking reverses between 1,000 and 9,000 generator updates — benchmark conclusions may be budget artifacts
+A six-parameter econometric model beats three deep generators at ~1/1,200 the compute
+GARCH can converge to non-stationary parameters and generate explosive paths, undetected by convergence diagnostics
+9. Open items
+Item	Priority
+Knowledge base: §8.9 says "GARCH is never a generative model" (now false); no IGARCH section; no GJR section; 25 FinGAN references	high
+Diffusion arm — DDPM first to de-risk integration, then Diffusion-TS	highest research
+LLM arm (DeepSeek, LoRA)	medium
+Chapter 14 of KB frames field as GAN-vs-GAN	medium
+Report at 47 pages; Results has 12 subsections, some single-finding	low
+Repo public with unpublished research	open
+10. Workflow
+
+Tasks go to Claude Code as a 🧑 YOU framing block (problem, scope, standing constraints) plus a 🤖 CLAUDE CODE numbered block. Model/effort stated at the end. .claude/CLAUDE.md §5 = report-and-stop rather than fix if a change would touch metric definitions or ranking logic.
+
+RunPod: RTX 4090 at $0.74/hr, ~18 h per full run (~$14). Clone to /workspace, venv there, register the thesis kernel pointing into it, verify argv[0], launch via ./run_production.sh inside tmux. ~$40 of $70 budget spent.
+
+Next decision needs: score-based generative modelling (Ho 2020; Song 2021) for diffusion; two-sample testing for dependent data (Gretton 2012, MMD) to make the metric audit theoretical rather than empirical; EVT (Embrechts et al. 1997) for tail-estimator stability.

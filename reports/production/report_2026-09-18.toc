@@ -1,0 +1,138 @@
+\contentsline {section}{Provenance}{3}{Doc-Start}%
+\contentsline {section}{\numberline {1}Highlights}{3}{section.1}%
+\contentsline {section}{\numberline {2}Why this work matters}{4}{section.2}%
+\contentsline {section}{\numberline {3}Setting and design}{4}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Data}{4}{subsection.3.1}%
+\contentsline {paragraph}{Why MOEX, not MSCI World --- and what it costs}{5}{paragraph*.2}%
+\contentsline {paragraph}{Log returns, and no clipping}{5}{paragraph*.3}%
+\contentsline {paragraph}{Splits, folds and windows}{5}{paragraph*.4}%
+\contentsline {subsection}{\numberline {3.2}Two metric families, and why the split exists}{5}{subsection.3.2}%
+\contentsline {paragraph}{Why the ranking splits fidelity from temporal}{6}{paragraph*.5}%
+\contentsline {paragraph}{Why the control does not compete for rank}{6}{paragraph*.6}%
+\contentsline {paragraph}{Why NaN ranks last}{6}{paragraph*.7}%
+\contentsline {subsection}{\numberline {3.3}The metrics}{6}{subsection.3.3}%
+\contentsline {subsection}{\numberline {3.4}Design decisions and their evidence}{8}{subsection.3.4}%
+\contentsline {paragraph}{Why walk-forward, not random CV}{8}{paragraph*.8}%
+\contentsline {paragraph}{Why per-market training, not cross-market pooling}{8}{paragraph*.9}%
+\contentsline {paragraph}{Why budgets are in gradient steps, never epochs}{8}{paragraph*.10}%
+\contentsline {paragraph}{Why parity is on generator updates, and scoped to the gradient family}{8}{paragraph*.11}%
+\contentsline {paragraph}{Why z-score + $\tanh (z/3)$, not min-max}{9}{paragraph*.12}%
+\contentsline {paragraph}{Why GARCH is fitted on raw returns instead}{9}{paragraph*.13}%
+\contentsline {paragraph}{Why two GARCH variants and not more}{9}{paragraph*.14}%
+\contentsline {paragraph}{Why \texttt {kurtosis\_diff} and \texttt {skewness\_diff} are descriptive-only}{9}{paragraph*.15}%
+\contentsline {paragraph}{Why both ARCH-LM variants are descriptive-only}{10}{paragraph*.16}%
+\contentsline {paragraph}{Why discriminative AUC is ranked on $|\text {AUC}-0.5|$}{10}{paragraph*.17}%
+\contentsline {paragraph}{Why downstream utility uses conditional VaR}{10}{paragraph*.18}%
+\contentsline {paragraph}{Why QLIKE needs a large $n$, and what that means here}{10}{paragraph*.19}%
+\contentsline {paragraph}{Why Gaussian QMLE for the residual-kurtosis metric}{10}{paragraph*.20}%
+\contentsline {paragraph}{Why determinism is not enforced}{10}{paragraph*.21}%
+\contentsline {paragraph}{Instrumentation retained}{10}{paragraph*.22}%
+\contentsline {section}{\numberline {4}Architecture comparison}{10}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Settings shared by the two WGAN-GP models}{11}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}TimeGAN's four-phase training}{12}{subsection.4.2}%
+\contentsline {section}{\numberline {5}Pipeline}{12}{section.5}%
+\contentsline {subsection}{\numberline {5.1}Reading the diagram}{14}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}Data preparation}{14}{subsection.5.2}%
+\contentsline {subsection}{\numberline {5.3}Training with budget parity}{15}{subsection.5.3}%
+\contentsline {subsection}{\numberline {5.4}Walk-forward validation}{15}{subsection.5.4}%
+\contentsline {subsection}{\numberline {5.5}Evaluation}{15}{subsection.5.5}%
+\contentsline {subsection}{\numberline {5.6}Ranking}{15}{subsection.5.6}%
+\contentsline {subsection}{\numberline {5.7}Reporting}{15}{subsection.5.7}%
+\contentsline {section}{\numberline {6}Results}{16}{section.6}%
+\contentsline {subsection}{\numberline {6.1}Overall ranking}{16}{subsection.6.1}%
+\contentsline {paragraph}{What it shows}{16}{paragraph*.27}%
+\contentsline {paragraph}{How it is computed}{16}{paragraph*.28}%
+\contentsline {paragraph}{Why this measure}{16}{paragraph*.29}%
+\contentsline {paragraph}{What this result tells us}{16}{paragraph*.30}%
+\contentsline {subsection}{\numberline {6.2}Compute versus performance}{17}{subsection.6.2}%
+\contentsline {subsection}{\numberline {6.3}Stylised facts in the generated series}{17}{subsection.6.3}%
+\contentsline {subsubsection}{\numberline {6.3.1}The generated series}{17}{subsubsection.6.3.1}%
+\contentsline {paragraph}{What they show}{20}{paragraph*.33}%
+\contentsline {paragraph}{How they are computed}{20}{paragraph*.34}%
+\contentsline {paragraph}{Why this view}{20}{paragraph*.35}%
+\contentsline {paragraph}{What this example tells us}{20}{paragraph*.36}%
+\contentsline {subsubsection}{\numberline {6.3.2}Marginal distribution: the Q--Q plot}{20}{subsubsection.6.3.2}%
+\contentsline {paragraph}{What it shows}{20}{paragraph*.38}%
+\contentsline {paragraph}{How it is computed}{20}{paragraph*.39}%
+\contentsline {paragraph}{Why this measure}{20}{paragraph*.40}%
+\contentsline {paragraph}{What this example tells us}{20}{paragraph*.41}%
+\contentsline {subsubsection}{\numberline {6.3.3}Tails: the survival function on log--log axes}{20}{subsubsection.6.3.3}%
+\contentsline {paragraph}{What it shows}{20}{paragraph*.43}%
+\contentsline {paragraph}{How it is computed}{20}{paragraph*.44}%
+\contentsline {paragraph}{Why this measure}{23}{paragraph*.45}%
+\contentsline {paragraph}{What this example tells us}{23}{paragraph*.46}%
+\contentsline {subsubsection}{\numberline {6.3.4}Autocorrelation of returns, absolute returns and squared returns}{23}{subsubsection.6.3.4}%
+\contentsline {paragraph}{What they show}{23}{paragraph*.48}%
+\contentsline {paragraph}{How they are computed}{23}{paragraph*.49}%
+\contentsline {paragraph}{Why this measure}{23}{paragraph*.50}%
+\contentsline {paragraph}{What this example tells us}{23}{paragraph*.51}%
+\contentsline {paragraph}{A discrepancy, reported rather than changed}{23}{paragraph*.52}%
+\contentsline {subsubsection}{\numberline {6.3.5}Rolling volatility}{23}{subsubsection.6.3.5}%
+\contentsline {paragraph}{What it shows}{23}{paragraph*.54}%
+\contentsline {paragraph}{How it is computed}{26}{paragraph*.55}%
+\contentsline {paragraph}{Why this measure}{26}{paragraph*.56}%
+\contentsline {paragraph}{How to read it}{26}{paragraph*.57}%
+\contentsline {subsubsection}{\numberline {6.3.6}Moments}{26}{subsubsection.6.3.6}%
+\contentsline {paragraph}{What it shows}{26}{paragraph*.59}%
+\contentsline {paragraph}{How it is computed}{26}{paragraph*.60}%
+\contentsline {paragraph}{Why this measure}{26}{paragraph*.61}%
+\contentsline {paragraph}{What this example tells us}{26}{paragraph*.62}%
+\contentsline {subsection}{\numberline {6.4}The shuffled-control audit}{26}{subsection.6.4}%
+\contentsline {paragraph}{Permutation invariance, counted}{26}{paragraph*.63}%
+\contentsline {paragraph}{What it shows}{28}{paragraph*.65}%
+\contentsline {paragraph}{How it is computed}{28}{paragraph*.66}%
+\contentsline {paragraph}{Why this measure}{28}{paragraph*.67}%
+\contentsline {paragraph}{What this result tells us}{28}{paragraph*.68}%
+\contentsline {paragraph}{What this does and does not license}{28}{paragraph*.69}%
+\contentsline {subsection}{\numberline {6.5}Walk-forward discriminability}{29}{subsection.6.5}%
+\contentsline {paragraph}{What they show}{29}{paragraph*.72}%
+\contentsline {paragraph}{How they are computed}{29}{paragraph*.73}%
+\contentsline {paragraph}{Why this measure}{29}{paragraph*.74}%
+\contentsline {paragraph}{What this result tells us}{30}{paragraph*.75}%
+\contentsline {subsection}{\numberline {6.6}Tail index}{30}{subsection.6.6}%
+\contentsline {paragraph}{What it shows}{30}{paragraph*.77}%
+\contentsline {paragraph}{How it is computed}{30}{paragraph*.78}%
+\contentsline {paragraph}{What this result tells us}{30}{paragraph*.79}%
+\contentsline {subsection}{\numberline {6.7}Mode collapse}{30}{subsection.6.7}%
+\contentsline {subsection}{\numberline {6.8}GARCH fits at the integrated boundary}{31}{subsection.6.8}%
+\contentsline {paragraph}{What it shows}{31}{paragraph*.80}%
+\contentsline {paragraph}{How it is computed}{31}{paragraph*.81}%
+\contentsline {paragraph}{Boundary fits, counted}{31}{paragraph*.82}%
+\contentsline {paragraph}{The hits are seed-invariant}{31}{paragraph*.83}%
+\contentsline {paragraph}{Two distinct causes}{32}{paragraph*.84}%
+\contentsline {paragraph}{The two-stage fit, and why it is done at fit time}{32}{paragraph*.85}%
+\contentsline {subsection}{\numberline {6.9}Downstream utility}{32}{subsection.6.9}%
+\contentsline {paragraph}{What it shows}{32}{paragraph*.87}%
+\contentsline {paragraph}{How it is computed}{33}{paragraph*.88}%
+\contentsline {paragraph}{Why this measure}{33}{paragraph*.89}%
+\contentsline {paragraph}{What this result tells us}{33}{paragraph*.90}%
+\contentsline {paragraph}{On $n$}{33}{paragraph*.91}%
+\contentsline {paragraph}{ARCH-LM: a regime failure}{33}{paragraph*.92}%
+\contentsline {subsection}{\numberline {6.10}Metric circularity}{34}{subsection.6.10}%
+\contentsline {subsection}{\numberline {6.11}What the budget choice cost}{34}{subsection.6.11}%
+\contentsline {subsection}{\numberline {6.12}Run-to-run nondeterminism}{34}{subsection.6.12}%
+\contentsline {section}{\numberline {7}Discussion}{35}{section.7}%
+\contentsline {subsection}{\numberline {7.1}A small model ranks first, and why that is the interesting part}{35}{subsection.7.1}%
+\contentsline {subsection}{\numberline {7.2}The audit as a methodological contribution}{35}{subsection.7.2}%
+\contentsline {subsection}{\numberline {7.3}Research directions}{36}{subsection.7.3}%
+\contentsline {paragraph}{A metric suite validated against adversarial controls by construction}{36}{paragraph*.93}%
+\contentsline {paragraph}{Budget dependence of the ranking}{36}{paragraph*.94}%
+\contentsline {paragraph}{Conditional generation under regimes}{36}{paragraph*.95}%
+\contentsline {paragraph}{Whether the six-parameter win holds across asset classes}{36}{paragraph*.96}%
+\contentsline {section}{\numberline {8}Limitations}{37}{section.8}%
+\contentsline {paragraph}{Sampling cost is not recorded}{37}{paragraph*.97}%
+\contentsline {paragraph}{Figures come from one evaluation}{37}{paragraph*.98}%
+\contentsline {paragraph}{Figure text is fixed at render time}{37}{paragraph*.99}%
+\contentsline {paragraph}{The ACF annotation window differs from the ranked metric}{37}{paragraph*.100}%
+\contentsline {paragraph}{Some evidence is prior measurement}{38}{paragraph*.101}%
+\contentsline {paragraph}{The guard log is not tracked}{38}{paragraph*.102}%
+\contentsline {section}{\numberline {9}Next steps}{38}{section.9}%
+\contentsline {section}{References}{39}{Item.6}%
+\contentsline {section}{Glossary}{41}{Item.51}%
+\contentsline {section}{\numberline {A}Record of significant fixes}{43}{appendix.A}%
+\contentsline {section}{\numberline {B}The stylised facts and the metrics that test them}{44}{appendix.B}%
+\contentsline {section}{\numberline {C}Code and design audit}{45}{appendix.C}%
+\contentsline {section}{\numberline {D}Metric diagnostics}{47}{appendix.D}%
+\contentsline {section}{\numberline {E}Data and code availability}{50}{appendix.E}%
+\contentsline {paragraph}{Data}{50}{paragraph*.105}%
+\contentsline {paragraph}{Code}{50}{paragraph*.106}%

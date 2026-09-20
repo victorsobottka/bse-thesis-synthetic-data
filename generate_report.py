@@ -14,6 +14,7 @@ it cannot be mistaken for a production report on the filesystem.
 """
 
 import argparse
+import re
 import string
 import os, sys, datetime, subprocess, shutil
 
@@ -58,6 +59,92 @@ def _build_smoke_banner(prov: dict) -> str:
 \end{center}
 \vspace{4pt}"""
 
+
+def _pgf_coords(xs, ys) -> str:
+    """Coordinates for \\addplot, NaN pairs dropped."""
+    return " ".join(f"({x:.6g},{y:.5g})" for x, y in zip(xs, ys)
+                    if y == y)
+
+
+def _build_hill_figure_pgf(hill: dict) -> str:
+    """The Hill-plot figure body: one row per market, three panels each.
+
+    Column 1: alpha-hat against k (Hill plot) with the iid-asymptotic band and
+    the top-5% point. Columns 2 and 3: alpha-hat and sample excess kurtosis
+    against block length n. Drawn with pgfplots so the labels use the
+    document's own maths fonts. Every number comes from ``hill``
+    (report_data._build_hill_figure_data).
+    """
+    rows = []
+    first = True
+    for market, d in hill.items():
+        last = market == list(hill)[-1]
+        name = report_data._escape_latex(market)
+        ks, al = d["ks"], d["alpha"]
+        lo = [a * (1 - 1.96 / k ** 0.5) for a, k in zip(al, ks)]
+        hi = [a * (1 + 1.96 / k ** 0.5) for a, k in zip(al, ks)]
+        kmax = ks[-1]
+        # --- column 1: Hill plot
+        c1_opts = ("xmode=log, xmin=10, xmax=%d, ymin=1, ymax=8, ytick={2,3,4,6,8}, "
+                   "xtick={10,30,100,300,1000}, xticklabels={10,30,100,300,1000}, "
+                   "minor tick num=0" % kmax)
+        c1_opts += r", ylabel={\textbf{%s}\quad$\hat\alpha$}" % name
+        if first:
+            c1_opts += r", title={Hill plot: $\hat\alpha$ against $k$}"
+        if last:
+            c1_opts += r", xlabel={$k$ (order statistics)}"
+        rows.append(
+            "\\nextgroupplot[%s]\n"
+            "\\addplot[name path=lo%s, draw=none, forget plot] coordinates {%s};\n"
+            "\\addplot[name path=hi%s, draw=none, forget plot] coordinates {%s};\n"
+            "\\addplot[Accent!18, forget plot] fill between[of=lo%s and hi%s];\n"
+            "\\addplot[Rule, dotted, thin, forget plot] coordinates {(10,3) (%d,3)};\n"
+            "\\addplot[Rule, dotted, thin, forget plot] coordinates {(10,4) (%d,4)};\n"
+            "\\addplot[Accent, thick, forget plot] coordinates {%s};\n"
+            "\\addplot[densely dashed, Accent, forget plot] coordinates {(%d,1) (%d,8)};\n"
+            "\\addplot[only marks, mark=*, mark size=1.4pt, Accent, forget plot] coordinates {(%d,%.5g)};\n"
+            % (c1_opts, name, _pgf_coords(ks, lo), name, _pgf_coords(ks, hi), name, name,
+               kmax, kmax, _pgf_coords(ks, al), d["k5"], d["k5"], d["k5"], d["alpha5"]))
+        # --- columns 2 and 3: alpha and kurtosis against n
+        ns = sorted(d["blocks"])
+        for col, key, full, ylab, title in (
+                (2, "alpha", d["full_alpha"], r"$\hat\alpha$ (top 5\,\%)",
+                 r"$\hat\alpha$ against $n$"),
+                (3, "kurtosis", d["full_kurtosis"], "excess kurtosis",
+                 "Excess kurtosis against $n$")):
+            opts = ("xmode=log, xmin=200, xmax=6500, xtick={250,500,1000,2000,%d}, "
+                    "xticklabels={250,500,1000,2000,%d}, minor tick num=0"
+                    % (d["n"], d["n"]))
+            opts += (", ymin=1, ymax=8, ytick={2,3,4,6,8}" if key == "alpha"
+                     else ", ymin=0")
+            if first:
+                opts += ", title={%s}" % title
+            if last:
+                opts += r", xlabel={$n$ (block length)}"
+            dots_x = [n for n in ns for _ in d["blocks"][n][key]]
+            dots_y = [v for n in ns for v in d["blocks"][n][key]]
+            mean_y = [sum(d["blocks"][n][key]) / len(d["blocks"][n][key]) for n in ns]
+            rows.append(
+                "\\nextgroupplot[%s]\n"
+                "\\addplot[only marks, mark=*, mark size=0.7pt, Accent, opacity=0.35, forget plot] coordinates {%s};\n"
+                "\\addplot[Accent, thick, mark=*, mark size=1.2pt, forget plot] coordinates {%s};\n"
+                "\\addplot[only marks, mark=square, mark size=1.8pt, Accent, thick, forget plot] coordinates {(%d,%.5g)};\n"
+                % (opts, _pgf_coords(dots_x, dots_y), _pgf_coords(ns, mean_y), d["n"], full))
+            if key == "alpha":
+                rows.append("\\addplot[Rule, dotted, thin, forget plot] coordinates {(200,3) (6500,3)};\n"
+                            "\\addplot[Rule, dotted, thin, forget plot] coordinates {(200,4) (6500,4)};\n")
+        first = False
+    return (
+        "\\begin{tikzpicture}\n"
+        "\\begin{groupplot}[group style={group size=3 by %d, horizontal sep=1.0cm, "
+        "vertical sep=0.75cm, x descriptions at=edge bottom}, width=3.75cm, height=3.0cm, "
+        "scale only axis, tick label style={font=\\scriptsize}, label style={font=\\scriptsize}, "
+        "title style={font=\\footnotesize}, every axis plot/.append style={line width=0.6pt}, "
+        "axis line style={draw=Rule}, clip mode=individual]\n" % len(hill)
+        + "".join(rows) +
+        "\\end{groupplot}\n\\end{tikzpicture}")
+
+
 TEX = r"""
 \documentclass[11pt,a4paper]{article}
 \usepackage[a4paper,top=2.6cm,bottom=2.6cm,left=2.5cm,right=2.5cm]{geometry}
@@ -79,6 +166,9 @@ TEX = r"""
 \usepackage[section]{placeins}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta,positioning,calc}
+\usepackage{pgfplots}
+\usepgfplotslibrary{groupplots,fillbetween}
+\pgfplotsset{compat=1.17}
 \usepackage[most]{tcolorbox}
 \usepackage[colorlinks=true,linkcolor=Accent,citecolor=Accent,urlcolor=Accent]{hyperref}
 ${RPT_SMOKE_WATERMARK_PACKAGE}
@@ -87,6 +177,7 @@ ${RPT_SMOKE_WATERMARK_PACKAGE}
 \definecolor{Accent}{HTML}{1F3A5F}
 \definecolor{Rule}{HTML}{8A94A0}
 \definecolor{DRed}{HTML}{B71C1C}   % smoke-test banner only
+\definecolor{RefitCol}{HTML}{C25A00}   % the pipeline figure's refit node: the only colour-coded node
 %% Colour names used by diagram and table code carried over from the previous
 %% layout all collapse to the accent or to white, so nothing is colour-coded.
 \colorlet{Navy}{Accent}\colorlet{Sky}{Accent}\colorlet{Teal}{Accent}
@@ -184,9 +275,9 @@ The numerical library versions are recorded because they are load-bearing, not a
 \begin{itemize}[leftmargin=1.3em,itemsep=6pt]
 \item \textbf{A ${RPT_COMPUTE_BEST_PARAMS}-parameter model ranks first.} ${RPT_COMPUTE_BEST_MODEL}, fitted in ${RPT_COMPUTE_BEST_SECONDS}\,s, has the best mean composite rank (${RPT_BEST_COMPOSITE}). The largest generator, ${RPT_COMPUTE_BIGGEST_MODEL}, has ${RPT_COMPUTE_BIGGEST_PARAMS} parameters and trains for ${RPT_COMPUTE_BIGGEST_SECONDS}\,s per market--seed, and ranks below it ${RPT_COMPUTE_BIGGEST_BELOW}.
 \item \textbf{The margin is thin, and the two families win different things.} ${RPT_COMPUTE_RUNNERUP_MODEL} trails by ${RPT_COMPUTE_GAP_RUNNERUP} on composite. The gradient-trained family takes ${RPT_WIN_COMPOSITE_GRAD} of ${RPT_WIN_N_CELLS} per-evaluation composite wins and ${RPT_WIN_FIDELITY_GRAD} of ${RPT_WIN_N_CELLS} fidelity wins; the econometric family takes ${RPT_WIN_TEMPORAL_ECON} of ${RPT_WIN_N_CELLS} temporal wins.
-\item \textbf{A shuffled copy of the real data beats most generators on volatility clustering.} ${RPT_PERM_N_INVARIANT} of ${RPT_PERM_N_METRICS} computed metrics cannot tell a shuffled deck from the real series at all. On the autocorrelation of squared returns the shuffled control beats all ${RPT_AUDIT_SQ_N_GANS_BEATEN} GANs, and only ${RPT_AUDIT_SQ_CLEARS} ${RPT_AUDIT_SQ_CLEARS_VERB} it.
+\item \textbf{A shuffled copy of the real data beats most generators on volatility clustering.} ${RPT_PERM_N_INVARIANT} of the ${RPT_PERM_N_METRICS} per-market metrics cannot tell a shuffled deck from the real series at all. On the autocorrelation of squared returns the shuffled control beats all ${RPT_AUDIT_SQ_N_GANS_BEATEN} GANs, and only ${RPT_AUDIT_SQ_CLEARS} ${RPT_AUDIT_SQ_CLEARS_VERB} it.
 \item \textbf{GARCH fits reach the integrated boundary as a property of the data.} ${RPT_PERSIST_N_HIT} of ${RPT_PERSIST_N_ROWS} econometric fits converge to persistence~1, in ${RPT_PERSIST_N_COMBOS} market--window--model combinations and identically in every seed. A refit under a stationarity bound costs ${RPT_PERSIST_LL_SMALLEST} to ${RPT_PERSIST_LL_LARGEST} in log-likelihood.
-\item \textbf{Most generators remain distinguishable from real data.} In walk-forward evaluation ${RPT_WF_Z_BEYOND_N} of ${RPT_WF_Z_N_MODELS} models sit more than 1.96 null standard deviations from chance on discriminative AUC. AUC falls from ${RPT_FOLD_FIRST_AUC} to ${RPT_FOLD_LAST_AUC} as the training window grows, and the decline is ${RPT_FOLD_MONOTONIC}.
+\item \textbf{Every generator's AUC lies above the real-versus-real null, but no result reaches the 5\,\% level.} The AUC quoted here is the walk-forward one (Section~\ref{sec:walkforward}), because it is scored out of time: a classifier-based indistinguishability test\tcite{4} compares a freshly trained model with the real block that follows its training data, in every fold. ${RPT_WF_Z_N_ABOVE} of ${RPT_WF_Z_N_MODELS} fold-averaged AUCs are above the null mean, but the null has only ${RPT_WF_NULL_B} draws, so the smallest attainable Monte Carlo $p$-value is $1/${RPT_WF_NULL_B1}=${RPT_WF_P_FLOOR}$. AUC falls from ${RPT_FOLD_FIRST_AUC} to ${RPT_FOLD_LAST_AUC} as the training window grows; the decline is ${RPT_FOLD_MONOTONIC}, and training length and calendar period grow together.
 \item \textbf{Downstream, the pooled risk backtest favours ${RPT_DS_BEST_MODEL}.} Across ${RPT_DS_BEST_N_BACKTESTS} backtests over $n$ = ${RPT_DS_BEST_N} pooled observations it has the lowest median QLIKE (${RPT_DS_BEST_QLIKE}).
 \item \textbf{Mode collapse is caught by instrumentation, not by eye.} The post-generation guard fired ${RPT_GUARD_N} times across ${RPT_GUARD_N_MODELS} models (${RPT_GUARD_MODELS_PLAIN}); ${RPT_WORST_MODEL} is the worst of the five on all ${RPT_WORST_N_TEMPORAL} temporal metrics.
 \end{itemize}
@@ -196,7 +287,7 @@ The numerical library versions are recorded because they are load-bearing, not a
 \label{sec:why}
 Synthetic market data is wanted where real data cannot serve: crisis episodes are too rare to train or stress-test risk models on, proprietary positions cannot be shared, and scenario analysis needs many plausible histories rather than the single one that happened. Generative adversarial networks have been proposed for this, and the reference studies --- TimeGAN\tcite{4} and QuantGAN\tcite{5} --- report that they reproduce the statistical regularities of returns, the \emph{stylised facts}\tcite{7}, better than parametric baselines.
 
-Evaluation is the hard part. A generator can reproduce the distribution of daily returns exactly and still be useless for risk work if it scatters large moves at random, because what a risk model needs is the way turbulence clusters in time. Many of the metrics used to judge synthetic series look only at the distribution. This study measures that directly: scored by the same code as the generators, a random permutation of the real series --- identical values, no dynamics --- is indistinguishable from the real data on ${RPT_PERM_N_INVARIANT} of the ${RPT_PERM_N_METRICS} metrics computed here. A benchmark that does not audit its metrics against such a control cannot tell a working generator from a shuffled deck.
+Evaluation is the hard part. A generator can reproduce the distribution of daily returns exactly and still be useless for risk work if it scatters large moves at random, because what a risk model needs is the way turbulence clusters in time. Many of the metrics used to judge synthetic series look only at the distribution. This study measures that directly: scored by the same code as the generators, a random permutation of the real series --- identical values, no dynamics --- is indistinguishable from the real data on ${RPT_PERM_N_INVARIANT} of the ${RPT_PERM_N_METRICS} per-market metrics. A benchmark that does not audit its metrics against such a control cannot tell a working generator from a shuffled deck.
 
 Emerging markets make the test harder in the ways that matter. The reference GAN studies evaluate on developed-market data, for example the S\&P~500 in Wiese et al.\tcite{5}. The five BRICS indices used here span the 2008 crisis, the 2015 Chinese market crash, the COVID shock and the suspension of the Moscow exchange in 2022, and they carry heavy tails and strong volatility clustering: across ${RPT_TABLE1_TOTAL_DAYS} market-days, ${RPT_TABLE1_TOTAL_EXTREME} daily moves exceed five standard deviations, where a Gaussian model predicts fewer than one (Table~\ref{tab:data}). A generator that works on these series is doing something a developed-market benchmark would not reveal.
 
@@ -211,16 +302,18 @@ The data are daily closing prices of five BRICS equity indices --- BOVESPA (Braz
 
 \begin{table}[htbp]
 \centering
-\caption{The five return series, computed from the processed daily log returns. $\sigma$: daily standard deviation. Excess kurtosis is zero for a Gaussian. Residual kurtosis enters the pipeline only as a real-versus-synthetic difference, so it has no standalone value per market.}
+\caption{The five return series, computed from the processed daily log returns. $\sigma$: daily standard deviation. Excess kurtosis is zero for a Gaussian. Hill $\hat\alpha$: tail index from the largest 5\,\% of $|r_t|$, the estimator behind \texttt{tail\_index\_diff}, read at the top-5\,\% point of the Hill plot in Figure~\ref{fig:hill}; $\mathrm{E}|X|^k$ is finite only for $k<\alpha$.}
 \label{tab:data}
 \begin{tabular}{@{}lrrr@{}}
 \toprule
-Market & $\sigma$ (\%/day) & Excess kurtosis & Residual kurtosis \\
+Market & $\sigma$ (\%/day) & Excess kurtosis & Hill $\hat\alpha$ \\
 \midrule
 ${RPT_TABLE1_ROWS}
 \bottomrule
 \end{tabular}
 \end{table}
+
+The Hill tail index lies between ${RPT_TABLE1_ALPHA_MIN} and ${RPT_TABLE1_ALPHA_MAX}. Because $\mathrm{E}|X|^k<\infty$ only for $k<\alpha$, the variance exists in every market, skewness is infinite in ${RPT_TABLE1_N_SKEW_INF} of ${RPT_TABLE1_N_MARKETS} and kurtosis in ${RPT_TABLE1_N_KURT_INF} of ${RPT_TABLE1_N_MARKETS}; the excess-kurtosis column is a sample value that grows with the sample length rather than an estimate of a population quantity (Section~\ref{sec:decisions}). This is why \texttt{kurtosis\_diff} and \texttt{skewness\_diff} are descriptive-only and heavy tails are ranked through \texttt{tail\_index\_diff}. Residual kurtosis --- the excess kurtosis of GARCH-standardised residuals --- is not tabulated: it enters the pipeline only as a real-versus-synthetic difference (\texttt{resid\_kurtosis\_diff}), so it has no standalone value per market.
 
 Across ${RPT_TABLE1_TOTAL_DAYS} market-days a Gaussian model predicts fewer than 0.01 days with $|r|>5\sigma$; the data contain ${RPT_TABLE1_TOTAL_EXTREME}, with ${RPT_TABLE1_MAX_EXTREME_MARKET} alone contributing ${RPT_TABLE1_MAX_EXTREME_COUNT}. Large moves also cluster: in ${RPT_TABLE1_MAX_RATIO_MARKET} the probability of a move beyond $2\sigma$ is ${RPT_TABLE1_MAX_RATIO_P_BIG}\%, and ${RPT_TABLE1_MAX_RATIO_P_BIG_GIVEN_BIG}\% on the day after one, a ratio of ${RPT_TABLE1_MAX_RATIO_VALUE}; the ratio lies between ${RPT_TABLE1_RATIO_MIN} and ${RPT_TABLE1_RATIO_MAX} in all five markets.
 
@@ -234,7 +327,9 @@ Across ${RPT_TABLE1_TOTAL_DAYS} market-days a Gaussian model predicts fewer than
 \label{sec:families}
 Every metric compares a synthetic series with the real test series, and every metric belongs to one of three groups. \emph{Fidelity} metrics depend only on the marginal distribution of returns, so they are unchanged if the series is shuffled. \emph{Temporal} metrics depend on the order of the observations: autocorrelation, long memory, conditional tails and a classifier that sees windows of consecutive days. \emph{Descriptive} metrics are computed and reported but never ranked, each for a reason given below. Seven fidelity and seven temporal metrics are ranked.
 
-\paragraph{Why the ranking splits fidelity from temporal} \textit{Evidence:} an unweighted mean over all metrics was won by the shuffled-real control, \texttt{avg\_rank} 1.24 against 2.47 for a genuine generator. ${RPT_PERM_N_INVARIANT} of the ${RPT_PERM_N_METRICS} computed metrics are permutation-invariant, so they score a shuffled deck perfectly by construction, and no weighting of the remainder can overcome that. The composite is therefore
+Two counts recur and are not the same. The \emph{per-market metrics} are the ${RPT_PERM_N_METRICS} columns of each \texttt{<market>\_metrics.csv}: seven fidelity, seven temporal and five descriptive. Of these, ${RPT_PERM_N_INVARIANT} are permutation-invariant --- the seven fidelity metrics plus two descriptive ones, \texttt{skewness\_diff} and \texttt{kurtosis\_diff}. Seven of those ${RPT_PERM_N_INVARIANT} are ranked; the two descriptive ones are not. Separately, the pipeline's \texttt{DESCRIPTIVE\_COLS} has seven members: those two, \texttt{arch\_pvalue\_diff}, \texttt{arch\_stat\_diff} and \texttt{discriminative\_auc\_raw}, which are among the five in the per-market files, and \texttt{var\_coverage\_error} and \texttt{garch\_persistence\_diff}, which come from the pooled downstream backtest and appear in no per-market file. Every ``$k$ of $N$'' below says which of these it counts.
+
+\paragraph{Why the ranking splits fidelity from temporal} \textit{Evidence:} an unweighted mean over all metrics was won by the shuffled-real control, \texttt{avg\_rank} 1.24 against 2.47 for a genuine generator. ${RPT_PERM_N_INVARIANT} of the ${RPT_PERM_N_METRICS} per-market metrics are permutation-invariant, so they score a shuffled deck perfectly by construction, and no weighting of the remainder can overcome that. The composite is therefore
 \[ \text{composite\_rank} = \tfrac{1}{2}\left(\text{fidelity\_rank} + \text{temporal\_rank}\right), \]
 the equal-weighted mean of the two families --- families are weighted, not individual metrics. Model selection uses \texttt{composite\_rank}; \texttt{avg\_rank} is retained for comparability only and is never the selection criterion.
 
@@ -244,12 +339,12 @@ the equal-weighted mean of the two families --- families are weighted, not indiv
 
 \subsection{The metrics}
 \label{sec:metrics}
-Table~\ref{tab:metrics} lists every quantity the pipeline computes. $r_t$ is the real daily log return and $\tilde r_t$ the synthetic one; a tilde marks the synthetic counterpart of any statistic; $n$ is the test-series length. Unless stated, ``difference'' means the absolute difference between the real and synthetic value, and lower is better.
+Table~\ref{tab:metrics} lists every quantity the pipeline computes: the ${RPT_PERM_N_METRICS} per-market metrics, then the downstream-utility quantities, two of which (\texttt{var\_coverage\_error}, \texttt{garch\_persistence\_diff}) are also descriptive. $r_t$ is the real daily log return and $\tilde r_t$ the synthetic one; a tilde marks the synthetic counterpart of any statistic; $n$ is the test-series length. Unless stated, ``difference'' means the absolute difference between the real and synthetic value, and lower is better.
 
 {\footnotesize
 \setlength{\tabcolsep}{4pt}
 \begin{xltabular}{\linewidth}{@{}>{\raggedright\arraybackslash\ttfamily}p{3.35cm} >{\raggedright\arraybackslash}p{2.3cm} >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}p{2.2cm} >{\raggedright\arraybackslash}p{1.55cm}@{}}
-\caption{Every metric the pipeline computes: what it measures, how it is computed, where it comes from, and whether it is ranked. ``This work'' marks a metric defined for this study rather than taken from the literature.}\label{tab:metrics}\\
+\caption{Every quantity the pipeline computes: what it measures, how it is computed, where it comes from, and whether it is ranked. The first ${RPT_PERM_N_METRICS} rows (fidelity, temporal, and five descriptive) are the per-market metrics of \texttt{<market>\_metrics.csv}; the last five (downstream utility) are computed once per seed on the pooled sample. ``This work'' marks a metric defined for this study rather than taken from the literature.}\label{tab:metrics}\\
 \toprule
 \normalfont\bfseries Metric & \bfseries Measures & \bfseries Computation & \bfseries Source & \bfseries Role \\
 \midrule
@@ -314,7 +409,7 @@ Each choice below is stated with the measurement that motivated it. Where that m
 
 \paragraph{Why two GARCH variants and not more} GARCH(1,1)\tcite{39} is the universal baseline and the natural null. GJR-GARCH\tcite{40} adds one leverage term, capturing Cont's stylized fact 5 (gain/loss asymmetry)\tcite{7} --- which none of the GANs models explicitly, and which is the single most-cited deficiency of symmetric GARCH on equity data. Both use Student-$t$ innovations. Stopping at two keeps the baseline serious without turning a GAN benchmark into a GARCH paper; the composite ranking places ${RPT_ECON_POSITIONS}, ${RPT_LEVERAGE_VERDICT}.
 
-\paragraph{Why \texttt{kurtosis\_diff} and \texttt{skewness\_diff} are descriptive-only} Hill $\hat\alpha$ is 2.54--3.21 across the five markets, so $\E|X|^k<\infty$ only for $k<\alpha$: variance exists everywhere, skewness is infinite in four of five markets, and \textbf{kurtosis is infinite in all five}. A sample statistic estimating a population quantity that does not exist has nothing to converge to --- it grows with the window instead.
+\paragraph{Why \texttt{kurtosis\_diff} and \texttt{skewness\_diff} are descriptive-only} Hill $\hat\alpha$ is ${RPT_TABLE1_ALPHA_MIN}--${RPT_TABLE1_ALPHA_MAX} across the five markets, so $\E|X|^k<\infty$ only for $k<\alpha$: variance exists everywhere, skewness is infinite in four of five markets, and \textbf{kurtosis is infinite in all five}. A sample statistic estimating a population quantity that does not exist has nothing to converge to --- it grows with the window instead.
 
 \textit{Evidence}, mean excess kurtosis over disjoint blocks of increasing length (disjoint, so each estimate is independent rather than reusing the shorter windows' data):
 
@@ -328,6 +423,19 @@ ${RPT_KURT_ROWS}
 \end{tabular}
 \end{center}
 The estimate grows with $n$ in ${RPT_KURT_N_GREW} of ${RPT_KURT_N_MARKETS} markets, by factors of \(${RPT_KURT_RATIO_MIN}\times\) to \(${RPT_KURT_RATIO_MAX}\times\) between blocks of ${RPT_KURT_N_MIN} and ${RPT_KURT_N_MAX} observations. Both metrics are computed and displayed; neither is ranked. \texttt{tail\_index\_diff}, the Hill estimator\tcite{38} on the top $5\%$ of $|r|$, is the ranked heavy-tail metric --- it estimates $\alpha$ itself, which does exist. Hill returns NaN above $\hat\alpha=20$, after a degenerate series once drove it to 31{,}581.
+
+\paragraph{The same evidence as a Hill plot} Figure~\ref{fig:hill} shows the tail index and the kurtosis from two further sides, one row per market. The left panels are Hill plots: $\hat\alpha$ against the number $k$ of largest $|r|$ used. The sweep runs from $k=10$ to $n/4$ on a log axis, because below about ten order statistics the estimate is noise, and at $n/4$ the ``tail'' is a quarter of the sample and no longer a tail. The curve is erratic at small $k$ and drifts down once $k$ is large enough for the body of the distribution to enter the sample; it has fallen to ${RPT_HILL_AT_KMAX} at $k=n/4$. Between 2 and 10\,\% of $n$ it lies between ${RPT_HILL_PLATEAU_LO} and ${RPT_HILL_PLATEAU_HI} across the five markets, but how flat that stretch is differs by market: the spread of $\hat\alpha$ (largest minus smallest) over it is ${RPT_HILL_WIDTHS}. Where the spread is small the top-5\,\% choice behind \texttt{tail\_index\_diff} ($k$ = ${RPT_HILL_K5}, the dashed line and dot) sits on a plateau; where it is large the curve is still falling with $k$, and the top-5\,\% value is a point on a slope, not a plateau value. The dot is the value printed in Table~\ref{tab:data}: both come from one estimator, and the report refuses to build if they differ.
+
+The two moment conclusions are not equally robust to $k$. Across the whole 2--10\,\% window $\hat\alpha$ stays below 4 in ${RPT_HILL_N_BELOW4_WINDOW} of ${RPT_HILL_N_MARKETS} markets, so the finding that kurtosis does not exist does not depend on where in that range $k$ is set. The finding for skewness ($\alpha<3$) is weaker: $\hat\alpha$ is below 3 at the top-5\,\% point in ${RPT_HILL_N_BELOW3_K5} markets, but across the whole window in only ${RPT_HILL_N_BELOW3_WINDOW}.
+
+The centre and right panels use the disjoint blocks of the table above: each dot is one block of $n$ days, the line is their mean, and the square is the whole series, a single block of ${RPT_HILL_N_FULL} days, which is again Table~\ref{tab:data}'s value. The mean $\hat\alpha$ falls from ${RPT_HILL_ALPHA_LO_N} at $n=250$ to ${RPT_HILL_ALPHA_HI_N} at $n=2{,}000$, toward the whole-series value, while mean sample excess kurtosis rises from ${RPT_HILL_KURT_LO_N} to ${RPT_HILL_KURT_HI_N}. One statistic settles and the other does not. That is what a finite tail index below 4 predicts, and it is consistent with an infinite fourth moment rather than a proof of one: a nonstationary series would also show longer windows catching more extreme days. Only ${RPT_HILL_BLOCKS_HI_N} blocks fit at $n=2{,}000$, so the dispersion there is the dots themselves, not a standard deviation.
+
+\begin{figure}[p]
+\centering
+${RPT_FIG_HILL}
+\caption{Hill plots and sample-size dependence, one row per market, full series 2006--2026. \emph{Left:} $\hat\alpha$ against the number of order statistics $k$ (log axis). The band is $\hat\alpha(1\pm1.96/\sqrt{k})$, the asymptotic band for i.i.d.\ data, which understates the uncertainty under volatility clustering. The dashed line and dot mark the top 5\,\% used by \texttt{tail\_index\_diff} and Table~\ref{tab:data}; dotted lines mark $\alpha=3$ and $\alpha=4$, below which skewness and kurtosis do not exist. \emph{Centre and right:} top-5\,\% $\hat\alpha$ and sample excess kurtosis on disjoint blocks of $n$ days. Dots are single blocks, the line is their mean, the square is the whole series (Table~\ref{tab:data}'s value). The left and centre vertical axes are common to all rows; the right one is free.${RPT_HILL_CLIP_NOTE}}
+\label{fig:hill}
+\end{figure}
 
 \paragraph{Why both ARCH-LM variants are descriptive-only} \texttt{arch\_pvalue\_diff} identifies the better-fitting model $99\%$ of the time on simulated GARCH but saturates completely on real data: real and shuffled both underflow to $p=0.0$, giving $|\Delta p|=0.000000$ and rating the adversarial control a perfect match. \texttt{arch\_stat\_diff} scores $76\%$ with a null sd of $46.4$ --- two draws from the same process gave LM $56.8$ and $124.8$. Neither is reliable across both regimes. ACF-MAE replaces them as the primary volatility-clustering signal: continuous, no saturation, $88\%$ Monte Carlo accuracy.
 
@@ -414,106 +522,176 @@ Phases 1--2 are pre-training and are excluded from budget parity; only phase-3 j
 \label{sec:pipeline}
 Figure~\ref{fig:pipeline} shows the pipeline from price files to ranked results. Each stage is described below in the order it runs.
 
-\begin{landscape}
 \begin{figure}[p]
 \centering
 \resizebox{\linewidth}{!}{%
 \begin{tikzpicture}[
-  every node/.style={font=\footnotesize},
-  pp/.style={rectangle, rounded corners=3pt, draw=Navy, fill=LBg,
-             text width=2.1cm, align=center, minimum height=0.85cm, inner sep=4pt},
-  sp/.style={rectangle, rounded corners=3pt, draw=Sky!80!black, fill=BBg,
-             text width=2.1cm, align=center, minimum height=0.85cm, inner sep=4pt},
-  ev/.style={rectangle, rounded corners=3pt, draw=Teal, fill=TealBg,
-             text width=2.1cm, align=center, minimum height=0.85cm, inner sep=4pt},
-  rk/.style={rectangle, rounded corners=5pt, draw=FGreen, fill=GBg,
-             text width=2.1cm, align=center, minimum height=1.1cm, inner sep=5pt},
-  arr/.style={-Stealth, semithick, draw=Navy!70},
-  sarr/.style={-Stealth, thin, draw=Navy!40, dashed},
+  x=1cm, y=1cm,
+  every node/.style={font=\fontsize{7}{8.3}\selectfont},
+  box/.style={rectangle, rounded corners=2pt, draw=Accent, fill=white, line width=0.5pt,
+              align=center, inner sep=3pt},
+  arr/.style={-{Stealth[length=4pt,width=3.4pt]}, line width=0.6pt, draw=Accent},
+  darr/.style={arr, dashed, draw=RefitCol},
+  tarr/.style={arr, densely dotted, draw=Accent!75},
+  hdr/.style={font=\sffamily\bfseries\fontsize{7.5}{9}\selectfont, text=Accent, anchor=north west},
+  stg/.style={font=\sffamily\fontsize{6}{7}\selectfont, text=Rule!80!black, rotate=90},
+  tiny/.style={font=\fontsize{5.6}{6.4}\selectfont, text=Accent!85!black},
+  seg/.style={draw=Accent, line width=0.4pt, inner sep=0pt, minimum height=0.55cm, align=center},
+  rost/.style={box, text width=1.6cm, anchor=north west},
+  cont/.style={rectangle, rounded corners=4pt, draw=Accent!55, fill=Accent!3, line width=0.6pt},
 ]
-\node[pp] (csv)  at (0.0,  0.0) {\textbf{5 BRICS}\\CSV Files};
-\node[pp] (lr)   at (3.2,  0.0) {Log Returns\\$r_t=\ln\!\tfrac{P_t}{P_{t-1}}$};
-\node[pp] (spl)  at (6.4,  0.0) {Temporal Split\\80\,/\,10\,/\,10};
-\node[sp] (trn)  at (9.5,  1.3) {Train (80\,\%)\\Parquet};
-\node[sp] (val)  at (9.5,  0.0) {Validation (10\,\%)\\Parquet};
-\node[sp] (tst)  at (9.5, -1.3) {Test (10\,\%)\\Parquet};
-\node[sp] (poo)  at (12.5,  1.3) {Per-Market\\Windows (128)};
-\node[rectangle,rounded corners=3pt,draw=TGcol,fill=ABg,
-      text width=2.1cm,align=center,minimum height=0.85cm,inner sep=4pt]
-     (tga) at (15.5,  2.1) {\textcolor{TGcol}{\bfseries TimeGAN}\\GRU-based};
-\node[rectangle,rounded corners=3pt,draw=QGcol,fill=BBg,
-      text width=2.1cm,align=center,minimum height=0.85cm,inner sep=4pt]
-     (qga) at (15.5,  0.8) {\textcolor{QGcol}{\bfseries QuantGAN}\\TCN-based};
-\node[rectangle,rounded corners=3pt,draw=FGcol,fill=GBg,
-      text width=2.1cm,align=center,minimum height=0.85cm,inner sep=4pt]
-     (fga) at (15.5, -0.3) {\textcolor{FGcol}{\bfseries CNN-WGAN-GP}\\CNN-based};
-\node[rectangle,rounded corners=3pt,draw=Purple,fill=LBg,
-      text width=2.1cm,align=center,minimum height=0.85cm,inner sep=4pt]
-     (gar) at (15.5, -1.5) {\textcolor{Purple}{\bfseries GARCH-$t$}\\MLE fit};
-\node[rectangle,rounded corners=3pt,draw=Indigo,fill=IBg,
-      text width=2.1cm,align=center,minimum height=0.85cm,inner sep=4pt]
-     (gjr) at (15.5, -2.7) {\textcolor{Indigo}{\bfseries GJR-GARCH-$t$}\\MLE fit};
-\node[sp] (syn)  at (19.0,  0.8) {Synthetic\\Returns};
-\node[ev] (sfm)  at (22.5,  1.6) {19 Metrics\\7 Fidelity + 7 Temporal\\+ 5 Descriptive};
-\node[ev] (wfv)  at (22.5, -0.8) {Walk-Forward\\(5 folds)};
-\node[ev] (wfd)  at (22.5, -2.6) {Per-fold\\Diagnostics\\(\S\ref{sec:walkforward})};
-\node[rk] (rnk)  at (26.0,  0.4) {\textbf{Rankings}\\fidelity / temporal\\composite};
-\draw[arr] (csv.east) -- (lr.west);
-\draw[arr] (lr.east)  -- (spl.west);
-\draw[arr] (spl.east) to[out= 30,in=155] (trn.west);
-\draw[arr] (spl.east) --                 (val.west);
-\draw[arr] (spl.east) to[out=-30,in=205] (tst.west);
-\draw[arr] (trn.east) -- (poo.west);
-\draw[arr] (poo.east) to[out= 30,in=180] (tga.west);
-\draw[arr] (poo.east) --                 (qga.west);
-\draw[arr] (poo.east) to[out=-20,in=180] (fga.west);
-%% The econometric arm is fed from the raw training returns, not the
-%% normalised 128-step windows: the tanh squash would compress exactly the
-%% variance dynamics GARCH exists to model (Section~\ref{sec:decisions}).
-%% Routed through the corridor left of Per-Market Windows so the curve
-%% clears the Validation and Test nodes rather than crossing through them.
-\draw[arr, rounded corners=6pt] (trn.east) -- (11.0, 1.3) -- (11.0, -1.5) -- (gar.west);
-\draw[arr, rounded corners=6pt] (trn.east) -- (11.3, 1.3) -- (11.3, -2.7) -- (gjr.west);
-\draw[arr] (tga.east) to[out=  0,in=120] (syn.north);
-\draw[arr] (qga.east) --                 (syn.west);
-\draw[arr] (fga.east) to[out=  0,in=240] (syn.south);
-\draw[arr] (gar.east) to[out=  0,in=250] (syn.south);
-\draw[arr] (gjr.east) to[out=  0,in=260] (syn.south);
-\draw[arr]  (syn.east) to[out= 30,in=180] (sfm.west);
-\draw[sarr] (tst.east) to[out=10,in=200]  (sfm.south);
-\draw[arr] (sfm.east) to[out=0,in=130] (rnk.north west);
-%% Walk-forward never sees the Track A test split or its synthetic draws: it
-%% reassembles the complete series and retrains every model from scratch per
-%% fold (Section~\ref{sec:pipeline-reading}). Restricting it to the
-%% 496-point test split gave folds of 168--414 points and AUC = 1.000 in
-%% every fold (Section~\ref{sec:pipeline}, Walk-forward validation).
-\draw[arr] (spl.north) -- (6.4, 3.3) -- (24.0, 3.3) -- (24.0, -0.8) -- (wfv.east);
-\node[font=\scriptsize,text=Navy!80,align=center] at (15.2, 3.6)
-     {full series (train + valid + test)};
-\draw[arr] (wfv.south) -- (wfd.north);
-\node[font=\scriptsize\bfseries,text=Navy!80]  at ( 4.0,-3.6) {Stage 1 $\cdot$ Data Preprocessing};
-\node[font=\scriptsize\bfseries,text=Navy!80]  at (14.0,-3.6) {Stage 2 $\cdot$ Per-Market Fitting};
-\node[font=\scriptsize\bfseries,text=Teal]     at (23.5,-3.6) {Stage 3 $\cdot$ Evaluation};
-\draw[very thin,dashed,Navy!25] ( 8.0, 2.7) -- ( 8.0,-3.4);
-\draw[very thin,dashed,Navy!25] (17.8, 2.7) -- (17.8,-3.4);
-\end{tikzpicture}
+%% Geometry: Track A occupies x = 0..9.9, Track B x = 11.4..16.0. Stages run
+%% top to bottom: 1 data preparation, 2 fitting, 3 evaluation. Both tracks flow
+%% downward; nothing runs against that direction.
+
+%% ── Stage separators and labels (drawn first, under everything) ────────────
+\draw[Rule, densely dotted, line width=0.5pt] (-1.0,-5.35) -- (16.25,-5.35);
+\draw[Rule, densely dotted, line width=0.5pt] (-1.0,-8.35) -- (16.25,-8.35);
+\node[stg] at (-0.72,-3.25) {1 $\cdot$ DATA PREPARATION};
+\node[stg] at (-0.72,-6.85) {2 $\cdot$ FITTING};
+\node[stg] at (-0.72,-12.05) {3 $\cdot$ EVALUATION};
+
+%% ── Track containers ───────────────────────────────────────────────────────
+\node[cont, minimum width=10.75cm, minimum height=14.6cm, anchor=north west] at (-0.25,-1.15) {};
+\node[cont, minimum width=5.1cm,  minimum height=14.6cm, anchor=north west] at (11.15,-1.15) {};
+\node[hdr] at (0,-1.22) {TRACK A \,$\cdot$\, fixed split};
+\node[hdr] at (11.4,-1.22) {TRACK B \,$\cdot$\, walk-forward};
+
+%% ── Shared node ────────────────────────────────────────────────────────────
+\node[box, text width=6.4cm, anchor=north] (shared) at (8.1,0)
+     {\textbf{Log returns}, 5 BRICS indices, ${RPT_TABLE1_TOTAL_DAYS} observations\\$r_t=\ln(P_t/P_{t-1})$, no clipping};
+
+%% ── Track A: the 80 / 10 / 10 split, drawn to scale (width 9.9 = 100 %) ────
+\node[seg, fill=Accent!12, minimum width=7.92cm, anchor=north west] (trn) at (0,-2.05) {Train \;80\,\%};
+\node[seg, fill=Accent!30, minimum width=0.99cm, anchor=north west] (val) at (7.92,-2.05) {10\,\%};
+\node[seg, fill=Accent!50, minimum width=0.99cm, anchor=north west] (tst) at (8.91,-2.05) {10\,\%};
+\node[tiny, anchor=south] at (8.415,-2.03) {Valid};
+\node[tiny, anchor=south] at (9.405,-2.03) {Test};
+\draw[arr] (7.0,-0.8) -- (7.0,-2.05);
+
+%% ── Track B: expanding folds, drawn to scale (width 4.6 = full series) ─────
+\draw[arr] (shared.east) -- (14.75,-0.4) -- (14.75,-2.0);
+\node[tiny, align=right, anchor=south east] at (14.6,-0.38) {full series\\(train + valid + test)};
+\foreach \k in {0,...,4} {
+  \pgfmathsetmacro{\yy}{-2.15-0.44*\k}
+  \pgfmathsetmacro{\wtr}{4.6*(\k+1)/(${RPT_PIPE_N_FOLDS}+1)}
+  \pgfmathsetmacro{\wte}{4.6/(${RPT_PIPE_N_FOLDS}+1)}
+  \pgfmathtruncatemacro{\pct}{round(100*(\k+1)/(${RPT_PIPE_N_FOLDS}+1))}
+  \node[seg, fill=Accent!12, minimum height=0.32cm, minimum width=\wtr cm, anchor=north west]
+       at (11.4,\yy) {\fontsize{5.6}{6}\selectfont\pct\,\%};
+  \node[seg, fill=Accent!50, minimum height=0.32cm, minimum width=\wte cm, anchor=north west]
+       at ($(11.4,\yy)+(\wtr,0)$) {};
 }
-\caption{The pipeline. Data are prepared once; every model is then fitted independently per market and seed, evaluated against the real test series and in walk-forward folds, and ranked.}
+\draw[densely dotted, draw=Accent, line width=0.7pt] (15.08,-2.05) -- (15.08,-4.5);
+\draw[densely dotted, draw=Accent, line width=0.7pt] (15.54,-2.05) -- (15.54,-4.5);
+\node[tiny, anchor=north] at (15.08,-4.5) {80};
+\node[tiny, anchor=north] at (15.54,-4.5) {90};
+\node[tiny, anchor=north west, align=left, text width=4.1cm] at (11.4,-4.72)
+     {Train (light) grows from ${RPT_PIPE_FOLD_FIRST_PCT}\,\% to ${RPT_PIPE_FOLD_LAST_PCT}\,\%; test block (dark) ${RPT_PIPE_BLOCK_PCT}\,\%. Dotted: Track A's Valid (80) and Test (90\,\%) start.};
+\draw[arr] (15.85,-4.3) -- (15.85,-5.75);
+
+%% ── Preprocessing: an explicit fork ────────────────────────────────────────
+\draw[arr] (trn.south) -- (3.96,-3.45);
+\draw[line width=0.6pt, draw=Accent] (2.8,-3.45) -- (7.9,-3.45);
+\draw[arr] (2.8,-3.45) -- (2.8,-3.75);
+\draw[arr] (7.9,-3.45) -- (7.9,-3.75);
+\node[box, text width=5.4cm, anchor=north west] (gp) at (0,-3.75)
+     {\textbf{Gradient path}\\128-step windows, stride 1;\\z-score, then $\tanh(z/3)$};
+\node[box, text width=3.9cm, anchor=north west] (ep) at (5.9,-3.75)
+     {\textbf{Econometric path}\\raw returns $\times100$, no normalisation, no windows};
+
+%% ── Model roster, with parameter counts ────────────────────────────────────
+\node[rost] (tg) at (0,-5.75)
+     {{\fontsize{6}{7}\selectfont\bfseries TimeGAN}\\GRU\\[1pt]\textbf{${RPT_PARAMS_TIMEGAN}}\\[-1pt]\tiny params};
+\node[rost] (qg) at (1.9,-5.75)
+     {{\fontsize{6}{7}\selectfont\bfseries QuantGAN}\\TCN\\[1pt]\textbf{${RPT_PARAMS_QUANTGAN}}\\[-1pt]\tiny params};
+\node[rost] (cg) at (3.8,-5.75)
+     {{\fontsize{6}{7}\selectfont\bfseries CNN-WGAN-GP}\\CNN\\[1pt]\textbf{${RPT_PARAMS_CNNWGANGP}}\\[-1pt]\tiny params};
+\node[rost, text width=1.75cm] (ga) at (5.9,-5.75)
+     {{\fontsize{6}{7}\selectfont\bfseries GARCH}\\(1,1)-$t$, MLE\\[1pt]\textbf{${RPT_PARAMS_GARCH}}\\[-1pt]\tiny params};
+\node[rost, text width=1.75cm] (gj) at (7.95,-5.75)
+     {{\fontsize{6}{7}\selectfont\bfseries GJR-GARCH}\\(1,1)-$t$, MLE\\[1pt]\textbf{${RPT_PARAMS_GJRGARCH}}\\[-1pt]\tiny params};
+\foreach \n in {tg,qg,cg} { \draw[arr] (\n.north |- gp.south) -- (\n.north); }
+\foreach \n in {ga,gj} { \draw[arr] (\n.north |- ep.south) -- (\n.north); }
+\node[tiny, anchor=north] at (2.8,-7.2) {gradient group: ${RPT_PROV_GEN_UPDATES} generator updates each};
+\node[tiny, anchor=north] at (7.9,-7.2) {econometric group: maximum likelihood, two-stage fit};
+
+%% ── Track A: synthetic returns, metrics, rankings ──────────────────────────
+\node[box, text width=9.7cm, anchor=north west] (syn) at (0,-8.65)
+     {\textbf{Synthetic returns}: one series per model, of Test length, set against the real Test series. A shuffled copy of the Test series is scored beside them as a control.};
+\draw[arr] (2.8,-7.5) -- (2.8,-8.65);
+\draw[arr] (7.9,-7.5) -- (7.9,-8.65);
+\draw[tarr, preaction={draw=white, line width=3pt}]
+     (tst.south) -- (9.405,-3.05) -- (10.25,-3.05) -- (10.25,-9.05) -- (syn.east |- 0,-9.05);
+\node[tiny, rotate=90, anchor=south] at (10.47,-4.9) {real Test series};
+
+\node[box, anchor=north west, inner sep=3pt] (fid) at (0,-9.9)
+     {\parbox[t][3.95cm][t]{3.0cm}{\raggedright\textbf{Fidelity}\;(7, ranked)\\\emph{marginal distribution only; shuffling leaves it unchanged}\\[2pt]
+      mean, sd: location and scale\\
+      Wasserstein, energy distance: distance between the distributions\\
+      quantile MSE: body and tails\\
+      tail index: gap in Hill $\hat\alpha$\\
+      extreme events: share of days with $|r|>2\sigma$}};
+\node[box, anchor=north west, inner sep=3pt] (tmp) at (3.34,-9.9)
+     {\parbox[t][3.95cm][t]{3.0cm}{\raggedright\textbf{Temporal}\;(7, ranked)\\\emph{depend on the order of the days}\\[2pt]
+      ACF of $r$, $|r|$, $r^2$: MAE over lags (predictability, volatility clustering)\\
+      Hurst exponent of $|r|$: long memory\\
+      residual kurtosis: tails beyond GARCH\\
+      discriminative AUC: $|\mathrm{AUC}-0.5|$, and $z$ against the null}};
+\node[box, anchor=north west, inner sep=3pt] (dsc) at (6.68,-9.9)
+     {\parbox[t][3.95cm][t]{3.0cm}{\raggedright\textbf{Descriptive}\;(5)\\\emph{reported, not ranked}\\[2pt]
+      skewness, kurtosis: infinite moments ($\alpha<3$, $\alpha<4$)\\
+      ARCH-LM $p$-value and statistic: saturates; too noisy\\
+      raw AUC: optimum $0.5$, not $0$}};
+\foreach \n in {fid,tmp,dsc} { \draw[arr] (\n.north |- syn.south) -- (\n.north); }
+
+\node[box, text width=9.7cm, anchor=north west] (rnk) at (0,-14.55)
+     {\textbf{Composite rank} $=\tfrac12(\text{fidelity rank}+\text{temporal rank})$, each the mean of its metrics' ranks over the five generators. The control is not ranked.};
+\draw[arr] (fid.south) -- (fid.south |- rnk.north);
+\draw[arr] (tmp.south) -- (tmp.south |- rnk.north);
+
+%% ── Track B: refit (fitting stage), synthetic per fold, diagnostics ────────
+\node[box, text width=4.4cm, anchor=north west, line width=1.8pt, draw=RefitCol, fill=RefitCol!14] (refit) at (11.4,-5.75)
+     {{\bfseries\color{RefitCol}Refit on every fold}\\[1pt]
+      fresh initialisation each fold, same five architectures\\[2pt]
+      ${RPT_PIPE_N_FOLDS}\,folds $\times$ ${RPT_PIPE_N_MODELS}\,models $\times$ ${RPT_WIN_N_CELLS}\,evaluations\\
+      $=$ \textbf{${RPT_PIPE_TRACKB_TRAININGS} trainings}, ${RPT_PIPE_REFIT_SHARE}\,\% of all trainings\\[1pt]
+      {\bfseries\color{RefitCol}the only expensive node}};
+\draw[darr, line width=0.9pt] (gj.east) -- node[tiny, above, align=center, fill=white, inner sep=0.5pt, text=RefitCol] {re-initialised} (refit.west |- gj.east);
+
+\node[box, text width=4.4cm, anchor=north west] (sf) at (11.4,-8.65)
+     {\textbf{Synthetic per fold}: a series of test-block length from each refitted model};
+\draw[arr] (refit.south -| sf.north) -- (sf.north);
+\node[box, anchor=north west, inner sep=3pt] (diag) at (11.4,-9.9)
+     {\parbox[t][2.75cm][t]{4.4cm}{\raggedright\textbf{Per-fold diagnostics}\;(6 metrics)\\\emph{read one by one, never ranked}\\[2pt]
+      Wasserstein, energy distance, quantile MSE\\
+      Hurst gap\\
+      ARCH-LM statistic$^{\dagger}$: too noisy to rank\\
+      raw discriminative AUC$^{\dagger}$: optimum $0.5$, not $0$, so read against its null\\[3pt]
+      {\fontsize{5.8}{6.6}\selectfont $^{\dagger}$ also left unranked in Track A}}};
+\draw[arr] (sf.south) -- (sf.south |- diag.north);
+\node[tiny, anchor=north west, align=left, text width=4.4cm] at (11.4,-12.9)
+     {Track B ends here. No edge leads to the composite rank, and the tracks are never pooled.};
+\end{tikzpicture}}
+\caption{The pipeline, top to bottom, in three stages: data preparation, fitting, evaluation. Each market's return series is split in time into Train, Valid and Test, drawn to scale. \textbf{Track A} fits every model once on Train, generates a series of Test length, scores it on the ${RPT_PERM_N_METRICS} per-market metrics ($7+7+5$) and ranks on the fourteen fidelity and temporal ones. \textbf{Track B} refits every model on ${RPT_PIPE_N_FOLDS} expanding folds of the full series and records six diagnostics per fold. Two of the six are metrics Track A declines to rank: \texttt{arch\_stat\_diff} (too noisy) and the raw \texttt{discriminative\_auc} (optimum $0.5$, not $0$, so it cannot enter a lower-is-better rank). The dashed edge means the same five architectures are trained again from fresh initialisation; the orange refit node is the only expensive one. Sizes are fractions of the series, not of any one market, and parameter counts are generator parameters.}
 \label{fig:pipeline}
 \end{figure}
-\end{landscape}
 
 \subsection{Reading the diagram}
 \label{sec:pipeline-reading}
-Figure~\ref{fig:pipeline} runs left to right in three stages, separated by the dashed vertical rules. \textbf{Stage 1} turns the five markets' CSV files into log returns and splits each market's series in time into Train (80\,\%), Validation (10\,\%) and Test (10\,\%) Parquet files; the training split is then cut into overlapping 128-step windows. \textbf{Stage 2} fits every model independently per market and seed: the three gradient-trained generators (TimeGAN, QuantGAN, CNN-WGAN-GP) read the windowed training data, while the two econometric models (GARCH-$t$, GJR-GARCH-$t$) are fed directly from the raw training returns, bypassing the windowing node --- the $\tanh(z/3)$ squash used to bound the GAN inputs would compress exactly the variance dynamics GARCH exists to model (Section~\ref{sec:decisions}). All five write to Synthetic Returns.
+Figure~\ref{fig:pipeline} runs top to bottom in three stages, marked at the left: \emph{data preparation}, \emph{fitting} and \emph{evaluation}. Every size in it is a fraction of the series, not a count for one market; the split bar and the fold bars are drawn to scale. Both tracks flow in the same direction, and no arrow runs against it.
 
-\textbf{Stage 3} is where the diagram forks into two tracks that both read from the Temporal Split node and never from each other.
+\textbf{Shared input.} The \emph{Log returns} node holds the ${RPT_TABLE1_TOTAL_DAYS} observations of the five BRICS indices. Each market's series is then read by two tracks that never read from each other.
 
-\emph{Track A}, along the bottom, is the fixed-split evaluation: Test and Synthetic Returns both feed 19 Metrics, which feeds Rankings. This is Table~\ref{tab:ranking} --- fidelity, temporal and composite rank on one held-out test series per market and seed, ${RPT_WIN_N_CELLS} evaluations in total, one training per model per evaluation: ${RPT_PIPE_N_MODELS}~models~$\times$~${RPT_WIN_N_CELLS}~evaluations~=~${RPT_PIPE_TRACKA_TRAININGS} trainings.
+\textbf{Preprocessing forks.} In Track A the split bar cuts each market into Train (80\,\%), Valid (10\,\%) and Test (10\,\%), and Train reaches the models by two paths. The \emph{gradient path} feeds TimeGAN, QuantGAN and CNN-WGAN-GP with z-scored returns squashed by $\tanh(z/3)$ and cut into overlapping 128-step windows. The \emph{econometric path} feeds GARCH(1,1)-$t$ and GJR-GARCH(1,1)-$t$ with raw returns scaled by 100, without normalisation or windows, because the squash would compress exactly the variance dynamics GARCH exists to model (Section~\ref{sec:decisions}). The roster carries each model's generator-parameter count, from ${RPT_PARAMS_QUANTGAN} for QuantGAN to ${RPT_PARAMS_GJRGARCH} for GJR-GARCH(1,1)-$t$.
 
-\emph{Track B}, along the top, is walk-forward: an arrow leaves the Temporal Split node directly, labelled ``full series (train + valid + test)'', and feeds Walk-Forward, which terminates in its own Per-fold Diagnostics node (Section~\ref{sec:walkforward}) rather than in Rankings --- composite rank never includes a walk-forward number. Walk-forward retrains every model from scratch on each of ${RPT_PIPE_N_FOLDS} rolling-origin folds, so it runs ${RPT_PIPE_N_FOLDS}$\times$ as many trainings as Track A: ${RPT_PIPE_N_FOLDS}~folds~$\times$~${RPT_PIPE_N_MODELS}~models~$\times$~${RPT_WIN_N_CELLS}~evaluations~=~${RPT_PIPE_TRACKB_TRAININGS} trainings, against Track A's ${RPT_PIPE_TRACKA_TRAININGS}. That is why walk-forward dominates the pipeline's wall-clock time, independent of any per-model cost difference (Table~\ref{tab:compute}).
+\emph{Track A}, on the left, is the fixed-split evaluation. Each model is fitted once on Train and generates a series of Test length (\emph{Synthetic returns}), which is set against the real Test series (the dotted edge) on the ${RPT_PERM_N_METRICS} per-market metrics: seven ranked fidelity metrics, seven ranked temporal metrics and five descriptive ones that are reported but not ranked. Only the fidelity and temporal groups feed the \emph{Composite rank}. This is Table~\ref{tab:ranking}: ${RPT_WIN_N_CELLS} evaluations in total, one training per model per evaluation, ${RPT_PIPE_N_MODELS}~models~$\times$~${RPT_WIN_N_CELLS}~evaluations~=~${RPT_PIPE_TRACKA_TRAININGS} trainings.
 
-Track B reassembles the complete series rather than reading the Test split because the test split alone is too short for what it evaluates: at 496 points, walk-forward's rolling-origin folds ranged 168--414 points, which at \texttt{seq\_len}~$=$~128 and \texttt{batch\_size}~$=$~64 gives 0--2 batches per epoch --- the gradient-trained models were evaluated essentially untrained, and discriminative AUC read 1.000 in every fold as a result (Section~\ref{sec:pipeline}, Walk-forward validation). Reassembling the full series before folding is the fix, and it has a consequence worth stating before it is found some other way: Track A and Track B overlap in what they see. Walk-forward's later folds train on data that includes the years Track A held out as its own test split. This is inherent to rolling-origin evaluation on a single series --- there is no second independent series to hold out a second time (Tashman 2000\tcite{13}; Bergmeir \& Ben\'{\i}tez 2012\tcite{14}) --- which is why the two tracks are reported separately throughout, Table~\ref{tab:ranking} against Table~\ref{tab:auc}, and never pooled into one score.
+\emph{Track B}, on the right, is walk-forward. It reads the full series (train, valid and test) as ${RPT_PIPE_N_FOLDS} expanding folds: fold $k$ trains on the first $(k+1)/(${RPT_PIPE_N_FOLDS}+1)$ of the series, from ${RPT_PIPE_FOLD_FIRST_PCT}\,\% to ${RPT_PIPE_FOLD_LAST_PCT}\,\%, and is tested on the next block of ${RPT_PIPE_BLOCK_PCT}\,\%. The \emph{Refit} node is a fitting operation and sits in the fitting stage, level with the roster. The dashed edge from the roster means the same five architectures, freshly initialised, are trained again on each fold's training window. It is drawn in colour because it is the only expensive node: ${RPT_PIPE_N_FOLDS}~folds~$\times$~${RPT_PIPE_N_MODELS}~models~$\times$~${RPT_WIN_N_CELLS}~evaluations~=~${RPT_PIPE_TRACKB_TRAININGS} trainings, ${RPT_PIPE_REFIT_SHARE}\,\% of all trainings and ${RPT_PIPE_N_FOLDS}$\times$ Track A's ${RPT_PIPE_TRACKA_TRAININGS}. That count is the basis for expecting walk-forward to dominate the pipeline's wall-clock time, independent of any per-model cost difference (Table~\ref{tab:compute}); per-fold training time was not recorded, so the wall-clock share itself is not measured. Each refitted model generates a series per fold (\emph{Synthetic per fold}), scored on six metrics in \emph{Per-fold diagnostics} (Section~\ref{sec:walkforward}). Track B ends there: composite rank never includes a walk-forward number.
+
+Track B reassembles the complete series rather than reading the Test split because the test split alone is too short for what it evaluates: at 496 points, walk-forward's rolling-origin folds ranged 168--414 points, which at \texttt{seq\_len}~$=$~128 and \texttt{batch\_size}~$=$~64 gives 0--2 batches per epoch --- the gradient-trained models were evaluated essentially untrained, and discriminative AUC read 1.000 in every fold as a result (Section~\ref{sec:pipeline}, Walk-forward validation). Reassembling the full series before folding is the fix.
+
+\textbf{How the tracks overlap.} No Track B fold trains on Track A's test block, but the two tracks do share observations, and the arithmetic is set out with the walk-forward description in Section~\ref{sec:pipeline-wf}. It is why they are never pooled.
 
 \subsection{Data preparation}
 Closing prices are read with an explicit date format and sorted chronologically before anything else is computed; daily log returns are $r_t=\ln(P_t/P_{t-1})$, with no clipping of outliers. Each market's series is split in time into training, validation and test parts (80/10/10) and stored as Parquet files. For the gradient-trained models the training part is cut into overlapping windows of 128 returns with stride 1.
@@ -522,7 +700,10 @@ Closing prices are read with an explicit date format and sorted chronologically 
 Every model is trained or fitted independently for each market and each seed (${RPT_PROV_SEEDS}), on that market's training split only. The three GANs standardise returns and squash them with $\tanh(z/3)$, and train for exactly ${RPT_PROV_GEN_UPDATES} generator updates; the pipeline asserts that the three budgets are equal and refuses to run otherwise. TimeGAN first runs its autoencoder and supervisor pre-training. The two econometric models are fitted by maximum likelihood on returns scaled by 100, in two stages: an unconstrained fit whose persistence is always recorded, and a refit under a stationarity bound only when that persistence reaches 1 (Section~\ref{sec:boundary}). Weights and fitted parameters are saved for every production model.
 
 \subsection{Walk-forward validation}
-Walk-forward validation re-runs training on growing windows of the full series. With $n$ observations and $K=${RPT_N_FOLDS}$ folds, each test block has $L=\lfloor n/(K+1)\rfloor$ observations; fold $k$ trains a fresh model on the first $n-L(K-k)$ observations and generates a series the length of the following block. Training data therefore always precede test data, and later folds train on more history. Each fold records Wasserstein and energy distance, quantile MSE, the Hurst and ARCH-LM differences and discriminative AUC.
+\label{sec:pipeline-wf}
+Walk-forward validation re-runs training on growing windows of the full series. With $n$ observations and $K=${RPT_N_FOLDS}$ folds, each test block has $L=\lfloor n/(K+1)\rfloor$ observations; fold $k$ trains a fresh model on the first $n-L(K-k)$ observations and generates a series the length of the following block. Training data therefore always precede test data, and later folds train on more history. Each fold records six metrics: Wasserstein and energy distance, quantile MSE, the Hurst difference, the ARCH-LM statistic difference and discriminative AUC. Two of the six are metrics Track A declines to rank: \texttt{arch\_stat\_diff}, excluded from ranking as too noisy, and the raw \texttt{discriminative\_auc}, whose optimum is 0.5, not 0, so it cannot enter a lower-is-better rank. Track B ranks nothing, so both are reported and read one by one, the AUC as a distance from its null (Section~\ref{sec:walkforward}).
+
+No Track B fold ever trains on Track A's test block: the largest training window reaches $K/(K+1)\approx ${RPT_PIPE_MAX_TRAIN_FRAC}$ of the series, while that block begins at ${RPT_PIPE_TEST_START}. The tracks nevertheless overlap in what they see. Fold ${RPT_PIPE_LAST_FOLD} trains into Track A's Valid block (80--90\,\%), and fold ${RPT_PIPE_PENULT_FOLD} is evaluated on observations Track A trains on. This is inherent to rolling-origin evaluation on a single series --- there is no second independent series to hold out a second time (Tashman 2000\tcite{13}; Bergmeir \& Ben\'{\i}tez 2012\tcite{14}) --- and it is why the two tracks are reported separately, Table~\ref{tab:ranking} against Table~\ref{tab:auc}, and never pooled into one score.
 
 \subsection{Evaluation}
 Each fitted model generates one series with as many observations as the market's real test split. Every metric in Table~\ref{tab:metrics} compares it with the real test series. A shuffled control --- a fixed random permutation of the same real test series --- is scored by the same code. For downstream utility each model's per-market draws are saved, then concatenated across all markets for each seed, and a single variance-forecasting backtest is run on the pooled sample.
@@ -627,7 +808,7 @@ ${RPT_FIG_QQ}
 \begin{figure}[htbp]
 \centering
 ${RPT_FIG_SURVIVAL}
-\caption{Empirical survival function $P(|r|>x)$ of each series on log--log axes. A power-law tail $P(|r|>x)\propto x^{-\alpha}$ is a straight line on these axes, and its slope is $-\alpha$, the tail index. Lines stop at roughly $1/n$, where a single observation fixes the estimate.}
+\caption{Empirical survival function $P(|r|>x)$ on log--log axes for one market and one seed, not across markets: ${RPT_PRIMARY_MARKET}, seed ${RPT_PRIMARY_SEED}, the real series against all five generators and the shuffled control, cropped from \texttt{${RPT_PRIMARY_MARKET}/seed${RPT_PRIMARY_SEED}/${RPT_PRIMARY_MARKET}\_stylized\_facts.png}. A power-law tail $P(|r|>x)\propto x^{-\alpha}$ is a straight line on these axes, and its slope is $-\alpha$, the tail index. Lines stop at roughly $1/n$, where a single observation fixes the estimate.}
 \label{fig:survival}
 \end{figure}
 
@@ -706,7 +887,7 @@ ${RPT_FIG_MOMENTS_SHAPE}
 
 A metric is counted as permutation-invariant in practice when the control's mean value is negligible against the best real generator's on the same metric. On this run that criterion separates cleanly: every metric it selects has a ratio below ${RPT_PERM_GAP_HI}, and the smallest ratio among the metrics it does not select is ${RPT_PERM_GAP_LO}. There is nothing in the gap, so the cut is not a judgement call.
 
-\textbf{${RPT_PERM_N_INVARIANT} of ${RPT_PERM_N_METRICS}} computed metrics are permutation-invariant:
+\textbf{${RPT_PERM_N_INVARIANT} of ${RPT_PERM_N_METRICS}} per-market metrics are permutation-invariant:
 {\footnotesize\texttt{${RPT_PERM_INVARIANT_LIST}}}
 
 Under an unweighted mean over all metrics, the control ranks first --- the finding that produced the two-family composite. That is a structural property of any metric defined on the marginal distribution alone, not a quirk of these choices: mean, variance, kurtosis, Wasserstein distance and energy distance all belong to that class. Any evaluation of synthetic financial data built only from distributional metrics cannot distinguish a working generator from a shuffled deck.
@@ -740,7 +921,7 @@ ${RPT_CONTROL_AUDIT_ROWS}
 
 \textbf{Therefore: permutation-invariance in practice is a property of the comparison set, not of a metric in isolation.} The same metric is discriminating against one model and uninformative against another, in the same run, on the same data. A count of ``how many metrics are permutation-invariant'' is only meaningful once the set of models being compared is fixed --- and reporting one without the other is how a suite comes to look more discriminating than it is.
 
-We keep the headline at ${RPT_PERM_N_INVARIANT} of ${RPT_PERM_N_METRICS}: the metrics that are invariant by construction. The ACF results are reported as what they are: ${RPT_AUDIT_N_MODELS_BEATEN} of the ${RPT_AUDIT_N_MODELS} generators lose to the control on at least one ordering-sensitive metric, on the metrics most often used to claim success --- and \texttt{FIDELITY\_COLS} and \texttt{TEMPORAL\_COLS} are unchanged.
+We keep the headline at ${RPT_PERM_N_INVARIANT} of ${RPT_PERM_N_METRICS} per-market metrics: the metrics that are invariant by construction. The ACF results are reported as what they are: ${RPT_AUDIT_N_MODELS_BEATEN} of the ${RPT_AUDIT_N_MODELS} generators lose to the control on at least one ordering-sensitive metric, on the metrics most often used to claim success --- and \texttt{FIDELITY\_COLS} and \texttt{TEMPORAL\_COLS} are unchanged.
 
 The practical recommendation follows: a shuffled control belongs in every evaluation table for synthetic time series, permanently, in the role a positive control plays in a biology experiment. It costs one permutation and it is the only line in the table that cannot be gamed by learning the marginal.
 
@@ -750,7 +931,7 @@ The practical recommendation follows: a shuffled control belongs in every evalua
 
 \begin{table}[htbp]
 \centering
-\caption{Discriminative AUC over every walk-forward fold of every evaluation. $|\mathrm{AUC}-0.5|$ is the ranked quantity; $z$ is the distance of the mean AUC from the empirical null of $0.506\pm0.084$, in null standard deviations.}
+\caption{Discriminative AUC over every walk-forward fold of every evaluation. $|\mathrm{AUC}-0.5|$ is the quantity Track A ranks. $z$ is the distance of the mean AUC from the empirical null mean $\mu_0=0.506$ in units of $\sigma_0=0.084$, the standard deviation of individual null draws (the standard error of the null mean is ${RPT_WF_NULL_SE}); it is a distance, not a test statistic, and no $p$-value is tabulated (see text). The raw AUC is shown although Track A does not rank it, because its optimum is $0.5$, not $0$; nothing in Track B is ranked, so it is read against the null instead.}
 \label{tab:auc}
 \begin{tabular}{@{}lcccr@{}}
 \toprule
@@ -763,7 +944,7 @@ ${RPT_WF_AUC_ROWS}
 
 \begin{table}[htbp]
 \centering
-\caption{Mean discriminative AUC by walk-forward fold, over all models and markets. The training window grows with the fold.}
+\caption{Mean discriminative AUC by walk-forward fold, over all models and markets. Every fold starts at the same point, so the training window and the calendar period it covers grow together: fold ${RPT_FOLD_FIRST_FOLD} covers ${RPT_CAL_START_YEAR} to ${RPT_CAL_FIRST_END} and fold ${RPT_FOLD_LAST_FOLD} covers ${RPT_CAL_START_YEAR} to ${RPT_CAL_LAST_END}, so length and period are confounded.}
 \label{tab:folds}
 \begin{tabular}{@{}lccc@{}}
 \toprule
@@ -778,9 +959,13 @@ ${RPT_FOLD_EFFECT_ROWS}
 
 \paragraph{How they are computed} In each of the ${RPT_N_FOLDS} walk-forward folds (Section~\ref{sec:pipeline}) a freshly trained model generates a series the length of the fold's test block. A logistic regression then tries to separate real from synthetic 20-day windows described by their mean, standard deviation, mean absolute return and mean squared return, scored by five-fold cross-validation without shuffling. An AUC of 0.5 means the two are indistinguishable.
 
-\paragraph{Why this measure} A classifier-based discriminative score is the indistinguishability test of TimeGAN\tcite{4}, adopted by CTBench\tcite{16}. Walk-forward evaluation keeps test data strictly after training data, as time-series evaluation requires (Tashman\tcite{13}; Bergmeir \& Ben\'{\i}tez\tcite{14}). The null is not exactly 0.5: over 15 real-versus-real half-splits it was $0.506\pm0.084$, a prior measurement, so each AUC is read as a distance from that null.
+\paragraph{Why this measure} A classifier-based discriminative score is the indistinguishability test of TimeGAN\tcite{4}, adopted by CTBench\tcite{16}. Walk-forward evaluation keeps test data strictly after training data, as time-series evaluation requires (Tashman\tcite{13}; Bergmeir \& Ben\'{\i}tez\tcite{14}); this is the AUC quoted in the Highlights and throughout the text, not the fixed-split \texttt{discriminative\_auc\_dist} of Table~\ref{tab:metrics}. The null is not exactly 0.5: over $B=${RPT_WF_NULL_B}$ real-versus-real half-splits it was $\mu_0=0.506$ with $\sigma_0=0.084$, a prior measurement. $\sigma_0$ is the standard deviation of individual null draws, not the standard error of the null mean ($\sigma_0/\sqrt{B}=${RPT_WF_NULL_SE}$). Each AUC is read as a distance from that null in units of $\sigma_0$.
 
-\paragraph{What this result tells us} ${RPT_WF_Z_BEYOND_N} of ${RPT_WF_Z_N_MODELS} models sit more than 1.96 null standard deviations from it (${RPT_WF_Z_BEYOND}). The rest (${RPT_WF_Z_WITHIN}) lie within that distance on the fold-averaged mean, so on this metric alone they cannot be distinguished from a perfect generator at the 5\% level; ${RPT_WF_Z_N_ABOVE} of ${RPT_WF_Z_N_MODELS} mean AUCs lie above the null mean. AUC falls as the training window grows, from ${RPT_FOLD_FIRST_AUC} at fold ${RPT_FOLD_FIRST_FOLD} (training on ${RPT_FOLD_FIRST_LEN} observations) to ${RPT_FOLD_LAST_AUC} at fold ${RPT_FOLD_LAST_FOLD} (${RPT_FOLD_LAST_LEN}), but the decline is ${RPT_FOLD_MONOTONIC}: fold(s) ${RPT_FOLD_RISE_FOLDS} rise above the fold before. Fold index, training length and the calendar period a fold covers all advance together, so this design cannot separate ``more training data helps'' from ``the later period is easier to imitate''.
+\paragraph{What this result tells us} \emph{Significance.} ${RPT_WF_Z_N_ABOVE} of ${RPT_WF_Z_N_MODELS} fold-averaged AUCs lie above the null mean; Table~\ref{tab:auc} reports each as a distance from the null mean in units of $\sigma_0$ (the $z$ column), not as a test at a fixed level. Whether an AUC is unusually high for real data is a Monte Carlo question: against $B$ null draws the $p$-value of an observed AUC $a$ is
+\[ p=\frac{1+\#\{\text{null}\ge a\}}{B+1}. \]
+With $B=${RPT_WF_NULL_B}$ its smallest attainable value is $1/${RPT_WF_NULL_B1}=${RPT_WF_P_FLOOR}$, so \emph{no result reaches the 5\,\% level}, however far above the null it lies. The individual null draws were not kept in this run's artifacts, so no per-model $p$-value is tabulated; the floor holds whatever they were. The draws are also not independent: they are half-splits of the same realized series, so the null describes variability conditional on this path, not across independent market histories. A normal-theory threshold such as $z>1.96$ is not used, because it would claim a significance the null cannot support. On multiple comparisons: five models each tested at 5\,\% give ${RPT_WF_EXP_FALSE} expected false flags, and a Bonferroni correction would use $z=${RPT_WF_BONF_Z}$, an AUC threshold of $\mu_0+${RPT_WF_BONF_Z}\,\sigma_0=${RPT_WF_BONF_THR}$ (normal approximation).
+
+\emph{Trend and its confound.} AUC falls as the training window grows, from ${RPT_FOLD_FIRST_AUC} at fold ${RPT_FOLD_FIRST_FOLD} (training on ${RPT_FOLD_FIRST_LEN} observations) to ${RPT_FOLD_LAST_AUC} at fold ${RPT_FOLD_LAST_FOLD} (${RPT_FOLD_LAST_LEN}), but that is an aggregate over models, markets and seeds, and the decline is ${RPT_FOLD_MONOTONIC}: fold(s) ${RPT_FOLD_RISE_FOLDS} rise above the fold before. Below the aggregate it is no more monotone: of the ${RPT_FOLD_N_SERIES} individual (model, market, seed) series, ${RPT_FOLD_N_SERIES_MONO} fall at every step, and of the ${RPT_FOLD_N_MODEL_CURVES} models' fold-mean curves, ${RPT_FOLD_N_MODELS_MONO} do. Every fold starts at the same point, so training length and historical period grow together: fold ${RPT_FOLD_FIRST_FOLD} covers ${RPT_CAL_START_YEAR} to ${RPT_CAL_FIRST_END} and fold ${RPT_FOLD_LAST_FOLD} covers ${RPT_CAL_START_YEAR} to ${RPT_CAL_LAST_END} (the ends differ by market), so this design cannot separate ``more training data helps'' from ``the later period is easier to imitate''.
 
 %% ── Tail index ──
 \subsection{Tail index}
@@ -812,7 +997,7 @@ The pipeline's post-generation guard checks every generated series and prints a 
 
 In this run the guard fired \textbf{${RPT_GUARD_N} times}, across ${RPT_GUARD_N_MODELS} model(s) --- ${RPT_GUARD_MODELS_PLAIN}. Mean \(|\text{ACF}(1)| = ${RPT_GUARD_ACF_ABS_MEAN}\), over the range \(${RPT_GUARD_ACF_MIN}\) to \(${RPT_GUARD_ACF_MAX}\); generated sd ${RPT_GUARD_STD_MIN}--${RPT_GUARD_STD_MAX}. Read from \texttt{${RPT_GUARD_PATH}}.
 
-The ranking agrees. ${RPT_WORST_MODEL} is the worst of the five on \textbf{all ${RPT_WORST_N_TEMPORAL} of ${RPT_WORST_N_TEMPORAL_TOT} temporal metrics}, on ${RPT_WORST_N_FIDELITY} of ${RPT_WORST_N_FIDELITY_TOT} fidelity metrics, and on ${RPT_WORST_N_ALL} of the ${RPT_WORST_N_ALL_TOT} computed metrics overall. It is \emph{not} worst on ${RPT_WORST_NOT_WORST} --- the model in brackets is worse there --- so ``worst on every metric'' would be an overstatement, and the scope is stated instead.
+The ranking agrees. ${RPT_WORST_MODEL} is the worst of the five on \textbf{all ${RPT_WORST_N_TEMPORAL} of ${RPT_WORST_N_TEMPORAL_TOT} temporal metrics}, on ${RPT_WORST_N_FIDELITY} of ${RPT_WORST_N_FIDELITY_TOT} fidelity metrics, and on ${RPT_WORST_N_ALL} of the ${RPT_WORST_N_ALL_TOT} per-market metrics overall. It is \emph{not} worst on ${RPT_WORST_NOT_WORST} --- the model in brackets is worse there --- so ``worst on every metric'' would be an overstatement, and the scope is stated instead.
 
 \textbf{An earlier explanation is withdrawn.} A previous draft attributed this to tanh saturation in the Recovery network. This run's own \texttt{[DIAG]} latent instrumentation does not support that: across ${RPT_DIAG_N_LATENT} latent readings saturation never exceeds ${RPT_DIAG_SAT_MAX}\% against the 50\% threshold the diagnostic exists to detect, and across ${RPT_DIAG_N_RECON} reconstruction readings output sd never differs from target sd by more than ${RPT_DIAG_RECON_DIFF}, so the autoencoder is functioning. The collapse is real and the mechanism is open.
 
@@ -909,7 +1094,7 @@ This is why the econometric arm was added. A benchmark of GANs against GANs answ
 \subsection{The audit as a methodological contribution}
 The shuffled control is the cheapest useful thing in this pipeline: one permutation of the test set, scored by the same code as everything else.
 
-It establishes two things. First, ${RPT_PERM_N_INVARIANT} of ${RPT_PERM_N_METRICS} computed metrics score it perfectly by construction, so any composite that mixes families without balancing them is won by a sequence with no temporal content. The fix --- taxonomise metrics by invariance, weight families rather than metrics, exclude the control from rank competition --- needs no additional computation.
+It establishes two things. First, ${RPT_PERM_N_INVARIANT} of ${RPT_PERM_N_METRICS} per-market metrics score it perfectly by construction, so any composite that mixes families without balancing them is won by a sequence with no temporal content. The fix --- taxonomise metrics by invariance, weight families rather than metrics, exclude the control from rank competition --- needs no additional computation.
 
 Second, and less comfortably: on the ordering-sensitive metrics the control still outperforms genuine GAN generators. That is not a metric failure. It is a measurement of the generators, made possible only because a control was present to make it against.
 
@@ -919,7 +1104,7 @@ The general form of the caveat is the part we would ask others to adopt. \textbf
 \label{sec:directions}
 Four questions follow directly from the results above. Each is stated with the measurement it would take to answer it.
 
-\paragraph{A metric suite validated against adversarial controls by construction} The shuffled control audits one failure: blindness to ordering. It was added after the fact, and it found that ${RPT_PERM_N_INVARIANT} of ${RPT_PERM_N_METRICS} metrics fail it. The direction is to reverse that order and admit a metric to the ranked suite only after it has been shown to separate the real series from a fixed battery of controls, each of which destroys exactly one property: a random permutation (destroys all dependence), a stationary block bootstrap (keeps short-range dependence, destroys long memory), phase-randomised surrogates that keep the linear autocorrelation and destroy nonlinear dependence such as volatility clustering (Theiler et al.\tcite{45}), and a GARCH-filtered residual shuffle (keeps conditional variance, destroys conditional tails). For each metric and control the quantity to report is the separation at the pooled test length, $n\approx2{,}480$, against its real-versus-real null. The output would be a table stating, for each metric, which properties it can detect --- the permutation-invariance count generalised to every property the fidelity and temporal families claim to measure.
+\paragraph{A metric suite validated against adversarial controls by construction} The shuffled control audits one failure: blindness to ordering. It was added after the fact, and it found that ${RPT_PERM_N_INVARIANT} of ${RPT_PERM_N_METRICS} per-market metrics fail it. The direction is to reverse that order and admit a metric to the ranked suite only after it has been shown to separate the real series from a fixed battery of controls, each of which destroys exactly one property: a random permutation (destroys all dependence), a stationary block bootstrap (keeps short-range dependence, destroys long memory), phase-randomised surrogates that keep the linear autocorrelation and destroy nonlinear dependence such as volatility clustering (Theiler et al.\tcite{45}), and a GARCH-filtered residual shuffle (keeps conditional variance, destroys conditional tails). For each metric and control the quantity to report is the separation at the pooled test length, $n\approx2{,}480$, against its real-versus-real null. The output would be a table stating, for each metric, which properties it can detect --- the permutation-invariance count generalised to every property the fidelity and temporal families claim to measure.
 
 \paragraph{Budget dependence of the ranking} Among the gradient-trained models the ordering at a smoke-test budget of 1{,}000 generator updates was reversed at ${RPT_PROV_GEN_UPDATES} (Section~\ref{sec:budget}). Two budgets cannot say whether the ranking converges, keeps changing, or reverses again. The experiment is a budget sweep at fixed seeds --- for example 1{,}000, 2{,}000, 4{,}000, 9{,}000 and 18{,}000 generator updates --- reporting each model's composite rank as a function of budget together with its across-seed spread. The question it answers is whether a single-budget benchmark in this literature is reporting a ranking or a point on a curve. The run-to-run nondeterminism of QuantGAN (Section~\ref{sec:nondeterminism}) sets how many seeds each point needs.
 
@@ -1127,7 +1312,7 @@ In order of the value of the information each would add:
 \item[Kupiec and Christoffersen tests] Backtests of a value-at-risk model. The Kupiec test\tcite{34} checks whether violations --- days the loss exceeds the VaR --- occur at the nominal rate; the Christoffersen test\tcite{35} checks whether they are independent rather than clustered. Both are likelihood-ratio tests; a small $p$-value rejects the model.
 \item[Walk-forward validation] Evaluation of a time-series model on test blocks that always follow its training data in time, retraining as the training window moves forward\tcite{13}. It avoids the leakage random cross-validation causes when observations are serially dependent\tcite{14}.
 \item[Discriminative AUC] The area under the ROC curve of a classifier trained to tell real from synthetic windows\tcite{4}. 0.5 means the classifier cannot separate them; 1.0 means it separates them perfectly. The ranked quantity is the distance from 0.5.
-\item[Permutation invariance] A metric is permutation-invariant if its value does not change when the observations are put in a different order. Every metric defined on the marginal distribution alone is permutation-invariant, so it scores a shuffled copy of the real data as a perfect match.
+\item[Permutation invariance] A metric is permutation-invariant if its value does not change when the observations are put in a different order. Every metric defined on the marginal distribution alone is permutation-invariant, so it scores a shuffled copy of the real data as a perfect match. ${RPT_PERM_N_INVARIANT} of the ${RPT_PERM_N_METRICS} per-market metrics are; seven of them are ranked.
 \item[Mode collapse] A failure of GAN training in which the generator produces a narrow range of outputs --- in this setting, a near-constant or smooth path rather than a return series --- because that output fools the discriminator well enough.
 \item[Gradient penalty] The term $\lambda\,\E[(\|\nabla_{\hat x}D(\hat x)\|_2-1)^2]$ added to the critic loss of a Wasserstein GAN, evaluated at random interpolations between real and generated samples. It keeps the critic approximately 1-Lipschitz, as the Wasserstein objective requires (Gulrajani et al.\tcite{3}). Here $\lambda=10$.
 \item[$n_\text{critic}$] The number of critic updates per generator update in WGAN-GP training. The critic must approximate the Wasserstein distance before its gradient is useful to the generator; $n_\text{critic}=5$ is the standard setting\tcite{3} and is used here.
@@ -1296,7 +1481,7 @@ Each entry records an issue found in the pipeline's code or design, the evidence
 
 \auditrow{FIXED}{Amber}{ABg}%
   {Composite ranking: fidelity/temporal split $+$ control exclusion}%
-  {The shuffled control won the unweighted composite, \texttt{avg\_rank} 1.24 against 2.47, because permutation-invariant metrics dominated. \textbf{Fix:} metrics split into FIDELITY (7) and TEMPORAL (7); \texttt{kurtosis\_diff} and \texttt{skewness\_diff} demoted to DESCRIPTIVE (population moments undefined at Hill $\hat\alpha$ 2.54--3.21); \texttt{composite\_rank} $=$ mean of the two family ranks; control excluded from rank competition (NaN ranks) and appended as a reference line.}
+  {The shuffled control won the unweighted composite, \texttt{avg\_rank} 1.24 against 2.47, because permutation-invariant metrics dominated. \textbf{Fix:} metrics split into FIDELITY (7) and TEMPORAL (7); \texttt{kurtosis\_diff} and \texttt{skewness\_diff} demoted to DESCRIPTIVE (population moments undefined at Hill $\hat\alpha$ ${RPT_TABLE1_ALPHA_MIN}--${RPT_TABLE1_ALPHA_MAX}); \texttt{composite\_rank} $=$ mean of the two family ranks; control excluded from rank competition (NaN ranks) and appended as a reference line.}
 
 \auditrow{FIXED}{Amber}{ABg}%
   {Discriminative AUC: direction inverted, and no null calibration}%
@@ -1330,7 +1515,7 @@ ${RPT_DS_AUDIT_ROWS}
 
 \auditrow{OPEN}{Indigo}{IBg}%
   {Shuffled control outperforms genuine GANs on ordering-sensitive metrics}%
-  {On ACF$(r^2)$ MAE the control beats all ${RPT_AUDIT_SQ_N_GANS_BEATEN} GANs, and on ACF$(r)$ MAE the models that clear it do so by ${RPT_AUDIT_RET_MARGIN_MIN}--${RPT_AUDIT_RET_MARGIN_MAX}. These metrics are \emph{not} permutation-invariant --- they separate the econometric models from the control cleanly --- so the headline count stays at ${RPT_PERM_N_INVARIANT} of ${RPT_PERM_N_METRICS} and \texttt{FIDELITY\_COLS}/\texttt{TEMPORAL\_COLS} are unchanged. Recorded as a result about the generators, and as evidence that permutation-invariance in practice is a property of the comparison set rather than of a metric alone.}
+  {On ACF$(r^2)$ MAE the control beats all ${RPT_AUDIT_SQ_N_GANS_BEATEN} GANs, and on ACF$(r)$ MAE the models that clear it do so by ${RPT_AUDIT_RET_MARGIN_MIN}--${RPT_AUDIT_RET_MARGIN_MAX}. These metrics are \emph{not} permutation-invariant --- they separate the econometric models from the control cleanly --- so the headline count stays at ${RPT_PERM_N_INVARIANT} of ${RPT_PERM_N_METRICS} per-market metrics and \texttt{FIDELITY\_COLS}/\texttt{TEMPORAL\_COLS} are unchanged. Recorded as a result about the generators, and as evidence that permutation-invariance in practice is a property of the comparison set rather than of a metric alone.}
 
 \auditrow{WITHDRAWN}{Amber}{ABg}%
   {Earlier attribution of TimeGAN's collapse to tanh saturation}%
@@ -1442,6 +1627,7 @@ def main():
     figg = fmt["figure_graphics"]
     dsb = fmt["downstream_best"]
     pst = fmt["persistence"]
+    hp = fmt["hill_prose"]
     if not figg["crops_ok"]:
         print("WARNING: stylised-facts figure layout not recognised in "
               f"{figg['source']}; the Results section shows the whole figure "
@@ -1526,9 +1712,13 @@ def main():
         "RPT_ECON_POSITIONS": comp["econ_positions"],
         "RPT_LEVERAGE_VERDICT": comp["leverage_verdict"],
         "RPT_WF_Z_N_MODELS": fmt["wf_auc_prose"]["n_models"],
-        "RPT_WF_Z_BEYOND_N": fmt["wf_auc_prose"]["n_beyond"],
-        "RPT_WF_Z_BEYOND": fmt["wf_auc_prose"]["beyond"],
-        "RPT_WF_Z_WITHIN": fmt["wf_auc_prose"]["within"],
+        "RPT_WF_NULL_B": fmt["wf_auc_prose"]["null_b"],
+        "RPT_WF_NULL_B1": fmt["wf_auc_prose"]["null_b_plus_1"],
+        "RPT_WF_P_FLOOR": fmt["wf_auc_prose"]["p_floor"],
+        "RPT_WF_NULL_SE": fmt["wf_auc_prose"]["null_se"],
+        "RPT_WF_EXP_FALSE": fmt["wf_auc_prose"]["expected_false_flags"],
+        "RPT_WF_BONF_Z": fmt["wf_auc_prose"]["bonf_z"],
+        "RPT_WF_BONF_THR": fmt["wf_auc_prose"]["bonf_threshold"],
         "RPT_WF_Z_N_ABOVE": fmt["wf_auc_prose"]["n_above"],
         "RPT_RESID_ECON_VALUES": fmt["resid_kurt_prose"]["econ_values"],
         "RPT_RESID_GAN_RANGE": fmt["resid_kurt_prose"]["gan_range"],
@@ -1544,6 +1734,19 @@ def main():
         "RPT_PIPE_N_FOLDS": pipe["n_folds"],
         "RPT_PIPE_TRACKA_TRAININGS": pipe["track_a_trainings"],
         "RPT_PIPE_TRACKB_TRAININGS": pipe["track_b_trainings"],
+        "RPT_PIPE_BLOCK_PCT": pipe["block_pct"],
+        "RPT_PIPE_REFIT_SHARE": pipe["refit_share"],
+        "RPT_PIPE_FOLD_FIRST_PCT": pipe["fold_first_pct"],
+        "RPT_PIPE_FOLD_LAST_PCT": pipe["fold_last_pct"],
+        "RPT_PIPE_MAX_TRAIN_FRAC": pipe["max_train_frac"],
+        "RPT_PIPE_TEST_START": pipe["test_start_frac"],
+        "RPT_PIPE_LAST_FOLD": pipe["last_fold"],
+        "RPT_PIPE_PENULT_FOLD": pipe["penult_fold"],
+        "RPT_PARAMS_TIMEGAN": pipe["params"]["TimeGAN"],
+        "RPT_PARAMS_QUANTGAN": pipe["params"]["QuantGAN"],
+        "RPT_PARAMS_CNNWGANGP": pipe["params"]["CNN-WGAN-GP"],
+        "RPT_PARAMS_GARCH": pipe["params"]["GARCH"],
+        "RPT_PARAMS_GJRGARCH": pipe["params"]["GJR-GARCH"],
 
         # Shuffled-control audit
         "RPT_PERM_N_INVARIANT": perm["n_invariant"],
@@ -1579,6 +1782,13 @@ def main():
         "RPT_FOLD_FIRST_LEN": fold["first_len"],
         "RPT_FOLD_LAST_LEN": fold["last_len"],
         "RPT_FOLD_MONOTONIC": fold["monotonic"],
+        "RPT_FOLD_N_SERIES": fold["n_series"],
+        "RPT_FOLD_N_SERIES_MONO": fold["n_series_monotone"],
+        "RPT_FOLD_N_MODELS_MONO": fold["n_models_monotone"],
+        "RPT_FOLD_N_MODEL_CURVES": fold["n_models_curves"],
+        "RPT_CAL_START_YEAR": fmt["fold_calendar"]["start_year"],
+        "RPT_CAL_FIRST_END": fmt["fold_calendar"]["first_end"],
+        "RPT_CAL_LAST_END": fmt["fold_calendar"]["last_end"],
         "RPT_FOLD_RISE_FOLDS": fold["rise_folds"],
         "RPT_WF_OUT_MEDIAN": wfo["median"],
         "RPT_WF_OUT_WORST_MODEL": wfo["worst_model"],
@@ -1641,6 +1851,11 @@ def main():
 
         # Real-market description (Methods, Table 8)
         "RPT_TABLE1_ROWS": fmt["table1_rows"],
+        "RPT_TABLE1_ALPHA_MIN": t1["alpha_min"],
+        "RPT_TABLE1_ALPHA_MAX": t1["alpha_max"],
+        "RPT_TABLE1_N_MARKETS": t1["n_markets"],
+        "RPT_TABLE1_N_SKEW_INF": t1["n_skew_infinite"],
+        "RPT_TABLE1_N_KURT_INF": t1["n_kurt_infinite"],
         "RPT_TABLE1_TOTAL_DAYS": t1["total_days"],
         "RPT_TABLE1_TOTAL_EXTREME": t1["total_extreme"],
         "RPT_TABLE1_MAX_EXTREME_MARKET": t1["max_extreme_market"],
@@ -1660,6 +1875,23 @@ def main():
         "RPT_FIG_SERIES_B": figg["series_b"],
         "RPT_FIG_QQ": figg["qq"],
         "RPT_FIG_SURVIVAL": figg["survival"],
+        "RPT_FIG_HILL": _build_hill_figure_pgf(fmt["hill_figure"]),
+        "RPT_HILL_K5": hp["k5"],
+        "RPT_HILL_WIDTHS": hp["window_widths"],
+        "RPT_HILL_N_MARKETS": hp["n_markets"],
+        "RPT_HILL_N_BELOW4_WINDOW": hp["n_below4_window"],
+        "RPT_HILL_N_BELOW3_WINDOW": hp["n_below3_window"],
+        "RPT_HILL_N_BELOW3_K5": hp["n_below3_k5"],
+        "RPT_HILL_CLIP_NOTE": hp["clip_note"],
+        "RPT_HILL_PLATEAU_LO": hp["plateau_lo"],
+        "RPT_HILL_PLATEAU_HI": hp["plateau_hi"],
+        "RPT_HILL_AT_KMAX": hp["at_kmax"],
+        "RPT_HILL_N_FULL": hp["n_full"],
+        "RPT_HILL_ALPHA_LO_N": hp["alpha_lo_n"],
+        "RPT_HILL_ALPHA_HI_N": hp["alpha_hi_n"],
+        "RPT_HILL_KURT_LO_N": hp["kurt_lo_n"],
+        "RPT_HILL_KURT_HI_N": hp["kurt_hi_n"],
+        "RPT_HILL_BLOCKS_HI_N": hp["blocks_hi_n"],
         "RPT_FIG_ACF_RETURNS": figg["acf_returns"],
         "RPT_FIG_ACF_ABSOLUTE": figg["acf_absolute"],
         "RPT_FIG_ACF_SQUARED": figg["acf_squared"],
@@ -1705,6 +1937,15 @@ def main():
     # like "$n$" or "$W_1$" that happens to look like a valid identifier.
     content = string.Template(TEX).safe_substitute(mapping)
 
+    # safe_substitute leaves an unknown or mis-escaped "${RPT_...}" in place
+    # (a "$${...}" prints literally), and the report would build and read
+    # fine around it. Refuse instead.
+    unresolved = sorted(set(re.findall(r'\$\{RPT_[A-Za-z0-9_]+\}', content)))
+    if unresolved:
+        print("ERROR: unresolved placeholders in the report template: "
+              + ", ".join(unresolved))
+        sys.exit(1)
+
     with open(tex_path, 'w', encoding='utf-8') as f:
         f.write(content)
     print(f"Wrote {tex_path}")
@@ -1734,6 +1975,19 @@ def main():
             sys.exit(1)
 
     base = tex_path.replace('.tex', '')
+
+    # -interaction=nonstopmode lets a pass with unresolved references finish
+    # with exit status 0, and the PDF then prints "Section ??". Read the last
+    # pass's log for it; keep the log if it fails.
+    with open(base + '.log', encoding='utf-8', errors='replace') as f:
+        final_log = f.read()
+    if ('Rerun to get cross-references right' in final_log
+            or 'There were undefined references' in final_log
+            or re.search(r"Reference `[^']*' on page \d+ undefined", final_log)):
+        print("ERROR: the final pdflatex pass still has undefined references "
+              f"or asks for a rerun; see {base}.log")
+        sys.exit(1)
+
     for ext in ('.aux', '.log', '.out', '.toc', '.fls', '.fdb_latexmk'):
         p = base + ext
         if os.path.exists(p):

@@ -4,11 +4,12 @@
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![Status](https://img.shields.io/badge/status-active%20research-brightgreen)
 
-Peer-reviewed paper benchmarking **TimeGAN**, **QuantGAN**, and **CNN-WGAN-GP** on five
-BRICS emerging-market log-return series (Bovespa, FTSE JSE, MOEX, Nifty 50,
-Shanghai Composite) using stylized-fact preservation, walk-forward validation, and
-distributional metrics (Wasserstein distance, energy distance, discriminative AUC,
-ARCH-LM, Hurst exponent).
+Peer-reviewed paper benchmarking five generators of daily returns -- three GANs
+(**TimeGAN**, **QuantGAN**, **CNN-WGAN-GP**) and two econometric baselines
+(**GARCH(1,1)-t**, **GJR-GARCH(1,1)-t**) -- on five BRICS emerging-market log-return
+series (Bovespa, FTSE JSE, MOEX, Nifty 50, Shanghai Composite), 2006-08-30 to
+2026-08-28. Models are ranked on a metric suite that is audited against a shuffled
+copy of the real data, and checked in walk-forward validation.
 
 Collaboration between **Barcelona School of Economics (BSE)** and **UPC**.
 
@@ -20,15 +21,19 @@ Collaboration between **Barcelona School of Economics (BSE)** and **UPC**.
 .
 ├── 0_3_Optiver_datapreprocessing_BRICS_v0.ipynb   # Raw CSV → processed parquets (80/10/10 split)
 ├── 3_4_integrated_pipeline.ipynb                  # Main pipeline: train all GANs, evaluate, rank
-├── generate_report.py                             # LaTeX report generator → reports/report_YYYY-MM-DD.pdf
+├── generate_report.py                             # LaTeX report generator → reports/production/report_YYYY-MM-DD.pdf
+├── report_data.py                                 # Data layer for generate_report.py (reads run artifacts)
+├── verify_notebook.py                             # Regression guard; must exit 0 before every commit
+├── Makefile                                       # make report / report-smoke / verify
 ├── 5_Paper_Calculate_LogReturns.py                # Standalone log-return computation utility
 │
 ├── data/
-│   ├── Bovespa Historical Data.csv                # Brazil (B3)
-│   ├── FTSE_JSE All Share Historical Data.csv     # South Africa (JSE)
-│   ├── MOEX Historial Data.csv                    # Russia (MOEX)
-│   ├── Nifty 50 Historical Data.csv               # India (NSE)
-│   ├── Shanghai Composite Historical Data.csv     # China (SSE)
+│   ├── 20years/
+│   │   ├── Bovespa Historical Data.csv            # Brazil (B3)
+│   │   ├── FTSE_JSE All Share Historical Data.csv # South Africa (JSE)
+│   │   ├── MOEX Russia Index Historical Data.csv  # Russia (MOEX)
+│   │   ├── Nifty 50 Historical Data.csv           # India (NSE)
+│   │   └── Shanghai Composite Historical Data.csv # China (SSE)
 │   └── processed_files/
 │       ├── BOVESPA_processed.csv                  # Log-return series (no clipping)
 │       ├── FTSE_JSE_processed.csv
@@ -39,16 +44,20 @@ Collaboration between **Barcelona School of Economics (BSE)** and **UPC**.
 │       └── preliminary_results/                   # Early-run BRICS metrics & plots
 │
 ├── reports/                                       # Shareable reports and report inputs
-│   ├── report_YYYY-MM-DD.pdf                      # Main date-stamped PDF report
-│   ├── metric_diagnostics/                        # HTML metric/plot diagnostics from pipeline
-│   │   └── index.html                             # Cross-market diagnostics entry point
-│   └── pipeline_run_metadata.json                 # Run config, commit, seeds, device
+│   ├── production/                                # Real-run reports -- tracked
+│   │   ├── report_YYYY-MM-DD.pdf                  # Main date-stamped PDF report
+│   │   ├── metric_diagnostics/                    # HTML metric/plot diagnostics from pipeline
+│   │   │   └── index.html                         # Cross-market diagnostics entry point
+│   │   ├── pipeline_run_metadata.json             # Run config, commit, seeds, library versions
+│   │   └── run_log_<commit>.txt                   # Stdout of the production run
+│   └── smoke/                                     # Smoke-run reports -- gitignored, not tracked
 │
 ├── thesis_results/                                # Pipeline data artifacts: CSVs, metrics, plots
 │   ├── production/                                # Real runs (SMOKE_TEST=False) -- tracked
 │   └── smoke/                                     # Structural-check runs -- gitignored, not tracked
 │
-├── papers/                                        # Reference papers for the BRICS paper
+├── papers/                                        # Reference papers for the BRICS paper (gitignored)
+├── knowledge_base/                                # 16-chapter LaTeX book; `make` builds knowledge_base.pdf (gitignored)
 │
 └── thesis_archive/                                # Original BSE master thesis (NVIDIA, 2025)
     └── README.md                                  # See this file for thesis layout
@@ -58,28 +67,40 @@ Collaboration between **Barcelona School of Economics (BSE)** and **UPC**.
 
 ## Models compared
 
-| Model    | Architecture          | Key hyperparameters (literature-anchored) |
-|----------|-----------------------|-------------------------------------------|
-| TimeGAN  | GRU autoencoder + GAN | `n_critic=1` (standard GAN), `epochs=200` |
-| QuantGAN | TCN WGAN-GP           | `n_critic=5`, `λ_gp=10` (Gulrajani 2017) |
-| CNN-WGAN-GP   | CNN deconv WGAN-GP    | `n_critic=5`, `λ_gp=10` (Gulrajani 2017) |
+| Model         | Architecture                 | Hyperparameters recorded for the production run |
+|---------------|------------------------------|--------------------------------------------------|
+| TimeGAN       | GRU autoencoder + GAN        | `hidden_dim=24`, `num_layers=3`, `lr=1e-3`, `batch_size=128`; 3,000 autoencoder + 3,000 supervisor pre-training steps, then 9,000 joint generator updates (Yoon 2019) |
+| QuantGAN      | TCN WGAN-GP                  | `lr_g=lr_d=1e-4`, `batch_size=64`, `noise_dim=100`, `n_critic=5`, `λ_gp=10` (Gulrajani 2017); 9,000 generator updates |
+| CNN-WGAN-GP   | CNN deconv WGAN-GP           | as QuantGAN; 9,000 generator updates |
+| GARCH         | GARCH(1,1), Student-t        | maximum likelihood, `burn_in=500`; refit under a stationarity bound if the fit reaches persistence 1 |
+| GJR-GARCH     | GJR-GARCH(1,1), Student-t    | as GARCH, with one leverage term (`o=1`) |
+
+Values are those in `thesis_results/production/*/seed*/run_config.json`
+(`generator_updates=9000`, `timegan_ae_steps=3000`, `timegan_sup_steps=3000`,
+`n_folds=5`, `seq_len=128`) and `reports/production/pipeline_run_metadata.json`
+(`models_config`). Training budgets are in **generator updates, never epochs** (an
+epoch is a data-dependent number of steps). `TimeGAN.joint_steps ==
+QuantGAN.train_steps == CNN-WGAN-GP.train_steps` is asserted; the value lives in the
+EXPERIMENT CONFIGURATION cell of the pipeline notebook and nowhere else. The GARCH
+models are exempt: maximum likelihood has no gradient-step analogue.
 
 ---
 
 ## Evaluation metrics
 
-| Category          | Metric                             |
-|-------------------|------------------------------------|
-| Distribution      | Wasserstein-1, energy distance, quantile MSE |
-| Moments           | Kurtosis diff, skewness diff       |
-| Temporal          | ACF (raw + absolute), partial ACF  |
-| Heavy tails       | Tail index (Hill estimator)        |
-| Volatility        | ARCH-LM p-value difference         |
-| Long memory       | Hurst exponent on `\|returns\|`    |
-| Discriminability  | Discriminative AUC (CTBench protocol) |
+| Family      | Metrics | Role |
+|-------------|---------|------|
+| Fidelity (7)   | mean, sd, Wasserstein-1, energy distance, quantile MSE, tail index (Hill), extreme-event frequency | ranked; permutation-invariant |
+| Temporal (7)   | ACF of returns / absolute returns / squared returns, Hurst exponent, residual kurtosis, discriminative AUC (`\|AUC − 0.5\|` and its z-score against the empirical null) | ranked; order-sensitive |
+| Descriptive    | skewness, kurtosis, ARCH-LM p-value and statistic, raw AUC, VaR coverage error, GARCH persistence difference | reported, never ranked |
 
-Walk-forward validation: 5 rolling folds on the test set, model retrained each fold,
-reporting mean ± std across folds.
+Models are ranked on `composite_rank = ½ (fidelity_rank + temporal_rank)`. A shuffled
+copy of the real data is scored by the same code as a control and is not ranked.
+
+Walk-forward validation is a separate track: 5 expanding folds on the **full** series
+(fold *k* trains on the first n − L·(5 − *k*) observations and is tested on the next
+L = n // 6), every model retrained from fresh initialisation in each fold. It reports
+per-fold diagnostics and never enters the ranking.
 
 ---
 
@@ -89,18 +110,21 @@ reporting mean ± std across folds.
 # 1. Pre-process raw CSVs (once)
 jupyter nbconvert --to notebook --execute 0_3_Optiver_datapreprocessing_BRICS_v0.ipynb
 
-# 2. Run the full pipeline (trains all three GANs, evaluates, ranks)
+# 2. Run the full pipeline (trains all five models, evaluates, ranks)
 jupyter nbconvert --to notebook --execute 3_4_integrated_pipeline.ipynb
 #    → thesis_results/{smoke,production}/*.csv, thesis_results/{smoke,production}/*/*.png
 #      (which one depends on SMOKE_TEST in the EXPERIMENT CONFIGURATION cell)
-#    → reports/metric_diagnostics/index.html
-#    → reports/pipeline_run_metadata.json
+#    → reports/{smoke,production}/metric_diagnostics/index.html
+#    → reports/{smoke,production}/pipeline_run_metadata.json
 
-# 3. Generate the PDF report
-python generate_report.py        # → reports/report_YYYY-MM-DD.pdf
+# 3. Generate the PDF report (make report also works)
+python generate_report.py        # → reports/production/report_YYYY-MM-DD.pdf
+
+# Before any commit
+python verify_notebook.py        # must exit 0
 ```
 
-Requires: Python 3.10+, PyTorch, statsmodels, scikit-learn, pdflatex (TeX Live).
+Requires: Python 3.10+, PyTorch (CUDA -- the pipeline refuses to fall back to CPU), arch, statsmodels, scikit-learn, pdflatex (TeX Live). See `requirements.txt`.
 
 ---
 
