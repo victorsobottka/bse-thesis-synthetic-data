@@ -1,0 +1,6 @@
+model,composite_unrepaired,composite_length_matched,temporal_unrepaired,temporal_length_matched,position_unrepaired,position_length_matched,published_composite
+CNN-WGAN-GP,2.6048,2.5476,2.781,2.6667,2.0,1.0,2.6048
+GARCH,2.9667,2.9905,2.781,2.8286,3.0,3.0,2.9667
+GJR-GARCH,2.5238,2.5667,2.381,2.4667,1.0,2.0,2.5238
+QuantGAN,3.0405,3.0405,2.9429,2.9429,4.0,4.0,3.0405
+TimeGAN,3.8643,3.8548,4.1143,4.0952,5.0,5.0,3.8643
