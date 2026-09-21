@@ -1,0 +1,16 @@
+{
+ "draws_checked": 900,
+ "values_outside_training_block": 0,
+ "regeneration_identical": true,
+ "max_index_used": {
+  "BOVESPA": 3961,
+  "FTSE": 3996,
+  "MOEX": 3994,
+  "NIFTY50": 3962,
+  "SHANGHAI": 3887
+ },
+ "files_opened": [
+  "data/processed_files/train/{m}_train.parquet",
+  "data/processed_files/test/{m}_test.parquet"
+ ]
+}

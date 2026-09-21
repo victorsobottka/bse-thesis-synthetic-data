@@ -1,0 +1,219 @@
+{
+ "arch": "8.0.0",
+ "numpy": "2.5.2",
+ "n_draws": 20,
+ "seeds": [
+  42,
+  43,
+  44
+ ],
+ "rng": "default_rng([seed, draw, code]); codes {\"iid\": 11, \"sb_r\": 12, \"sb_abs\": 13}",
+ "source": "training block only: data/processed_files/train/<market>_train.parquet. The validation block is not opened. From the test file only the row count is taken, from the parquet footer metadata (target length); no observation of it is read",
+ "markets": {
+  "BOVESPA": {
+   "n_train": 3962,
+   "train_sha256": "7f4b6e30dd9210298485a4166c1fdb0733ddc39f45757756e463dd0e5a3632c4",
+   "target_length": 496,
+   "politis_white_stationary": {
+    "returns": 5.433847160275231,
+    "abs_returns": 111.42231202709158,
+    "squared_returns": 94.30733796168617
+   },
+   "mean_block_length_used": {
+    "sb_r": 5.433847160275231,
+    "sb_abs": 111.42231202709158
+   },
+   "block_length_note": "sb_r: Politis-White on the training returns (floored at 1); sb_abs: Politis-White on |returns|, the volatility-persistence scale",
+   "draws": {
+    "42": {
+     "max_index_used": 3961,
+     "all_values_in_train": true,
+     "empirical_mean_block_length": {
+      "sb_r": 5.3553488242773035,
+      "sb_abs": 105.48857142857143
+     }
+    },
+    "43": {
+     "max_index_used": 3961,
+     "all_values_in_train": true,
+     "empirical_mean_block_length": {
+      "sb_r": 5.474141768606701,
+      "sb_abs": 96.4936507936508
+     }
+    },
+    "44": {
+     "max_index_used": 3961,
+     "all_values_in_train": true,
+     "empirical_mean_block_length": {
+      "sb_r": 5.365870492046174,
+      "sb_abs": 131.5384126984127
+     }
+    }
+   }
+  },
+  "FTSE": {
+   "n_train": 3997,
+   "train_sha256": "a9e663995f60c66d18c0bab61e84b25bb91e68adbaa7d4213f5ee3964e079cbb",
+   "target_length": 501,
+   "politis_white_stationary": {
+    "returns": 0.27086737309093645,
+    "abs_returns": 122.9458317281668,
+    "squared_returns": 110.6167787850523
+   },
+   "mean_block_length_used": {
+    "sb_r": 1.0,
+    "sb_abs": 122.9458317281668
+   },
+   "block_length_note": "sb_r: Politis-White on the training returns (floored at 1); sb_abs: Politis-White on |returns|, the volatility-persistence scale",
+   "draws": {
+    "42": {
+     "max_index_used": 3996,
+     "all_values_in_train": true,
+     "empirical_mean_block_length": {
+      "sb_r": 1.0005,
+      "sb_abs": 112.96357142857144
+     }
+    },
+    "43": {
+     "max_index_used": 3996,
+     "all_values_in_train": true,
+     "empirical_mean_block_length": {
+      "sb_r": 1.0001,
+      "sb_abs": 106.5519642857143
+     }
+    },
+    "44": {
+     "max_index_used": 3996,
+     "all_values_in_train": true,
+     "empirical_mean_block_length": {
+      "sb_r": 1.0002,
+      "sb_abs": 139.12690476190477
+     }
+    }
+   }
+  },
+  "MOEX": {
+   "n_train": 3995,
+   "train_sha256": "e968823c671be20e946048b0fa274d83c2405735b1ead6903934c5ddad68da35",
+   "target_length": 500,
+   "politis_white_stationary": {
+    "returns": 2.191346412131872,
+    "abs_returns": 125.74721660344063,
+    "squared_returns": 76.68207123527941
+   },
+   "mean_block_length_used": {
+    "sb_r": 2.191346412131872,
+    "sb_abs": 125.74721660344063
+   },
+   "block_length_note": "sb_r: Politis-White on the training returns (floored at 1); sb_abs: Politis-White on |returns|, the volatility-persistence scale",
+   "draws": {
+    "42": {
+     "max_index_used": 3994,
+     "all_values_in_train": true,
+     "empirical_mean_block_length": {
+      "sb_r": 2.1751038204610365,
+      "sb_abs": 118.63095238095237
+     }
+    },
+    "43": {
+     "max_index_used": 3994,
+     "all_values_in_train": true,
+     "empirical_mean_block_length": {
+      "sb_r": 2.203927687928431,
+      "sb_abs": 107.79761904761904
+     }
+    },
+    "44": {
+     "max_index_used": 3994,
+     "all_values_in_train": true,
+     "empirical_mean_block_length": {
+      "sb_r": 2.200425115952594,
+      "sb_abs": 141.76587301587298
+     }
+    }
+   }
+  },
+  "NIFTY50": {
+   "n_train": 3963,
+   "train_sha256": "1ef8fa81b09e87966301e9d5028be5cff68254a431f5f86447f8635fbd007a91",
+   "target_length": 496,
+   "politis_white_stationary": {
+    "returns": 2.5744910647618426,
+    "abs_returns": 122.14940346112868,
+    "squared_returns": 106.32024352310853
+   },
+   "mean_block_length_used": {
+    "sb_r": 2.5744910647618426,
+    "sb_abs": 122.14940346112868
+   },
+   "block_length_note": "sb_r: Politis-White on the training returns (floored at 1); sb_abs: Politis-White on |returns|, the volatility-persistence scale",
+   "draws": {
+    "42": {
+     "max_index_used": 3962,
+     "all_values_in_train": true,
+     "empirical_mean_block_length": {
+      "sb_r": 2.535965474701672,
+      "sb_abs": 117.68190476190478
+     }
+    },
+    "43": {
+     "max_index_used": 3962,
+     "all_values_in_train": true,
+     "empirical_mean_block_length": {
+      "sb_r": 2.590636006869715,
+      "sb_abs": 109.04126984126984
+     }
+    },
+    "44": {
+     "max_index_used": 3962,
+     "all_values_in_train": true,
+     "empirical_mean_block_length": {
+      "sb_r": 2.574193854239724,
+      "sb_abs": 135.2584126984127
+     }
+    }
+   }
+  },
+  "SHANGHAI": {
+   "n_train": 3888,
+   "train_sha256": "c95a2e5acf77d66aff68e7023eca8712f36a0de5eb6223f3d3ba7f9c342b7335",
+   "target_length": 486,
+   "politis_white_stationary": {
+    "returns": 1.6869381138300101,
+    "abs_returns": 127.86479767301434,
+    "squared_returns": 124.60083918977301
+   },
+   "mean_block_length_used": {
+    "sb_r": 1.6869381138300101,
+    "sb_abs": 127.86479767301434
+   },
+   "block_length_note": "sb_r: Politis-White on the training returns (floored at 1); sb_abs: Politis-White on |returns|, the volatility-persistence scale",
+   "draws": {
+    "42": {
+     "max_index_used": 3887,
+     "all_values_in_train": true,
+     "empirical_mean_block_length": {
+      "sb_r": 1.683963856260728,
+      "sb_abs": 109.8707142857143
+     }
+    },
+    "43": {
+     "max_index_used": 3887,
+     "all_values_in_train": true,
+     "empirical_mean_block_length": {
+      "sb_r": 1.700675320480088,
+      "sb_abs": 114.26785714285714
+     }
+    },
+    "44": {
+     "max_index_used": 3887,
+     "all_values_in_train": true,
+     "empirical_mean_block_length": {
+      "sb_r": 1.6829090999477185,
+      "sb_abs": 140.66035714285712
+     }
+    }
+   }
+  }
+ }
+}

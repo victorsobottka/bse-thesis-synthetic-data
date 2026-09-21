@@ -1,0 +1,1 @@
+{"cells_compared": 34200, "max_abs_difference": 0, "note": "as stored in CSV; run with default BLAS threading (20). With OMP=1 the arch GARCH residual-kurtosis fit differs by up to 1e-3 on some draws"}
