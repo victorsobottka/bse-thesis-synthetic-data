@@ -1,0 +1,312 @@
+{
+ "cells": {
+  "contiguous|pre": {
+   "F_cells": 25,
+   "F_above_p97_5": 0,
+   "F_above_196": 0,
+   "F_draw_share_above_p97_5": 0.07800000000000001,
+   "F_mean_auc": 0.6703051718914697,
+   "pub_cells": 15,
+   "pub_above_p97_5": 1,
+   "pub_above_196": 0,
+   "F_control_range": [
+    0.3202707756232686,
+    0.7014551116838488
+   ],
+   "F_control_by_market": {
+    "BOVESPA": 0.32,
+    "FTSE": 0.701,
+    "MOEX": 0.383,
+    "NIFTY50": 0.506,
+    "SHANGHAI": 0.415
+   },
+   "pub_control_range": [
+    0.3202707756232686,
+    0.7014551116838487
+   ],
+   "pub_control_by_market": {
+    "BOVESPA": 0.32,
+    "FTSE": 0.701,
+    "MOEX": 0.383,
+    "NIFTY50": 0.506,
+    "SHANGHAI": 0.415
+   }
+  },
+  "contiguous|post": {
+   "F_cells": 25,
+   "F_above_p97_5": 0,
+   "F_above_196": 0,
+   "F_draw_share_above_p97_5": 0.07866666666666668,
+   "F_mean_auc": 0.6693467714195462,
+   "pub_cells": 15,
+   "pub_above_p97_5": 1,
+   "pub_above_196": 0,
+   "F_control_range": [
+    0.3199157433056325,
+    0.7017045657932418
+   ],
+   "F_control_by_market": {
+    "BOVESPA": 0.32,
+    "FTSE": 0.702,
+    "MOEX": 0.384,
+    "NIFTY50": 0.506,
+    "SHANGHAI": 0.414
+   },
+   "pub_control_range": [
+    0.3199157433056325,
+    0.7017045657932418
+   ],
+   "pub_control_by_market": {
+    "BOVESPA": 0.32,
+    "FTSE": 0.702,
+    "MOEX": 0.384,
+    "NIFTY50": 0.506,
+    "SHANGHAI": 0.414
+   }
+  },
+  "purged|pre": {
+   "F_cells": 25,
+   "F_above_p97_5": 0,
+   "F_above_196": 0,
+   "F_draw_share_above_p97_5": 0.078,
+   "F_mean_auc": 0.6484270595027999,
+   "pub_cells": 15,
+   "pub_above_p97_5": 1,
+   "pub_above_196": 0,
+   "F_control_range": [
+    0.3097786241920591,
+    0.6766918134306987
+   ],
+   "F_control_by_market": {
+    "BOVESPA": 0.31,
+    "FTSE": 0.677,
+    "MOEX": 0.381,
+    "NIFTY50": 0.393,
+    "SHANGHAI": 0.391
+   },
+   "pub_control_range": [
+    0.3097786241920591,
+    0.6766918134306987
+   ],
+   "pub_control_by_market": {
+    "BOVESPA": 0.31,
+    "FTSE": 0.677,
+    "MOEX": 0.381,
+    "NIFTY50": 0.393,
+    "SHANGHAI": 0.391
+   }
+  },
+  "purged|post": {
+   "F_cells": 25,
+   "F_above_p97_5": 0,
+   "F_above_196": 0,
+   "F_draw_share_above_p97_5": 0.07800000000000001,
+   "F_mean_auc": 0.6472232562345187,
+   "pub_cells": 15,
+   "pub_above_p97_5": 1,
+   "pub_above_196": 0,
+   "F_control_range": [
+    0.3094021237303785,
+    0.6801837235108821
+   ],
+   "F_control_by_market": {
+    "BOVESPA": 0.309,
+    "FTSE": 0.68,
+    "MOEX": 0.381,
+    "NIFTY50": 0.392,
+    "SHANGHAI": 0.387
+   },
+   "pub_control_range": [
+    0.3094021237303785,
+    0.6801837235108822
+   ],
+   "pub_control_by_market": {
+    "BOVESPA": 0.309,
+    "FTSE": 0.68,
+    "MOEX": 0.381,
+    "NIFTY50": 0.392,
+    "SHANGHAI": 0.387
+   }
+  }
+ },
+ "max_abs_change": {
+  "observed_frameF_contiguous": 0.1761024930747923,
+  "observed_frameF_contiguous_mean_signed": -0.0007943082218110939,
+  "observed_published_subset_contiguous": 0.006961680517082347,
+  "null_max_abs_change_contiguous": 0.1358866574330564,
+  "observed_frameF_purged": 0.13929963065558637,
+  "observed_frameF_purged_mean_signed": -0.001063424522394437,
+  "observed_published_subset_purged": 0.018485226223453388,
+  "null_max_abs_change_purged": 0.15760295475530944
+ },
+ "null_max_abs_change_by_market": {
+  "BOVESPA|track_a|contiguous": 0.1358866574330564,
+  "BOVESPA|track_a|purged": 0.15760295475530944,
+  "BOVESPA|walk_forward|contiguous": 0.0707457274024923,
+  "BOVESPA|walk_forward|purged": 0.07083831642297744,
+  "FTSE|track_a|contiguous": 0.1300280104524627,
+  "FTSE|track_a|purged": 0.1467295783218786,
+  "FTSE|walk_forward|contiguous": 0.06728151944516914,
+  "FTSE|walk_forward|purged": 0.07012276484113689,
+  "MOEX|track_a|contiguous": 0.07065972222222211,
+  "MOEX|track_a|purged": 0.07450086805555556,
+  "MOEX|walk_forward|contiguous": 0.07392984011303072,
+  "MOEX|walk_forward|purged": 0.07898887551744216,
+  "NIFTY50|track_a|contiguous": 0.11387719298245602,
+  "NIFTY50|track_a|purged": 0.11306417359187448,
+  "NIFTY50|walk_forward|contiguous": 0.051317464603989005,
+  "NIFTY50|walk_forward|purged": 0.0663400331777324,
+  "SHANGHAI|track_a|contiguous": 0.023549395699416664,
+  "SHANGHAI|track_a|purged": 0.049871218662592864,
+  "SHANGHAI|walk_forward|contiguous": 0.04098702131068732,
+  "SHANGHAI|walk_forward|purged": 0.055215510334882256
+ },
+ "null_mean_signed_change": {
+  "BOVESPA|track_a|contiguous": -0.004257409465406123,
+  "BOVESPA|track_a|purged": -0.004789111197418878,
+  "BOVESPA|walk_forward|contiguous": -0.006547647849355645,
+  "BOVESPA|walk_forward|purged": -0.00834255494880935,
+  "FTSE|track_a|contiguous": -0.004432353007584117,
+  "FTSE|track_a|purged": -0.0075198668104942724,
+  "FTSE|walk_forward|contiguous": -0.003595492599999697,
+  "FTSE|walk_forward|purged": -0.0032939756173697584,
+  "MOEX|track_a|contiguous": -0.0019374098265192608,
+  "MOEX|track_a|purged": -0.0031926762837227118,
+  "MOEX|walk_forward|contiguous": -0.004660734202474922,
+  "MOEX|walk_forward|purged": -0.005425402299101186,
+  "NIFTY50|track_a|contiguous": -0.004267466912896277,
+  "NIFTY50|track_a|purged": -0.005692421956420995,
+  "NIFTY50|walk_forward|contiguous": -0.0012218505652663583,
+  "NIFTY50|walk_forward|purged": -0.002103721297710061,
+  "SHANGHAI|track_a|contiguous": 5.108191681224855e-05,
+  "SHANGHAI|track_a|purged": 2.2928095042037725e-05,
+  "SHANGHAI|walk_forward|contiguous": -0.00010804574322909026,
+  "SHANGHAI|walk_forward|purged": -0.00014143785749411663
+ },
+ "legacy_999": {
+  "BOVESPA": {
+   "pre": {
+    "mean": 0.5487958043213238,
+    "sd": 0.1301026537785907,
+    "p97_5": 0.8076317852243774,
+    "legacy20_mean": 0.5730637874151523,
+    "legacy20_sd": 0.12355172529176633
+   },
+   "post": {
+    "mean": 0.548179692407315,
+    "sd": 0.13164823043052012,
+    "p97_5": 0.8083994708994705,
+    "legacy20_mean": 0.5724513283642163,
+    "legacy20_sd": 0.12619569464674144
+   },
+   "max_abs_change_first_20": 0.011989795918367407,
+   "max_abs_change_all": 0.017315606204495182
+  },
+  "FTSE": {
+   "pre": {
+    "mean": 0.7545980103328627,
+    "sd": 0.11618231069280331,
+    "p97_5": 0.9596837944664032,
+    "legacy20_mean": 0.7858451575285073,
+    "legacy20_sd": 0.09202480656509139
+   },
+   "post": {
+    "mean": 0.7534491751714374,
+    "sd": 0.11760212217258034,
+    "p97_5": 0.9588932806324111,
+    "legacy20_mean": 0.7870860968638789,
+    "legacy20_sd": 0.0940820084867921
+   },
+   "max_abs_change_first_20": 0.023396923076922982,
+   "max_abs_change_all": 0.04162561576354684
+  },
+  "MOEX": {
+   "pre": {
+    "mean": 0.6160395528463964,
+    "sd": 0.14049645186297077,
+    "p97_5": 0.8365614727153188,
+    "legacy20_mean": 0.6319755682378684,
+    "legacy20_sd": 0.14406979094010414
+   },
+   "post": {
+    "mean": 0.6122306752020512,
+    "sd": 0.14004694521079442,
+    "p97_5": 0.836166114274383,
+    "legacy20_mean": 0.6288034883753248,
+    "legacy20_sd": 0.14411433922829603
+   },
+   "max_abs_change_first_20": 0.009851551956815197,
+   "max_abs_change_all": 0.03492063492063491
+  },
+  "NIFTY50": {
+   "pre": {
+    "mean": 0.5568186353020036,
+    "sd": 0.24915225180504771,
+    "p97_5": 0.9959161931818181,
+    "legacy20_mean": 0.4769275325861765,
+    "legacy20_sd": 0.21692775309811396
+   },
+   "post": {
+    "mean": 0.5602539464349744,
+    "sd": 0.24991242561340996,
+    "p97_5": 0.9957327178030303,
+    "legacy20_mean": 0.4804922167652432,
+    "legacy20_sd": 0.21680233757812975
+   },
+   "max_abs_change_first_20": 0.058085451595456916,
+   "max_abs_change_all": 0.0686110896494887
+  },
+  "SHANGHAI": {
+   "pre": {
+    "mean": 0.5686001750891696,
+    "sd": 0.1487152912279221,
+    "p97_5": 0.8628117913832198,
+    "legacy20_mean": 0.5366113855309671,
+    "legacy20_sd": 0.14251768923840083
+   },
+   "post": {
+    "mean": 0.6137733633857899,
+    "sd": 0.12197376843516253,
+    "p97_5": 0.8628324056895484,
+    "legacy20_mean": 0.6059163872618772,
+    "legacy20_sd": 0.10988990495256176
+   },
+   "max_abs_change_first_20": 0.14277343750000004,
+   "max_abs_change_all": 0.14489037298387103
+  }
+ },
+ "nifty50": {
+  "pre_track_a": {
+   "n_sub": 828,
+   "mean_contiguous": 0.37962371978445986,
+   "mean_purged": 0.3577891384361297,
+   "share_purged_above_0_5": 0.00966183574879227,
+   "share_null_below_0_5_contiguous": 0.20893262679788038,
+   "share_null_below_0_5_purged": 0.2561191016906384
+  },
+  "pre_walk_forward": {
+   "n_sub": 333,
+   "mean_contiguous": 0.35480127710751524,
+   "mean_purged": 0.32572239304618456,
+   "share_purged_above_0_5": 0.003003003003003003,
+   "share_null_below_0_5_contiguous": 0.10075642965204236,
+   "share_null_below_0_5_purged": 0.13373676248108926
+  },
+  "post_track_a": {
+   "n_sub": 822,
+   "mean_contiguous": 0.37522039038401483,
+   "mean_purged": 0.35248841782873114,
+   "share_purged_above_0_5": 0.0072992700729927005,
+   "share_null_below_0_5_contiguous": 0.20741862225586677,
+   "share_null_below_0_5_purged": 0.25965177895533686
+  },
+  "post_walk_forward": {
+   "n_sub": 314,
+   "mean_contiguous": 0.35881018439909407,
+   "mean_purged": 0.3311987771762167,
+   "share_purged_above_0_5": 0.006369426751592357,
+   "share_null_below_0_5_contiguous": 0.09500756429652042,
+   "share_null_below_0_5_purged": 0.13010590015128592
+  }
+ }
+}
