@@ -210,3 +210,7 @@ reports/**/*.synctex.gz
 # *.log is ignored). Kept out of git so superseded PDFs don't churn the repo;
 # tracked copies of the reports remain recoverable from history.
 reports/Archive/
+
+# TS2Vec encoders trained per market by embedding_distance.py (a few MB each; reproducible from
+# training.json, so not versioned). The json outputs beside them are tracked.
+thesis_results/production/*/ts2vec*/*.pt

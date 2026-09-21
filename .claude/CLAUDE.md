@@ -167,11 +167,20 @@ returns `NaN` above α = 20, because a degenerate series drove it to 31,581.
 `na_option='bottom'`, so a failed metric counts as the worst outcome rather than
 being silently dropped.
 
-**Discriminative AUC null is 0.506 ± 0.084**, measured over 15 real-vs-real
-splits — not 0.5. Rank on `|AUC − 0.5|`, never on raw AUC: ranking ascending on
-the raw value treats anti-predictive (0.30) as better than indistinguishable
-(0.50). Cross-validation must not be shuffled; 20-day windows overlap by 19
-observations, and shuffling moves the null from 0.506 to 0.584.
+**The discriminative AUC null is not 0.5, and it is not one number.**
+`compute_auc_null` draws `n_rep=20` random-cut half-splits of each market's real
+test block (`default_rng(42)`); it has used 20 since 2026-08-29 and no version
+has ever run 15. Its per-market means run from 0.48 to 0.79. The figure
+0.506 ± 0.084 quoted elsewhere is not that estimator's output: it first appears
+on 2026-08-30 as "15 seeds on identical distributions" (independent samples),
+and its script is not in the repository. The legacy cut scheme also compares the
+first against the last observations past the midpoint, so treat its values as
+unrepaired; repointing `discriminative_auc_absz` at any other null is a §5
+decision. Rank on `|AUC − 0.5|`, never on raw AUC: ranking ascending on the raw
+value treats anti-predictive (0.30) as better than indistinguishable (0.50).
+Cross-validation must not be shuffled; 20-day windows overlap by 19
+observations, and shuffling moves an independent-samples null from about 0.50
+to 0.58–0.60.
 
 **Statistical power.** Kupiec at true p = 7% against a claimed 5%: 17% power at
 n = 125, ~56% at n = 496, ~99% at n = 2,480. Per-market non-rejections are

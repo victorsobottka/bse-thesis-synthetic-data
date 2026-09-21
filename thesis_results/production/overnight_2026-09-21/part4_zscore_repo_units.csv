@@ -1,0 +1,4 @@
+market,seed,source,cells,abs_z_gt3,above_all_draws,below_all_draws,outside_range,z3_TimeGAN,above_all_TimeGAN,z3_QuantGAN,above_all_QuantGAN,z3_CNN-WGAN-GP,above_all_CNN-WGAN-GP,loo_mean,loo_max,loo_share_ge_recorded,loo_mean_TimeGAN,loo_any_share_TimeGAN,loo_mean_QuantGAN,loo_any_share_QuantGAN,loo_mean_CNN-WGAN-GP,loo_any_share_CNN-WGAN-GP
+BOVESPA,42,repo,57,11,20,0,20,1,8,8,9,2,3,1.1,7,0.0,0.1,0.1,0.7,0.25,0.3,0.1
+FTSE,43,repo,57,2,1,1,2,0,0,0,0,2,1,1.85,8,0.3,0.95,0.25,0.4,0.25,0.5,0.3
+NIFTY50,44,repo,57,1,1,0,1,0,0,0,0,1,1,1.45,5,0.55,0.65,0.25,0.35,0.25,0.45,0.3
