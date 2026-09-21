@@ -1,0 +1,82 @@
+{
+ "BOVESPA": {
+  "generated_from": "unconstrained",
+  "persistence": 0.9735196826188716,
+  "nulls": {
+   "track_a": {
+    "length": 496,
+    "n_pairs": 300,
+    "rejected_by_generation_guard": 0
+   },
+   "walk_forward": {
+    "length": 825,
+    "n_pairs": 300,
+    "rejected_by_generation_guard": 0
+   }
+  }
+ },
+ "FTSE": {
+  "generated_from": "unconstrained",
+  "persistence": 0.9860196257357546,
+  "nulls": {
+   "track_a": {
+    "length": 501,
+    "n_pairs": 300,
+    "rejected_by_generation_guard": 0
+   },
+   "walk_forward": {
+    "length": 832,
+    "n_pairs": 300,
+    "rejected_by_generation_guard": 0
+   }
+  }
+ },
+ "MOEX": {
+  "generated_from": "unconstrained",
+  "persistence": 0.9913984945034321,
+  "nulls": {
+   "track_a": {
+    "length": 500,
+    "n_pairs": 300,
+    "rejected_by_generation_guard": 0
+   },
+   "walk_forward": {
+    "length": 832,
+    "n_pairs": 300,
+    "rejected_by_generation_guard": 0
+   }
+  }
+ },
+ "NIFTY50": {
+  "generated_from": "unconstrained",
+  "persistence": 0.9905321430401564,
+  "nulls": {
+   "track_a": {
+    "length": 496,
+    "n_pairs": 300,
+    "rejected_by_generation_guard": 0
+   },
+   "walk_forward": {
+    "length": 825,
+    "n_pairs": 300,
+    "rejected_by_generation_guard": 0
+   }
+  }
+ },
+ "SHANGHAI": {
+  "generated_from": "constrained",
+  "persistence": 0.9999000000000001,
+  "nulls": {
+   "track_a": {
+    "length": 486,
+    "n_pairs": 300,
+    "rejected_by_generation_guard": 8
+   },
+   "walk_forward": {
+    "length": 810,
+    "n_pairs": 300,
+    "rejected_by_generation_guard": 5
+   }
+  }
+ }
+}

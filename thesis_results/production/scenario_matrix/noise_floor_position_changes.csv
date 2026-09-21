@@ -1,0 +1,7 @@
+scenario,single_draw_position_changes_vs_published_mean,min,max,same_draw_position_changes_vs_S0_mean,same_draw_min,same_draw_max
+S0,52.95,45,60,0.0,0,0
+S1,52.3,41,61,6.0,1,15
+S2,52.6,40,63,10.25,5,21
+S3,51.95,45,58,12.7,6,20
+S4,52.8,47,58,23.25,13,34
+S5,52.7,42,60,10.5,4,20

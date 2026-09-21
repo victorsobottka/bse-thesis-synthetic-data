@@ -1,0 +1,204 @@
+{
+  "BANNER": "COMMIT DRIFT ACCEPTED: the weights were written at ['a53060cc5c7e673287ac483343def87b722af0b7'], these metrics were computed by code at '54b0fed Report Updated'. New-code metrics against old-code weights: do not compare with, or merge into, a clean Phase B or Phase A result.",
+  "phase": "B",
+  "timestamp": "2026-09-21T10:01:43",
+  "market": "SHANGHAI",
+  "seed": 43,
+  "device": "cpu",
+  "n_draws": 20,
+  "draw_seeds": {
+    "TimeGAN": [
+      43,
+      100043,
+      200043,
+      300043,
+      400043,
+      500043,
+      600043,
+      700043,
+      800043,
+      900043,
+      1000043,
+      1100043,
+      1200043,
+      1300043,
+      1400043,
+      1500043,
+      1600043,
+      1700043,
+      1800043,
+      1900043
+    ],
+    "QuantGAN": [
+      43,
+      100043,
+      200043,
+      300043,
+      400043,
+      500043,
+      600043,
+      700043,
+      800043,
+      900043,
+      1000043,
+      1100043,
+      1200043,
+      1300043,
+      1400043,
+      1500043,
+      1600043,
+      1700043,
+      1800043,
+      1900043
+    ],
+    "CNN-WGAN-GP": [
+      43,
+      100043,
+      200043,
+      300043,
+      400043,
+      500043,
+      600043,
+      700043,
+      800043,
+      900043,
+      1000043,
+      1100043,
+      1200043,
+      1300043,
+      1400043,
+      1500043,
+      1600043,
+      1700043,
+      1800043,
+      1900043
+    ],
+    "GARCH": [
+      43,
+      100043,
+      200043,
+      300043,
+      400043,
+      500043,
+      600043,
+      700043,
+      800043,
+      900043,
+      1000043,
+      1100043,
+      1200043,
+      1300043,
+      1400043,
+      1500043,
+      1600043,
+      1700043,
+      1800043,
+      1900043
+    ],
+    "GJR-GARCH": [
+      43,
+      100043,
+      200043,
+      300043,
+      400043,
+      500043,
+      600043,
+      700043,
+      800043,
+      900043,
+      1000043,
+      1100043,
+      1200043,
+      1300043,
+      1400043,
+      1500043,
+      1600043,
+      1700043,
+      1800043,
+      1900043
+    ]
+  },
+  "preflight": {
+    "commit_drift": true,
+    "commit_drift_accepted": true,
+    "fails": [],
+    "warns": [
+      "ACCEPTED (accept_commit_drift=True): GIT COMMIT DRIFT: artifacts were written at ['a53060cc5c7e673287ac483343def87b722af0b7'], the working tree is at '54b0fed Report Updated'. Weights load strictly, so an architecture change fails on load; a change to generation, normalisation or metrics code does NOT and would silently compare new-code metrics with old-code weights. Every output will be stamped COMMIT_DRIFT.",
+      "library sklearn: not recorded in pipeline_run_metadata.json",
+      "library numpy: recorded 2.5.3, current 2.5.2",
+      "SHANGHAI seed 43: run_config.json predates the roster field; roster taken from pipeline_run_metadata.json instead"
+    ],
+    "roster": [
+      "CNN-WGAN-GP",
+      "GARCH",
+      "GJR-GARCH",
+      "QuantGAN",
+      "TimeGAN"
+    ],
+    "libraries": {
+      "python": "3.12.3",
+      "torch": "2.13.0+cu130",
+      "arch": "8.0.0",
+      "statsmodels": "0.15.0",
+      "scipy": "1.18.1",
+      "sklearn": "1.9.0",
+      "numpy": "2.5.2",
+      "pandas": "2.3.3"
+    },
+    "recorded_libraries": {
+      "python": "3.12.3",
+      "torch": "2.13.0+cu130",
+      "arch": "8.0.0",
+      "statsmodels": "0.15.0",
+      "scipy": "1.18.1",
+      "sklearn": null,
+      "numpy": "2.5.3",
+      "pandas": "2.3.3"
+    },
+    "git_head": "54b0fed Report Updated",
+    "artifact_commits": [
+      "a53060cc5c7e673287ac483343def87b722af0b7"
+    ],
+    "market_seeds_verified": [
+      "SHANGHAI seed 43"
+    ]
+  },
+  "weights_sha256": {
+    "TimeGAN_generator.pt": "65e17775a541fd2ee13ac245260016a85a8c26d091ab8e90bcbb4a2e8ba78100",
+    "TimeGAN_meta.json": "e311a622c45a0d12460b3c83ff1a28bcc255044fc2ef7acf0c3388bdf630bc49",
+    "TimeGAN_recovery.pt": "472f9d746a9a06f924fb9fbd75244babd672572547f25396008f83eaf768c383",
+    "TimeGAN_supervisor.pt": "7614d4fca50ad2c46c6be0b130e60cb6cd46fdca36a4ec2864f255791f3700ae",
+    "QuantGAN_generator.pt": "4d7b7aa7086ebbdf13cd824eb385474e660b9e8d07058a8b7269caba17ca7d37",
+    "QuantGAN_meta.json": "ab6a5c2246d0c91b70b700a8702fc66d1ff3f3545fd9411bc268c3bd0fbcae12",
+    "CNN-WGAN-GP_generator.pt": "0427c636d1ba7386ba3e18cefcd04f17370b691d45b413697fd568f1a005a6de",
+    "CNN-WGAN-GP_meta.json": "3e14e8849caf77e41b90d2fa8978c13ab3e30f0018cd99512cb9813fb6d8492a",
+    "GARCH_params.json": "6a6cd66f0e7f22ee7c59210711f047b84b1039b4c1907c043799622e38fa4634",
+    "GJR-GARCH_params.json": "e8c07563e05ca29bacd817a2cfc0a4253a2bfd922e7a585bb9669c1dc04964b4"
+  },
+  "rng": {
+    "gradient_models": "torch.randn on the CPU generator, seeded with torch.manual_seed(draw_seed) immediately before generate(). The original run's seed at generation time was not recorded (generate() does not seed) and training had advanced it, so the ORIGINAL draw cannot be replayed; draws differing in draw_seed are independent.",
+    "econometric_models": "generate() re-seeds numpy from model.seed on every call, so repeated calls return the same series. Draw 0 uses the training seed and replays the original series; further draws set a different seed.",
+    "controllability_check": {
+      "TimeGAN": {
+        "same_seed_identical": true,
+        "different_seed_differs": true
+      },
+      "QuantGAN": {
+        "same_seed_identical": true,
+        "different_seed_differs": true
+      },
+      "CNN-WGAN-GP": {
+        "same_seed_identical": true,
+        "different_seed_differs": true
+      },
+      "GARCH": {
+        "same_seed_identical": true,
+        "different_seed_differs": true
+      },
+      "GJR-GARCH": {
+        "same_seed_identical": true,
+        "different_seed_differs": true
+      }
+    }
+  }
+}

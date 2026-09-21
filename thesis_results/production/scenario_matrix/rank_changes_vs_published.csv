@@ -1,0 +1,9 @@
+frame,scenario,position_changed_vs_published,composite_value_changed_vs_published,mean_abs_composite_change,n_evaluations,units_with_any_position_change,position_changed_vs_F_S0,composite_value_changed_vs_F_S0
+P,S0,0,0,0.0,75,0,,
+P,S1,2,32,0.06095238095238096,75,2,,
+F,S0,44,75,0.4958571428571428,75,14,0.0,0.0
+F,S1,44,75,0.49900000000000017,75,14,3.0,54.0
+F,S2,44,75,0.49652380952380953,75,14,7.0,69.0
+F,S3,44,75,0.49423809523809525,75,14,5.0,75.0
+F,S4,46,75,0.4916761904761906,75,14,18.0,75.0
+F,S5,44,75,0.4985714285714286,75,14,5.0,70.0

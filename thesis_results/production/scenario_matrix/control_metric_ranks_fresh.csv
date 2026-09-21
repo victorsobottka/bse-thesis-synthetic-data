@@ -1,0 +1,17 @@
+,fresh_draws_mean_rank_of_control_of_6
+mean_diff,1.0
+std_diff,1.0
+wasserstein,1.0
+quantile_mse,1.0
+tail_index_diff,1.0
+extreme_events_diff,1.1716666666666666
+energy_distance,1.0
+acf_returns_mae,2.7066666666666666
+acf_absolute_mae,3.93
+acf_squared_mae,2.88
+hurst_diff,5.07
+resid_kurtosis_diff,2.8533333333333335
+dist_c,2.5966666666666667
+dist_p,3.03
+absz_lm_c,4.566666666666666
+absz_lm_p,4.623333333333333

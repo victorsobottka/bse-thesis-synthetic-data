@@ -1,0 +1,102 @@
+{
+ "BOVESPA/track_a": {
+  "L": 496,
+  "N": 4953,
+  "positions": 3962,
+  "independent_blocks": 4.992943548387097,
+  "starts": [
+   0,
+   3961
+  ]
+ },
+ "BOVESPA/walk_forward": {
+  "L": 825,
+  "N": 4953,
+  "positions": 3304,
+  "independent_blocks": 3.001818181818182,
+  "starts": [
+   0,
+   3303
+  ]
+ },
+ "FTSE/track_a": {
+  "L": 501,
+  "N": 4997,
+  "positions": 3996,
+  "independent_blocks": 4.987025948103793,
+  "starts": [
+   0,
+   3995
+  ]
+ },
+ "FTSE/walk_forward": {
+  "L": 832,
+  "N": 4997,
+  "positions": 3334,
+  "independent_blocks": 3.0030048076923075,
+  "starts": [
+   0,
+   3333
+  ]
+ },
+ "MOEX/track_a": {
+  "L": 500,
+  "N": 4994,
+  "positions": 3995,
+  "independent_blocks": 4.994,
+  "starts": [
+   0,
+   3994
+  ]
+ },
+ "MOEX/walk_forward": {
+  "L": 832,
+  "N": 4994,
+  "positions": 3331,
+  "independent_blocks": 3.001201923076923,
+  "starts": [
+   0,
+   3330
+  ]
+ },
+ "NIFTY50/track_a": {
+  "L": 496,
+  "N": 4954,
+  "positions": 3963,
+  "independent_blocks": 4.993951612903226,
+  "starts": [
+   0,
+   3962
+  ]
+ },
+ "NIFTY50/walk_forward": {
+  "L": 825,
+  "N": 4954,
+  "positions": 3305,
+  "independent_blocks": 3.0024242424242424,
+  "starts": [
+   0,
+   3304
+  ]
+ },
+ "SHANGHAI/track_a": {
+  "L": 486,
+  "N": 4860,
+  "positions": 3889,
+  "independent_blocks": 5.0,
+  "starts": [
+   0,
+   3888
+  ]
+ },
+ "SHANGHAI/walk_forward": {
+  "L": 810,
+  "N": 4860,
+  "positions": 3241,
+  "independent_blocks": 3.0,
+  "starts": [
+   0,
+   3240
+  ]
+ }
+}
