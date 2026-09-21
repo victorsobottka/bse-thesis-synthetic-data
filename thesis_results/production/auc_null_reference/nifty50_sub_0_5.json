@@ -1,0 +1,30 @@
+{
+ "market": "NIFTY50",
+ "scaler": "fit_within_training_fold",
+ "track_a": {
+  "length": 496,
+  "positions": 3963,
+  "n_sub_0_5": 822,
+  "share_sub_0_5": 0.20741862225586677,
+  "mean_contiguous": 0.37522039038401483,
+  "mean_purged": 0.35248841782873114,
+  "mean_shuffled": 0.6186952259875582,
+  "share_above_0_5_purged": 0.0072992700729927005,
+  "share_above_0_5_shuffled": 0.9878345498783455,
+  "share_null_below_0_5_contiguous": 0.20741862225586677,
+  "share_null_below_0_5_purged": 0.25965177895533686
+ },
+ "walk_forward": {
+  "length": 825,
+  "positions": 3305,
+  "n_sub_0_5": 314,
+  "share_sub_0_5": 0.09500756429652042,
+  "mean_contiguous": 0.35881018439909407,
+  "mean_purged": 0.3311987771762167,
+  "mean_shuffled": 0.6059872021725985,
+  "share_above_0_5_purged": 0.006369426751592357,
+  "share_above_0_5_shuffled": 0.8949044585987261,
+  "share_null_below_0_5_contiguous": 0.09500756429652042,
+  "share_null_below_0_5_purged": 0.13010590015128592
+ }
+}

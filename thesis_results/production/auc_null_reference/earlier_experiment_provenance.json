@@ -1,0 +1,19 @@
+{
+ "record": "Figures quoted from earlier project documents. They are the ONLY hand-recorded numbers the report reads; each is a citation of a prior experiment, not a result of this pipeline.",
+ "earlier_experiment": {
+  "label": "15 seeds on identical (stationary) distributions, independent samples",
+  "null_mean": 0.506,
+  "null_sd": 0.084,
+  "n_seeds": 15,
+  "shuffled_folds_null_mean": 0.584,
+  "first_appears": "2026-08-30",
+  "script_in_repository": false,
+  "sources": [
+   ".claude/CLAUDE.md section 6 (corrected 2026-09-21)",
+   ".claude/PROJECT_STATE.md section 6",
+   "git history examined in the Task 7 provenance diagnosis"
+  ],
+  "what_it_is": "a null from independent samples of one stationary distribution; it is not the output of compute_auc_null (n_rep=20 half-splits of a real test block), and no version of the pipeline ever ran 15 draws of that estimator",
+  "labelled_in_earlier_documents_as": "AUC null of real-versus-real half-splits (0.506 +/- 0.084 over 15 splits)"
+ }
+}

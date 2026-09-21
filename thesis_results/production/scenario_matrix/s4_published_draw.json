@@ -1,0 +1,51 @@
+{
+ "scheme": "S4: five temporal metrics (both discriminative AUC columns descriptive); published draw; read from the rewritten metrics CSVs",
+ "models": [
+  "TimeGAN",
+  "QuantGAN",
+  "CNN-WGAN-GP",
+  "GARCH",
+  "GJR-GARCH"
+ ],
+ "overall_fidelity": [
+  3.614285714285714,
+  3.1380952380952385,
+  2.428571428571429,
+  3.1523809523809523,
+  2.666666666666667
+ ],
+ "overall_temporal": [
+  4.12,
+  3.0533333333333337,
+  2.813333333333333,
+  2.693333333333334,
+  2.3200000000000003
+ ],
+ "overall_composite": [
+  3.8671428571428574,
+  3.0957142857142856,
+  2.620952380952381,
+  2.9228571428571426,
+  2.493333333333333
+ ],
+ "first": "GJR-GARCH",
+ "second": "CNN-WGAN-GP",
+ "margin": 0.12761904761904797,
+ "bootstrap": {
+  "resamples": 19999,
+  "unit": "market-seed",
+  "n_units": 15,
+  "seed": 20260921,
+  "ci_lo": -0.32907142857142935,
+  "ci_hi": 0.5695238095238095,
+  "excludes_zero": false
+ },
+ "first_ahead_of_second_units": 8,
+ "ties": 0,
+ "n_units": 15,
+ "margin_by_seed": {
+  "42": 0.17428571428571482,
+  "43": 0.042857142857142705,
+  "44": 0.16571428571428548
+ }
+}

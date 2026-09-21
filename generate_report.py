@@ -273,14 +273,30 @@ The numerical library versions are recorded because they are load-bearing, not a
 \section{Highlights}
 \label{sec:highlights}
 \begin{itemize}[leftmargin=1.3em,itemsep=6pt]
-\item \textbf{A ${RPT_COMPUTE_BEST_PARAMS}-parameter model ranks first.} ${RPT_COMPUTE_BEST_MODEL}, fitted in ${RPT_COMPUTE_BEST_SECONDS}\,s, has the best mean composite rank (${RPT_BEST_COMPOSITE}). The largest generator, ${RPT_COMPUTE_BIGGEST_MODEL}, has ${RPT_COMPUTE_BIGGEST_PARAMS} parameters and trains for ${RPT_COMPUTE_BIGGEST_SECONDS}\,s per market--seed, and ranks below it ${RPT_COMPUTE_BIGGEST_BELOW}.
+\item \textbf{First place is not resolved: a ${RPT_U_S4_FIRST_PARAMS}-parameter model is statistically indistinguishable from a ${RPT_U_S4_SECOND_PARAMS}-parameter one.} ${RPT_U_S4_FIRST}, fitted in ${RPT_U_S4_FIRST_SECONDS}\,s, has the best mean composite rank on the published draw (${RPT_BEST_COMPOSITE}, Section~\ref{sec:ranking}), but its margin over ${RPT_U_S4_SECOND} (${RPT_U_S4_SECOND_PARAMS} parameters, ${RPT_U_S4_SECOND_SECONDS}\,s per fit) is ${RPT_U_S4_MARGIN} composite points, with a 95\,\% bootstrap interval of ${RPT_U_S4_CI} over ${RPT_U_S4_N_UNITS} market--seed units (${RPT_U_S4_RESAMPLES} resamples): the interval ${RPT_U_S4_EXCLUDES_ZERO} zero. It spans about ${RPT_U_S4_WIDTH} composite points, so this benchmark cannot resolve a first--second difference smaller than about ${RPT_U_S4_HALFWIDTH}. Both models clear every fair baseline drawn from the training block alone (Section~\ref{sec:tiers}). The largest generator, ${RPT_COMPUTE_BIGGEST_MODEL}, has ${RPT_COMPUTE_BIGGEST_PARAMS} parameters and trains for ${RPT_COMPUTE_BIGGEST_SECONDS}\,s per market--seed, and ranks below the small model ${RPT_COMPUTE_BIGGEST_BELOW}.
 \item \textbf{The margin is thin, and the two families win different things.} ${RPT_COMPUTE_RUNNERUP_MODEL} trails by ${RPT_COMPUTE_GAP_RUNNERUP} on composite. The gradient-trained family takes ${RPT_WIN_COMPOSITE_GRAD} of ${RPT_WIN_N_CELLS} per-evaluation composite wins and ${RPT_WIN_FIDELITY_GRAD} of ${RPT_WIN_N_CELLS} fidelity wins; the econometric family takes ${RPT_WIN_TEMPORAL_ECON} of ${RPT_WIN_N_CELLS} temporal wins.
+\item \textbf{Fair baselines split the field into three tiers.} Two baselines that read only the training block --- i.i.d.\ historical simulation and a stationary block bootstrap with blocks of about ${RPT_U_PW_ABS_RANGE} days --- separate the generators. ${RPT_U_TIER_TOP} clear every fair baseline; ${RPT_U_TIER_MIDDLE} are indistinguishable from the block bootstrap; ${RPT_U_TIER_BOTTOM} ranks ${RPT_U_BOTTOM_POSITION} of ${RPT_U_N_ENTRIES}, below i.i.d.\ historical simulation (Section~\ref{sec:tiers}). The shuffled control would win the composite if it were allowed to compete (${RPT_U_CTRL_COMP} against ${RPT_U_CTRL_BEST_COMP}), because it is the test block's own returns, permuted: the fidelity family accounts for ${RPT_U_CTRL_FID_SHARE_S0}\,\% to ${RPT_U_CTRL_FID_SHARE_S4}\,\% of its gap to i.i.d.\ historical simulation, depending on the scheme.
 \item \textbf{A shuffled copy of the real data beats most generators on volatility clustering.} ${RPT_PERM_N_INVARIANT} of the ${RPT_PERM_N_METRICS} per-market metrics cannot tell a shuffled deck from the real series at all. On the autocorrelation of squared returns the shuffled control beats all ${RPT_AUDIT_SQ_N_GANS_BEATEN} GANs, and only ${RPT_AUDIT_SQ_CLEARS} ${RPT_AUDIT_SQ_CLEARS_VERB} it.
 \item \textbf{GARCH fits reach the integrated boundary as a property of the data.} ${RPT_PERSIST_N_HIT} of ${RPT_PERSIST_N_ROWS} econometric fits converge to persistence~1, in ${RPT_PERSIST_N_COMBOS} market--window--model combinations and identically in every seed. A refit under a stationarity bound costs ${RPT_PERSIST_LL_SMALLEST} to ${RPT_PERSIST_LL_LARGEST} in log-likelihood.
-\item \textbf{Every generator's AUC lies above the real-versus-real null, but no result reaches the 5\,\% level.} The AUC quoted here is the walk-forward one (Section~\ref{sec:walkforward}), because it is scored out of time: a classifier-based indistinguishability test\tcite{4} compares a freshly trained model with the real block that follows its training data, in every fold. ${RPT_WF_Z_N_ABOVE} of ${RPT_WF_Z_N_MODELS} fold-averaged AUCs are above the null mean, but the null has only ${RPT_WF_NULL_B} draws, so the smallest attainable Monte Carlo $p$-value is $1/${RPT_WF_NULL_B1}=${RPT_WF_P_FLOOR}$. AUC falls from ${RPT_FOLD_FIRST_AUC} to ${RPT_FOLD_LAST_AUC} as the training window grows; the decline is ${RPT_FOLD_MONOTONIC}, and training length and calendar period grow together.
-\item \textbf{Downstream, the pooled risk backtest favours ${RPT_DS_BEST_MODEL}.} Across ${RPT_DS_BEST_N_BACKTESTS} backtests over $n$ = ${RPT_DS_BEST_N} pooled observations it has the lowest median QLIKE (${RPT_DS_BEST_QLIKE}).
+\item \textbf{The discriminative AUC has no working reference here, and it no longer counts toward the rank.} The null is not $0.5$: on the real series its mean is ${RPT_U_NULL_MEAN_RNG_TA} across the ${RPT_U_NULL_N_MARKETS} markets at the fixed-split length, and a stationary GARCH-$t$ reference, the best case, still gives ${RPT_U_STAT_MEAN_RNG_WF} at walk-forward length. On fresh generation draws ${RPT_U_CELLSF_P975} of ${RPT_U_CELLS_N} market--model cells lie above the null's 97.5th percentile and ${RPT_U_CELLSF_196} above its mean plus 1.96 standard deviations; on the published draw ${RPT_U_CELLSP_P975} of ${RPT_U_CELLSP_N} lies above the 97.5th percentile (${RPT_U_CELLSP_MODEL}, ${RPT_U_CELLSP_MARKET}: ${RPT_U_CELLSP_AUC} against ${RPT_U_CELLSP_THR}) and ${RPT_U_CELLSP_196} above the mean plus 1.96 standard deviations (Section~\ref{sec:walkforward}). The walk-forward AUCs predate a scaler fix that could not be applied to them (Section~\ref{sec:issues}).
+\item \textbf{Downstream, the pooled risk backtest favours ${RPT_DS_BEST_MODEL}.} Across ${RPT_DS_BEST_N_BACKTESTS} backtests over $n$ = ${RPT_DS_BEST_N} pooled observations it has the lowest median QLIKE (${RPT_DS_BEST_QLIKE}). For the three GANs that backtest used a different generation draw from the one behind their metrics (Section~\ref{sec:issues}).
 \item \textbf{Mode collapse is caught by instrumentation, not by eye.} The post-generation guard fired ${RPT_GUARD_N} times across ${RPT_GUARD_N_MODELS} models (${RPT_GUARD_MODELS_PLAIN}); ${RPT_WORST_MODEL} is the worst of the five on all ${RPT_WORST_N_TEMPORAL} temporal metrics.
+\item \textbf{Read Section~\ref{sec:issues} before citing any number.} It lists what is not resolved: a downstream-utility draw mismatch, walk-forward AUCs that predate the scaler fix, published AUCs that cannot be reproduced, no diffusion or language-model arms, and a univariate design.
 \end{itemize}
+
+%% ─── Changes since the previous version ─────────────────────────────────────
+\section{Changes since the previous version}
+\label{sec:changes}
+For readers who saw the earlier report. Each statement points to the section where it is developed. \emph{S0} is the earlier ranking scheme, in which \texttt{discriminative\_auc\_dist} and \texttt{discriminative\_auc\_absz} were two of ${RPT_U_W_TEMP_PLUS2} temporal metrics; \emph{S4} is the current one, with ${RPT_U_W_TEMP} temporal metrics and those two descriptive.
+\begin{enumerate}[leftmargin=1.6em,itemsep=4pt]
+\item \textbf{The headline changed.} ${RPT_U_S4_FIRST} does not beat ${RPT_U_S4_SECOND}; the two are statistically indistinguishable (Section~\ref{sec:ranking}).
+\item \textbf{The discriminative AUC columns left the composite (S4).} They are reported but not ranked, because no reference for them works under any calibration tested (Sections~\ref{sec:s4} and~\ref{sec:walkforward}).
+\item \textbf{The previously reported AUC null of ${RPT_U_EARLIER_MEAN}\,$\pm$\,${RPT_U_EARLIER_SD} came from a different experiment} and did not describe this pipeline's null, which sits well above $0.5$ (Section~\ref{sec:walkforward}).
+\item \textbf{A metric audit now covers learned-representation metrics}: C-FID and MMD on TS2Vec embeddings (Section~\ref{sec:learned}).
+\item \textbf{Fair trivial baselines were added and establish a tiered result} (Section~\ref{sec:tiers}).
+\item \textbf{A scaler leak in the discriminative metric was fixed; no conclusion changed} (Section~\ref{sec:scaler}).
+\end{enumerate}
+Known issues that remain are listed in Section~\ref{sec:issues}.
 
 %% ─── Why this work matters ───────────────────────────────────────────────────
 \section{Why this work matters}
@@ -325,9 +341,9 @@ Across ${RPT_TABLE1_TOTAL_DAYS} market-days a Gaussian model predicts fewer than
 
 \subsection{Two metric families, and why the split exists}
 \label{sec:families}
-Every metric compares a synthetic series with the real test series, and every metric belongs to one of three groups. \emph{Fidelity} metrics depend only on the marginal distribution of returns, so they are unchanged if the series is shuffled. \emph{Temporal} metrics depend on the order of the observations: autocorrelation, long memory, conditional tails and a classifier that sees windows of consecutive days. \emph{Descriptive} metrics are computed and reported but never ranked, each for a reason given below. Seven fidelity and seven temporal metrics are ranked.
+Every metric compares a synthetic series with the real test series, and every metric belongs to one of three groups. \emph{Fidelity} metrics depend only on the marginal distribution of returns, so they are unchanged if the series is shuffled. \emph{Temporal} metrics depend on the order of the observations: autocorrelation, long memory and conditional tails. A classifier that sees windows of consecutive days is ordering-sensitive too, but since S4 it is descriptive (Section~\ref{sec:s4}). \emph{Descriptive} metrics are computed and reported but never ranked, each for a reason given below. ${RPT_U_W_FID_CAP} fidelity and ${RPT_U_W_TEMP} temporal metrics are ranked.
 
-Two counts recur and are not the same. The \emph{per-market metrics} are the ${RPT_PERM_N_METRICS} columns of each \texttt{<market>\_metrics.csv}: seven fidelity, seven temporal and five descriptive. Of these, ${RPT_PERM_N_INVARIANT} are permutation-invariant --- the seven fidelity metrics plus two descriptive ones, \texttt{skewness\_diff} and \texttt{kurtosis\_diff}. Seven of those ${RPT_PERM_N_INVARIANT} are ranked; the two descriptive ones are not. Separately, the pipeline's \texttt{DESCRIPTIVE\_COLS} has seven members: those two, \texttt{arch\_pvalue\_diff}, \texttt{arch\_stat\_diff} and \texttt{discriminative\_auc\_raw}, which are among the five in the per-market files, and \texttt{var\_coverage\_error} and \texttt{garch\_persistence\_diff}, which come from the pooled downstream backtest and appear in no per-market file. Every ``$k$ of $N$'' below says which of these it counts.
+Two counts recur and are not the same. The \emph{per-market metrics} are the ${RPT_PERM_N_METRICS} columns of each \texttt{<market>\_metrics.csv}: ${RPT_U_W_FID} fidelity, ${RPT_U_W_TEMP} temporal and ${RPT_U_W_DESC_PM} descriptive. Of these, ${RPT_PERM_N_INVARIANT} are permutation-invariant --- the ${RPT_U_W_FID} fidelity metrics plus two descriptive ones, \texttt{skewness\_diff} and \texttt{kurtosis\_diff}. ${RPT_U_W_FID_CAP} of those ${RPT_PERM_N_INVARIANT} are ranked; the two descriptive ones are not. Separately, the pipeline's \texttt{DESCRIPTIVE\_COLS} has ${RPT_U_W_DESC_TOTAL} members: the ${RPT_U_W_DESC_PM} in the per-market files (those two, \texttt{arch\_pvalue\_diff}, \texttt{arch\_stat\_diff}, \texttt{discriminative\_auc\_raw} and, since S4, \texttt{discriminative\_auc\_dist} and \texttt{discriminative\_auc\_absz}) and \texttt{var\_coverage\_error} and \texttt{garch\_persistence\_diff}, which come from the pooled downstream backtest and appear in no per-market file. Every ``$k$ of $N$'' below says which of these it counts.
 
 \paragraph{Why the ranking splits fidelity from temporal} \textit{Evidence:} an unweighted mean over all metrics was won by the shuffled-real control, \texttt{avg\_rank} 1.24 against 2.47 for a genuine generator. ${RPT_PERM_N_INVARIANT} of the ${RPT_PERM_N_METRICS} per-market metrics are permutation-invariant, so they score a shuffled deck perfectly by construction, and no weighting of the remainder can overcome that. The composite is therefore
 \[ \text{composite\_rank} = \tfrac{1}{2}\left(\text{fidelity\_rank} + \text{temporal\_rank}\right), \]
@@ -337,6 +353,8 @@ the equal-weighted mean of the two families --- families are weighted, not indiv
 
 \paragraph{Why NaN ranks last} Ranking uses \texttt{na\_option='bottom'}, so a metric that fails to compute counts as the worst outcome rather than being silently dropped. Dropping it would reward a model for producing output degenerate enough to break an estimator.
 
+\paragraph{Why the discriminative AUC is not ranked} Until S4 two discriminative-AUC columns were ranked, as the sixth and seventh temporal metrics. Neither has a working reference under any calibration tested, so both are now descriptive; the evidence is in Section~\ref{sec:s4} and the corrected null in Section~\ref{sec:walkforward}.
+
 \subsection{The metrics}
 \label{sec:metrics}
 Table~\ref{tab:metrics} lists every quantity the pipeline computes: the ${RPT_PERM_N_METRICS} per-market metrics, then the downstream-utility quantities, two of which (\texttt{var\_coverage\_error}, \texttt{garch\_persistence\_diff}) are also descriptive. $r_t$ is the real daily log return and $\tilde r_t$ the synthetic one; a tilde marks the synthetic counterpart of any statistic; $n$ is the test-series length. Unless stated, ``difference'' means the absolute difference between the real and synthetic value, and lower is better.
@@ -344,7 +362,7 @@ Table~\ref{tab:metrics} lists every quantity the pipeline computes: the ${RPT_PE
 {\footnotesize
 \setlength{\tabcolsep}{4pt}
 \begin{xltabular}{\linewidth}{@{}>{\raggedright\arraybackslash\ttfamily}p{3.35cm} >{\raggedright\arraybackslash}p{2.3cm} >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}p{2.2cm} >{\raggedright\arraybackslash}p{1.55cm}@{}}
-\caption{Every quantity the pipeline computes: what it measures, how it is computed, where it comes from, and whether it is ranked. The first ${RPT_PERM_N_METRICS} rows (fidelity, temporal, and five descriptive) are the per-market metrics of \texttt{<market>\_metrics.csv}; the last five (downstream utility) are computed once per seed on the pooled sample. ``This work'' marks a metric defined for this study rather than taken from the literature.}\label{tab:metrics}\\
+\caption{Every quantity the pipeline computes: what it measures, how it is computed, where it comes from, and whether it is ranked. The first ${RPT_PERM_N_METRICS} rows (${RPT_U_W_FID} fidelity, ${RPT_U_W_TEMP} temporal and ${RPT_U_W_DESC_PM} descriptive) are the per-market metrics of \texttt{<market>\_metrics.csv}; the last five (downstream utility) are computed once per seed on the pooled sample. ``This work'' marks a metric defined for this study rather than taken from the literature.}\label{tab:metrics}\\
 \toprule
 \normalfont\bfseries Metric & \bfseries Measures & \bfseries Computation & \bfseries Source & \bfseries Role \\
 \midrule
@@ -369,15 +387,15 @@ acf\_returns\_mae & Linear predictability & mean absolute difference of sample a
 acf\_absolute\_mae & Volatility clustering & as above, for $|r_t|$ & Ding, Granger \& Engle\tcite{8} & ranked \\
 acf\_squared\_mae & Volatility clustering (ARCH effects) & as above, for $r_t^2$ & Engle\tcite{10}; Cont\tcite{7} & ranked \\
 hurst\_diff & Long memory in volatility & difference of rescaled-range (R/S) Hurst exponents of $|r_t|$ & Hurst\tcite{23}; Mandelbrot \& Wallis\tcite{24} & ranked \\
-resid\_kurtosis\_diff & Tails beyond GARCH & difference in excess kurtosis of standardised residuals of a GARCH(1,1) fitted by Gaussian quasi-maximum likelihood to $100\,r_t$ & Bollerslev\tcite{36} & ranked \\
-discriminative\_auc\_dist & Indistinguish\-ability & $|\mathrm{AUC}-0.5|$ for a logistic regression separating real from synthetic 20-day windows described by mean, standard deviation, mean $|r_t|$ and mean $r_t^2$; standardised features, five-fold unshuffled cross-validation & discriminative score of Yoon et al.\tcite{4}; CTBench\tcite{16} & ranked \\
-discriminative\_auc\_absz & Indistinguish\-ability against a null & $|\mathrm{AUC}-\mu_0|/\sigma_0$, with $\mu_0$ and $\sigma_0$ from 20 real-versus-real half-splits of the same test series & this work & ranked \\[4pt]
+resid\_kurtosis\_diff & Tails beyond GARCH & difference in excess kurtosis of standardised residuals of a GARCH(1,1) fitted by Gaussian quasi-maximum likelihood to $100\,r_t$ & Bollerslev\tcite{36} & ranked \\[4pt]
 \multicolumn{5}{@{}l}{\normalfont\itshape Descriptive: computed per series and reported, never ranked}\\[2pt]
 skewness\_diff & Asymmetry & difference of sample skewness & standard moment & descriptive \\
 kurtosis\_diff & Tail weight & difference of sample excess kurtosis & standard moment & descriptive \\
 arch\_pvalue\_diff & ARCH effects & difference of Engle ARCH-LM $p$-values, 5 lags & Engle\tcite{10} & descriptive \\
 arch\_stat\_diff & ARCH effects & difference of ARCH-LM statistics, 5 lags & Engle\tcite{10} & descriptive \\
-discriminative\_auc\_raw & Classifier AUC & the AUC above, unsigned & Yoon et al.\tcite{4} & descriptive \\[4pt]
+discriminative\_auc\_raw & Classifier AUC & AUC of a logistic regression separating real from synthetic ${RPT_U_AUC_WINDOW}-day windows described by mean, standard deviation, mean $|r_t|$ and mean $r_t^2$; features standardised within each training fold; ${RPT_U_AUC_N_SPLITS}-fold unshuffled cross-validation (purged and embargoed as an option, Section~\ref{sec:purged}) & discriminative score of Yoon et al.\tcite{4}; CTBench\tcite{16} & descriptive \\
+discriminative\_auc\_dist & Distance of the AUC from chance & $|\mathrm{AUC}-0.5|$ & this work & descriptive (ranked until S4) \\
+discriminative\_auc\_absz & Distance from a real-versus-real null & $|\mathrm{AUC}-\mu_0|/\sigma_0$, with $\mu_0$ and $\sigma_0$ from ${RPT_U_LEGACY_NREP} real-versus-real half-splits of the same test series & this work & descriptive (ranked until S4) \\[4pt]
 \multicolumn{5}{@{}l}{\normalfont\itshape Downstream utility: one pooled backtest per seed, reported beside the ranking}\\[2pt]
 qlike & Variance-forecast quality & $\frac1n\sum_t(\log\sigma_t^2+r_t^2/\sigma_t^2)$ on real returns, with $\sigma_t^2$ filtered from GARCH(1,1) parameters fitted to the synthetic series & Patton\tcite{37} & reported \\
 kupiec\_p & VaR coverage & likelihood-ratio test that violations occur at the nominal 5\% rate & Kupiec\tcite{34} & reported \\
@@ -393,7 +411,7 @@ Within each market--seed evaluation the five generators are ranked on each ranke
 \label{sec:decisions}
 Each choice below is stated with the measurement that motivated it. Where that measurement comes from an earlier run or a separate experiment rather than from this run's artifacts, it is a prior measurement; the numbers are recorded in the repository's standing documentation.
 
-\paragraph{Why walk-forward, not random CV} Shuffled cross-validation leaks. Our 20-day evaluation windows overlap by 19 observations, so \texttt{shuffle=True} places near-duplicate windows in both train and test. Measured, this moves the discriminative-AUC null from $0.506$ to $0.584$ --- a spurious improvement of the same order as the differences between models (Tashman 2000\tcite{13}; Bergmeir \& Ben\'{\i}tez 2012\tcite{14}).
+\paragraph{Why walk-forward, not random CV} Shuffled cross-validation leaks. Our ${RPT_U_AUC_WINDOW}-day evaluation windows overlap by ${RPT_U_AUC_WINDOW_OVERLAP} observations, so \texttt{shuffle=True} places near-duplicate windows in both train and test (Tashman 2000\tcite{13}; Bergmeir \& Ben\'{\i}tez 2012\tcite{14}). An earlier experiment on independent stationary samples (${RPT_U_EARLIER_N} seeds; its script ${RPT_U_EARLIER_SCRIPT}) reported that shuffled folds move the discriminative-AUC null from ${RPT_U_EARLIER_MEAN} to ${RPT_U_EARLIER_SHUF}; that is a prior measurement of a different experiment and is labelled as one (Section~\ref{sec:walkforward}). The effect reproduces under this pipeline's own estimator on a stationary GARCH-$t$ reference: shuffled folds raise its null mean by ${RPT_U_STAT_SHIFT_RNG_WF} at walk-forward length and ${RPT_U_STAT_SHIFT_RNG_TA} at fixed-split length, across the ${RPT_U_STAT_N_MARKETS} markets. Purged and embargoed folds remove the overlap without shuffling (Section~\ref{sec:purged}).
 
 \paragraph{Why per-market training, not cross-market pooling} Each model trains on one market's own data; markets are never concatenated. Pooling was considered: joining all five end-to-end introduces only $\approx$4 spurious cross-market transitions across $\approx$3{,}900 windows, a small artefact in exchange for more training volume. It was rejected because a single generator fitted across five independent markets risks each market's dynamics contaminating the others' learned distribution --- and the object of study is per-market stylized facts.
 
@@ -439,7 +457,7 @@ ${RPT_FIG_HILL}
 
 \paragraph{Why both ARCH-LM variants are descriptive-only} \texttt{arch\_pvalue\_diff} identifies the better-fitting model $99\%$ of the time on simulated GARCH but saturates completely on real data: real and shuffled both underflow to $p=0.0$, giving $|\Delta p|=0.000000$ and rating the adversarial control a perfect match. \texttt{arch\_stat\_diff} scores $76\%$ with a null sd of $46.4$ --- two draws from the same process gave LM $56.8$ and $124.8$. Neither is reliable across both regimes. ACF-MAE replaces them as the primary volatility-clustering signal: continuous, no saturation, $88\%$ Monte Carlo accuracy.
 
-\paragraph{Why discriminative AUC is ranked on $|\text{AUC}-0.5|$} \textit{Evidence:} under an ascending rank on the raw value, an anti-predictive AUC of $0.30$ outranked an indistinguishable $0.50$ --- the optimum is $0.5$, not $0$. The empirical null is $0.506\pm0.084$ over 15 real-vs-real half-splits, not exactly $0.5$, so a $z$-score against that null is reported as a second ranking metric and an observed $0.62$ is not by itself evidence of failure ($z=1.36$).
+\paragraph{Why the discriminative AUC was ranked on $|\text{AUC}-0.5|$, and why it no longer is} \textit{Evidence for the original choice:} under an ascending rank on the raw value, an anti-predictive AUC of $0.30$ outranked an indistinguishable $0.50$, because the optimum is $0.5$, not $0$. The rank on $|\text{AUC}-0.5|$ assumed a real-versus-real null of $0.5$, which the corrected null contradicts (Section~\ref{sec:walkforward}); a second ranked column, a $z$-score against a null, depended on how that null was built. Both columns left the ranked set at S4 (Section~\ref{sec:s4}).
 
 \paragraph{Why downstream utility uses conditional VaR} Unconditional VaR was tested first and added nothing: Gaussian iid noise scored identically to real data (coverage error 0.0276 for both), because an unconditional quantile probes only the marginal --- already covered by Wasserstein and the quantile MSE. Conditional VaR probes whether the GARCH structure itself transfers, which is the question TSTR is asking.
 
@@ -450,6 +468,31 @@ ${RPT_FIG_HILL}
 \paragraph{Why determinism is not enforced} \texttt{torch.use\_deterministic\_algorithms(True)} and \texttt{cudnn.deterministic} are deliberately unset; the cost is measured rather than assumed (Section~\ref{sec:results}). Consequence, stated as a rule: no single-run winner is reported on \texttt{tail\_index\_diff}, \texttt{hurst\_diff} or \texttt{mean\_diff}, because those three change their winner between identical repeat runs.
 
 \paragraph{Instrumentation retained} The \texttt{[DIAG]} latent statistics, the \texttt{[WARNING]} post-generation guard and the step-count printout are kept in the pipeline permanently. Each fires rarely; between them they located latent collapse, mode collapse and the $492\times$ budget gap. The guard's firings in this run are a reported result (Section~\ref{sec:results}), not a debug artefact.
+\subsection{Methods added in this version}
+\label{sec:newmethods}
+Four methods enter the pipeline or the audit in this version. Each is stated with the measurement that motivated it, and each measurement is an artifact of this repository.
+
+\paragraph{S4: the discriminative AUC leaves the ranked set}\label{sec:s4} The decision was taken on the following grounds, before its effect on the ranking was known. \textit{(i) Neither column has a working reference.} $|\mathrm{AUC}-0.5|$ assumes a real-versus-real null of $0.5$; the null on these series has mean ${RPT_U_NULL_MEAN_RNG_TA} at the fixed-split length (Table~\ref{tab:nulls}). $|\mathrm{AUC}-\mu_0|/\sigma_0$ reads a null that rests on about ${RPT_U_NULL_PAIRS_TA} independent block pairs drawn from ${RPT_U_NULL_YEARS} years of history, and its construction moved first and second place when it was changed. \textit{(ii) The correct estimator does not repair them.} Purged and embargoed cross-validation (below) leaves the anti-predictive draws where they were, so they are regime drift, not leakage (Section~\ref{sec:walkforward}). \textit{(iii) The value is set by the direction of drift, not by generator quality:} the shuffled control's AUC runs ${RPT_U_CTRL_AUC_P} across the ${RPT_U_CTRL_AUC_N} markets under purged folds, and lies below the purged null in ${RPT_U_CTRL_BELOW_N} of the ${RPT_U_CTRL_AUC_N}. \textit{(iv) Nothing clears a calibrated threshold} on fresh draws (${RPT_U_CELLSF_P975} of ${RPT_U_CELLS_N} cells, Section~\ref{sec:walkforward}). \textit{(v) Method choice is small next to generation noise:} a fresh generation draw moves ${RPT_U_NOISE_DRAW_TO_DRAW} of ${RPT_U_NOISE_UNITS_TOTAL} within-unit positions, a change of AUC calibration or cross-validation scheme moves ${RPT_U_NOISE_SCHEME_LO} to ${RPT_U_NOISE_SCHEME_HI}, and dropping the two columns (S4) moves ${RPT_U_NOISE_S4} (all measured before the scaler fix; Section~\ref{sec:scaler}). \texttt{TEMPORAL\_COLS} is now ${RPT_U_W_TEMP} metrics, the two AUC columns are in \texttt{DESCRIPTIVE\_COLS}, and the comment beside them in the notebook records these grounds.
+
+\paragraph{Purged and embargoed cross-validation, as an option}\label{sec:purged} \texttt{compute\_discriminative\_score(cv='purged')} keeps the folds contiguous and drops, on both sides of each test chunk, the training windows within one window length (${RPT_U_EMB_WINDOW}) of it, so no observation is shared between a training row and a test row. At ${RPT_U_EMB_FOLDS} folds it drops ${RPT_U_EMB_DROPPED} training rows per fold (${RPT_U_EMB_PCT_TA}\,\% of the training rows at the fixed-split length, ${RPT_U_EMB_PCT_WF}\,\% at walk-forward length); the smallest training set is ${RPT_U_EMB_MIN_TRAIN} rows, so the folds remain large enough to fit. The default is unchanged (contiguous, as published); shuffled folds are refused. Both schemes are computed for every null (Table~\ref{tab:nulls}).
+
+\paragraph{The scaler fix}\label{sec:scaler} The discriminative metric standardised its features on all rows before the folds were cut, so the test fold's mean and scale entered the training features under every scheme, purged included. The scaler is now a step of a scikit-learn \texttt{Pipeline} and is fitted within each training fold. Measured on the same pairs before and after: the null means and standard deviations move by at most ${RPT_U_FIX_MEAN_SHIFT}, individual AUC values by up to ${RPT_U_FIX_MAX_SINGLE} in a few series in strongly drifting stretches (${RPT_U_FIX_PUB_MAX} on the published draw), and no count in Section~\ref{sec:walkforward} changes. The cached AUC nulls now carry the scaler convention in their key, so pre-fix caches are recomputed rather than reused.
+
+\paragraph{Fair baselines, and their confinement to the training block}\label{sec:baseline-methods} Two trivial generators with no access to the test block were added as comparison entries; they never enter the composite. \emph{I.i.d.\ historical simulation} resamples returns with replacement from the training block; it is the standard industry baseline for value-at-risk. The \emph{stationary block bootstrap} (Politis \& Romano) resamples geometric-length blocks, circularly, inside the training block, with the mean block length chosen by the Politis--White rule (\texttt{arch} ${RPT_U_BL_ARCH}). Applied to raw returns the rule returns ${RPT_U_PW_R_RANGE} (${RPT_U_PW_FLOORED} market below one observation, floored at one), because raw returns lack linear autocorrelation, so that bootstrap is nearly i.i.d.; applied to $|r|$ it returns ${RPT_U_PW_ABS_RANGE}, the scale of volatility persistence, which is the specification that matters for the temporal metrics and is the one called the block-bootstrap baseline in the text. Table~\ref{tab:pw} gives both. Each baseline is drawn ${RPT_U_BL_DRAWS_PER_UNIT} times per market--seed and scored through the same \texttt{FinancialMetrics} code path as the generators; the generators' and control's rows reproduced from that path equal the stored Phase~B rows exactly. \emph{Confinement:} the generating functions receive the training array, a length and a random generator and nothing else; the validation file is not opened, and from the test file only the row count is taken, from the parquet footer. Of ${RPT_U_BL_N_DRAWS} stored draws, ${RPT_U_BL_OUTSIDE} contain a value that is not in the training block, every index used lies below the training length, and regenerating from the recorded seeds reproduces every draw.
+
+\begin{table}[htbp]
+\centering
+\caption{The two bootstraps, per market: training length, target length, and the Politis--White mean block length on the returns and on $|r|$, then the lengths used (the returns-based length floored at one observation).}
+\label{tab:pw}
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+Market & Train & Target & PW, $r$ & PW, $|r|$ & Used, $r$ & Used, $|r|$ \\
+\midrule
+${RPT_U_PW_ROWS}
+\bottomrule
+\end{tabular}
+\end{table}
+
 %% ─── Architecture comparison ─────────────────────────────────────────────────
 \section{Architecture comparison}
 \label{sec:architecture}
@@ -633,16 +676,15 @@ Figure~\ref{fig:pipeline} shows the pipeline from price files to ranked results.
       tail index: gap in Hill $\hat\alpha$\\
       extreme events: share of days with $|r|>2\sigma$}};
 \node[box, anchor=north west, inner sep=3pt] (tmp) at (3.34,-9.9)
-     {\parbox[t][3.95cm][t]{3.0cm}{\raggedright\textbf{Temporal}\;(7, ranked)\\\emph{depend on the order of the days}\\[2pt]
+     {\parbox[t][3.95cm][t]{3.0cm}{\raggedright\textbf{Temporal}\;(${RPT_U_N_TEMP}, ranked)\\\emph{depend on the order of the days}\\[2pt]
       ACF of $r$, $|r|$, $r^2$: MAE over lags (predictability, volatility clustering)\\
       Hurst exponent of $|r|$: long memory\\
-      residual kurtosis: tails beyond GARCH\\
-      discriminative AUC: $|\mathrm{AUC}-0.5|$, and $z$ against the null}};
+      residual kurtosis: tails beyond GARCH}};
 \node[box, anchor=north west, inner sep=3pt] (dsc) at (6.68,-9.9)
-     {\parbox[t][3.95cm][t]{3.0cm}{\raggedright\textbf{Descriptive}\;(5)\\\emph{reported, not ranked}\\[2pt]
+     {\parbox[t][3.95cm][t]{3.0cm}{\raggedright\textbf{Descriptive}\;(${RPT_U_N_DESC_PM})\\\emph{reported, not ranked}\\[2pt]
       skewness, kurtosis: infinite moments ($\alpha<3$, $\alpha<4$)\\
       ARCH-LM $p$-value and statistic: saturates; too noisy\\
-      raw AUC: optimum $0.5$, not $0$}};
+      discriminative AUC (raw, distance, $z$): no working reference}};
 \foreach \n in {fid,tmp,dsc} { \draw[arr] (\n.north |- syn.south) -- (\n.north); }
 
 \node[box, text width=9.7cm, anchor=north west] (rnk) at (0,-14.55)
@@ -673,7 +715,7 @@ Figure~\ref{fig:pipeline} shows the pipeline from price files to ranked results.
 \node[tiny, anchor=north west, align=left, text width=4.4cm] at (11.4,-12.9)
      {Track B ends here. No edge leads to the composite rank, and the tracks are never pooled.};
 \end{tikzpicture}}
-\caption{The pipeline, top to bottom, in three stages: data preparation, fitting, evaluation. Each market's return series is split in time into Train, Valid and Test, drawn to scale. \textbf{Track A} fits every model once on Train, generates a series of Test length, scores it on the ${RPT_PERM_N_METRICS} per-market metrics ($7+7+5$) and ranks on the fourteen fidelity and temporal ones. \textbf{Track B} refits every model on ${RPT_PIPE_N_FOLDS} expanding folds of the full series and records six diagnostics per fold. Two of the six are metrics Track A declines to rank: \texttt{arch\_stat\_diff} (too noisy) and the raw \texttt{discriminative\_auc} (optimum $0.5$, not $0$, so it cannot enter a lower-is-better rank). The dashed edge means the same five architectures are trained again from fresh initialisation; the orange refit node is the only expensive one. Sizes are fractions of the series, not of any one market, and parameter counts are generator parameters.}
+\caption{The pipeline, top to bottom, in three stages: data preparation, fitting, evaluation. Each market's return series is split in time into Train, Valid and Test, drawn to scale. \textbf{Track A} fits every model once on Train, generates a series of Test length, scores it on the ${RPT_PERM_N_METRICS} per-market metrics (\(${RPT_U_FAMILY_SUM}\)) and ranks on the ${RPT_U_W_RANKED} fidelity and temporal ones. \textbf{Track B} refits every model on ${RPT_PIPE_N_FOLDS} expanding folds of the full series and records six diagnostics per fold. Two of the six are metrics Track A declines to rank: \texttt{arch\_stat\_diff} (too noisy) and the raw \texttt{discriminative\_auc} (optimum $0.5$, not $0$, so it cannot enter a lower-is-better rank). The dashed edge means the same five architectures are trained again from fresh initialisation; the orange refit node is the only expensive one. Sizes are fractions of the series, not of any one market, and parameter counts are generator parameters.}
 \label{fig:pipeline}
 \end{figure}
 
@@ -685,7 +727,7 @@ Figure~\ref{fig:pipeline} runs top to bottom in three stages, marked at the left
 
 \textbf{Preprocessing forks.} In Track A the split bar cuts each market into Train (80\,\%), Valid (10\,\%) and Test (10\,\%), and Train reaches the models by two paths. The \emph{gradient path} feeds TimeGAN, QuantGAN and CNN-WGAN-GP with z-scored returns squashed by $\tanh(z/3)$ and cut into overlapping 128-step windows. The \emph{econometric path} feeds GARCH(1,1)-$t$ and GJR-GARCH(1,1)-$t$ with raw returns scaled by 100, without normalisation or windows, because the squash would compress exactly the variance dynamics GARCH exists to model (Section~\ref{sec:decisions}). The roster carries each model's generator-parameter count, from ${RPT_PARAMS_QUANTGAN} for QuantGAN to ${RPT_PARAMS_GJRGARCH} for GJR-GARCH(1,1)-$t$.
 
-\emph{Track A}, on the left, is the fixed-split evaluation. Each model is fitted once on Train and generates a series of Test length (\emph{Synthetic returns}), which is set against the real Test series (the dotted edge) on the ${RPT_PERM_N_METRICS} per-market metrics: seven ranked fidelity metrics, seven ranked temporal metrics and five descriptive ones that are reported but not ranked. Only the fidelity and temporal groups feed the \emph{Composite rank}. This is Table~\ref{tab:ranking}: ${RPT_WIN_N_CELLS} evaluations in total, one training per model per evaluation, ${RPT_PIPE_N_MODELS}~models~$\times$~${RPT_WIN_N_CELLS}~evaluations~=~${RPT_PIPE_TRACKA_TRAININGS} trainings.
+\emph{Track A}, on the left, is the fixed-split evaluation. Each model is fitted once on Train and generates a series of Test length (\emph{Synthetic returns}), which is set against the real Test series (the dotted edge) on the ${RPT_PERM_N_METRICS} per-market metrics: ${RPT_U_W_FID} ranked fidelity metrics, ${RPT_U_W_TEMP} ranked temporal metrics and ${RPT_U_W_DESC_PM} descriptive ones that are reported but not ranked. Only the fidelity and temporal groups feed the \emph{Composite rank}. This is Table~\ref{tab:ranking}: ${RPT_WIN_N_CELLS} evaluations in total, one training per model per evaluation, ${RPT_PIPE_N_MODELS}~models~$\times$~${RPT_WIN_N_CELLS}~evaluations~=~${RPT_PIPE_TRACKA_TRAININGS} trainings.
 
 \emph{Track B}, on the right, is walk-forward. It reads the full series (train, valid and test) as ${RPT_PIPE_N_FOLDS} expanding folds: fold $k$ trains on the first $(k+1)/(${RPT_PIPE_N_FOLDS}+1)$ of the series, from ${RPT_PIPE_FOLD_FIRST_PCT}\,\% to ${RPT_PIPE_FOLD_LAST_PCT}\,\%, and is tested on the next block of ${RPT_PIPE_BLOCK_PCT}\,\%. The \emph{Refit} node is a fitting operation and sits in the fitting stage, level with the roster. The dashed edge from the roster means the same five architectures, freshly initialised, are trained again on each fold's training window. It is drawn in colour because it is the only expensive node: ${RPT_PIPE_N_FOLDS}~folds~$\times$~${RPT_PIPE_N_MODELS}~models~$\times$~${RPT_WIN_N_CELLS}~evaluations~=~${RPT_PIPE_TRACKB_TRAININGS} trainings, ${RPT_PIPE_REFIT_SHARE}\,\% of all trainings and ${RPT_PIPE_N_FOLDS}$\times$ Track A's ${RPT_PIPE_TRACKA_TRAININGS}. That count is the basis for expecting walk-forward to dominate the pipeline's wall-clock time, independent of any per-model cost difference (Table~\ref{tab:compute}); per-fold training time was not recorded, so the wall-clock share itself is not measured. Each refitted model generates a series per fold (\emph{Synthetic per fold}), scored on six metrics in \emph{Per-fold diagnostics} (Section~\ref{sec:walkforward}). Track B ends there: composite rank never includes a walk-forward number.
 
@@ -735,13 +777,17 @@ ${RPT_HEADLINE_ROWS}
 \end{tabular}
 \end{table}
 
-\paragraph{What it shows} Table~\ref{tab:ranking} gives, for each generator, its mean rank on the two metric families and on their combination, and how often it wins an evaluation outright.
+\paragraph{What it shows} Table~\ref{tab:ranking} gives, for each generator, its mean rank on the two metric families and on their combination, under S4 (${RPT_U_W_TEMP} temporal metrics), and how often it wins an evaluation outright.
 
-\paragraph{How it is computed} Within each evaluation the five generators are ranked on each of the fourteen ranked metrics of Table~\ref{tab:metrics}, rank~1 being closest to the real series. The fidelity rank is the mean over the seven fidelity metrics, the temporal rank the mean over the seven temporal metrics, and the composite rank the mean of the two, so the two families weigh equally however many metrics each contains. The ranks are then averaged over the evaluations.
+\paragraph{How it is computed} Within each evaluation the five generators are ranked on each of the ${RPT_U_W_RANKED} ranked metrics of Table~\ref{tab:metrics}, rank~1 being closest to the real series. The fidelity rank is the mean over the ${RPT_U_W_FID} fidelity metrics, the temporal rank the mean over the ${RPT_U_W_TEMP} temporal metrics, and the composite rank the mean of the two, so the two families weigh equally however many metrics each contains. The ranks are then averaged over the evaluations.
 
 \paragraph{Why this measure} Ranks rather than raw values, because the metrics live on incommensurable scales. The equal weighting of families is this study's own design, adopted because an unweighted mean over all metrics is won by a shuffled copy of the data (Section~\ref{sec:families}).
 
-\paragraph{What this result tells us} ${RPT_COMPUTE_BEST_MODEL} has the best mean composite rank (${RPT_BEST_COMPOSITE}); ${RPT_COMPUTE_RUNNERUP_MODEL} trails by ${RPT_COMPUTE_GAP_RUNNERUP} (${RPT_COMPUTE_RUNNERUP_COMPOSITE}). The families split along the metric families: ${RPT_FIDELITY_LEADER} leads on fidelity, the marginal distribution, and ${RPT_TEMPORAL_LEADER} on temporal, the dynamics. Counted per evaluation the picture runs the other way from the mean. Composite wins are ${RPT_WIN_COMPOSITE_WINS} --- the gradient-trained family takes ${RPT_WIN_COMPOSITE_GRAD} of ${RPT_WIN_N_CELLS} and the econometric family ${RPT_WIN_COMPOSITE_ECON}; temporal wins are ${RPT_WIN_TEMPORAL_WINS}; fidelity wins are ${RPT_WIN_FIDELITY_WINS}. The econometric advantage is therefore in the mean rank and in the dynamics, not in winning most individual evaluations. An unweighted mean over all ranked metrics is kept in the artifacts for comparability and is never used for selection.
+\paragraph{What this result tells us} ${RPT_COMPUTE_BEST_MODEL} has the best mean composite rank (${RPT_BEST_COMPOSITE}); ${RPT_COMPUTE_RUNNERUP_MODEL} trails by ${RPT_COMPUTE_GAP_RUNNERUP} (${RPT_COMPUTE_RUNNERUP_COMPOSITE}). That margin is not resolved by this benchmark (below). The families split along the metric families: ${RPT_FIDELITY_LEADER} leads on fidelity, the marginal distribution, and ${RPT_TEMPORAL_LEADER} on temporal, the dynamics. Counted per evaluation the picture runs the other way from the mean. Composite wins are ${RPT_WIN_COMPOSITE_WINS} --- the gradient-trained family takes ${RPT_WIN_COMPOSITE_GRAD} of ${RPT_WIN_N_CELLS} and the econometric family ${RPT_WIN_COMPOSITE_ECON}; temporal wins are ${RPT_WIN_TEMPORAL_WINS}; fidelity wins are ${RPT_WIN_FIDELITY_WINS}. The econometric advantage is therefore in the mean rank and in the dynamics, not in winning most individual evaluations. An unweighted mean over all ranked metrics is kept in the artifacts for comparability and is never used for selection.
+
+\paragraph{First place is not resolved} Under S4 on the published draw, ${RPT_U_S4_FIRST} has the lowest mean composite (${RPT_BEST_COMPOSITE}) and ${RPT_U_S4_SECOND} is ${RPT_U_S4_MARGIN_ABS} behind. The 95\,\% bootstrap interval of that margin, resampling the ${RPT_U_S4_N_UNITS} market--seed units (${RPT_U_S4_RESAMPLES} resamples), is ${RPT_U_S4_CI}: it ${RPT_U_S4_EXCLUDES_ZERO} zero, and ${RPT_U_S4_FIRST} is ahead in ${RPT_U_S4_AHEAD_UNITS} of ${RPT_U_S4_N_UNITS} units. The interval spans about ${RPT_U_S4_WIDTH} composite points, so the benchmark cannot resolve a first--second difference smaller than about ${RPT_U_S4_HALFWIDTH}. By seed the margins are ${RPT_U_S4_BY_SEED} (positive: ${RPT_U_S4_FIRST} ahead), ${RPT_U_S4_SEEDS_POSITIVE} of ${RPT_U_S4_N_SEEDS} seeds, and that agreement does not change the interval. No ranking scheme separates the two: across the ${RPT_U_N_SCENARIOS} scenario-and-frame combinations of the scenario matrix, ${RPT_U_N_SCENARIOS_EXCL_ZERO} bootstrap intervals exclude zero. Where the data speak, they say that the two are statistically indistinguishable, which is a result, not a failure to find a winner.
+
+\paragraph{The earlier lead came from one seed, and generation noise dominates method} Under the earlier scheme S0 on the published draw the ${RPT_U_S0_FIRST} lead was ${RPT_U_S0_MARGIN} (interval ${RPT_U_S0_CI}); by seed the margins were ${RPT_U_S0_BY_SEED}, so it came from ${RPT_U_S0_SEEDS_AHEAD} seed of ${RPT_U_S0_N_SEEDS}. Replacing the legacy null by a length-matched one reversed the order (${RPT_U_S1_FIRST} first, by ${RPT_U_S1_MARGIN}). A fresh generation draw moves ${RPT_U_NOISE_DRAW_TO_DRAW} of the ${RPT_U_NOISE_UNITS_TOTAL} within-unit positions of the ranking; any change of AUC calibration or cross-validation scheme moves ${RPT_U_NOISE_SCHEME_LO} to ${RPT_U_NOISE_SCHEME_HI}, and dropping the two AUC columns (S4) moves ${RPT_U_NOISE_S4}. Generation noise dominates methodological choice. These comparisons were run on the values as they stood before the scaler fix (Section~\ref{sec:scaler}), which moves aggregate AUCs by at most ${RPT_U_FIX_MEAN_SHIFT}.
 
 %% ── Compute ──
 \subsection{Compute versus performance}
@@ -749,6 +795,52 @@ ${RPT_HEADLINE_ROWS}
 Table~\ref{tab:compute}, in Section~\ref{sec:architecture}, sets each model's size and training cost against its composite rank --- the one comparison a rank column cannot make. Parameter counts are read from the fitted models and wall-clock is measured around training or fitting. The best-ranked model, ${RPT_COMPUTE_BEST_MODEL}, has ${RPT_COMPUTE_BEST_PARAMS} parameters and fits in ${RPT_COMPUTE_BEST_SECONDS}\,s. The largest, ${RPT_COMPUTE_BIGGEST_MODEL}, has ${RPT_COMPUTE_BIGGEST_PARAMS} --- a factor of ${RPT_COMPUTE_PARAM_RATIO} --- and takes ${RPT_COMPUTE_BIGGEST_SECONDS}\,s, a factor of ${RPT_COMPUTE_TIME_RATIO}; it ranks below the smaller model ${RPT_COMPUTE_BIGGEST_BELOW}.
 
 The ratio is stated and left there. It does not show that parameter count is wasted in general, that the generators would not overtake the baselines at a larger budget, or that they are at their best configuration: no hyperparameter search was run (Section~\ref{sec:limitations}). What it shows is that on these data, at this budget, under this evaluation, the additional capacity did not buy additional rank.
+
+%% ── Tiers ──
+\subsection{A tiered result against fair baselines}
+\label{sec:tiers}
+The composite ranks generators against each other. It does not say whether a generator does better than a method that needs no fitting. Two baselines that read only the training block answer that; their construction and their confinement to the training block are in Section~\ref{sec:baseline-methods}. \emph{I.i.d.\ historical simulation} resamples returns with replacement. The \emph{block-bootstrap baseline} is a stationary block bootstrap with the mean block length tuned by the Politis--White rule on $|r|$, about ${RPT_U_PW_ABS_RANGE} observations. The specified bootstrap, tuned on raw returns, degenerated to near-i.i.d.\ because raw returns lack linear autocorrelation (mean block length ${RPT_U_PW_R_USED_RANGE} observations); tuning on $|r|$ is the correct specification, and the returns-tuned version is kept as a comparison entry only.
+
+The baselines are ranked with the five generators and the shuffled control in one pool of ${RPT_U_N_ENTRIES} entries per unit and generation draw, on the same metrics; a unit's value is the mean over its ${RPT_U_SPREAD_DRAWS} fresh draws and the overall value the mean over the ${RPT_U_S4_N_UNITS} units. The generators in the pool are these fresh Phase~B draws, not the published recorded ones (which cannot be re-scored: Section~\ref{sec:issues}). S0 uses the AUC columns as published; S4 does not use them.
+
+\begin{table}[htbp]
+\centering
+\caption{The ${RPT_U_N_ENTRIES}-entry ranking: fidelity rank, temporal rank (S0 / S4), composite (S0, S4) and position under S0 / S4. The two bootstraps and the shuffled control are comparison entries; none enters the published composite. The pool of a unit contains the five generators, the control and the two bootstraps specified as baselines (i.i.d.\ and the returns-tuned block bootstrap); $^\dagger$ The $|r|$-tuned block bootstrap is ranked in a second pool in which it replaces the returns-tuned one, so its positions are within that pool; it is compared with each generator in Table~\ref{tab:mid}.}
+\label{tab:tiers}
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+Entry & Fidelity & Temporal & Composite S0 & Composite S4 & Position \\
+\midrule
+${RPT_U_TIER_ROWS}
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Top tier: ${RPT_U_TIER_TOP}} They clear every fair baseline. The best generator, ${RPT_U_BL_BEST_GEN}, is ahead of i.i.d.\ historical simulation by ${RPT_U_IID_MARGIN_S0} composite points under S0 and ${RPT_U_IID_MARGIN_S4} under S4; the 95\,\% bootstrap intervals over units, ${RPT_U_IID_CI_S0} and ${RPT_U_IID_CI_S4}, are ${RPT_U_IID_ALL_EXCL_ZERO} (they also exclude zero when the draws inside each unit are resampled). Both also stay ahead of the block-bootstrap baseline (Table~\ref{tab:mid}).
+
+\paragraph{Middle tier: ${RPT_U_TIER_MIDDLE}} Both are ahead of i.i.d.\ historical simulation but are indistinguishable from the block-bootstrap baseline: ${RPT_U_MID_ALL_CONTAIN_ZERO} under both schemes.
+
+\begin{table}[htbp]
+\centering
+\caption{The middle tier against the block-bootstrap baseline (tuned on $|r|$): composite of the generator minus composite of the baseline (negative: generator ahead) with its 95\,\% bootstrap interval over the ${RPT_U_S4_N_UNITS} units, under S0 and S4, and against i.i.d.\ historical simulation under S4.}
+\label{tab:mid}
+\begin{tabular}{@{}llll@{}}
+\toprule
+Generator & vs block bootstrap, S0 & vs block bootstrap, S4 & vs i.i.d., S4 \\
+\midrule
+${RPT_U_MID_ROWS}
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Bottom tier: ${RPT_U_TIER_BOTTOM}} ${RPT_U_BOTTOM_MODEL} is ${RPT_U_BOTTOM_POSITION} of ${RPT_U_BOTTOM_N}, below i.i.d.\ historical simulation (${RPT_U_IID_POSITION}): against it the margin is ${RPT_U_BOTTOM_VS_IID_S0} under S0 (${RPT_U_BOTTOM_VS_IID_S0_EXCL}) and ${RPT_U_BOTTOM_VS_IID_S4} under S4 (${RPT_U_BOTTOM_VS_IID_S4_EXCL}).
+
+\paragraph{Both baselines are stochastic} Across the ${RPT_U_SPREAD_DRAWS} fresh draws i.i.d.\ historical simulation occupies positions ${RPT_U_SPREAD_IID_POSITIONS} of ${RPT_U_N_ENTRIES} and the returns-tuned block bootstrap ${RPT_U_SPREAD_SB_R_POSITIONS}; in ${RPT_U_SPREAD_IID_AHEAD} and ${RPT_U_SPREAD_SB_R_AHEAD} of the draws respectively is either ahead of every generator.
+
+\paragraph{The shuffled control} If it were allowed to compete it would win: on the published draw under S0 its composite is ${RPT_U_CTRL_COMP} against ${RPT_U_CTRL_BEST_COMP} for ${RPT_U_CTRL_BEST_NAME}, and it is ahead of the best generator in ${RPT_U_CTRL_UNITS_BEATS} of ${RPT_U_S4_N_UNITS} units, with a fidelity rank of ${RPT_U_CTRL_FID_RANK}. The reason is its marginal. The control is the test block's own returns, permuted, so it matches the test marginal exactly: the fidelity family accounts for ${RPT_U_CTRL_FID_SHARE_S0}\,\% (S0) to ${RPT_U_CTRL_FID_SHARE_S4}\,\% (S4) of its composite gap to i.i.d.\ historical simulation, which has no access to the test block. Excluding the control from the ranking is therefore legitimate: its win is the oracle marginal, and a fair no-dynamics baseline does not win.
+
+\paragraph{What this does not show} It does not show that the temporal family penalises missing dynamics: the control's temporal rank, ${RPT_U_CTRL_TEMP_S0} (S0) and ${RPT_U_CTRL_TEMP_S4} (S4), is level with the generators' mean of ${RPT_U_GEN_TEMP_S0} and ${RPT_U_GEN_TEMP_S4}. Which temporal metrics do and do not, and why, is the next subsection.
+
 
 %% ── Figures ──
 \subsection{Stylised facts in the generated series}
@@ -925,26 +1017,129 @@ We keep the headline at ${RPT_PERM_N_INVARIANT} of ${RPT_PERM_N_METRICS} per-mar
 
 The practical recommendation follows: a shuffled control belongs in every evaluation table for synthetic time series, permanently, in the role a positive control plays in a biology experiment. It costs one permutation and it is the only line in the table that cannot be gamed by learning the marginal.
 
-%% ── Walk-forward ──
-\subsection{Walk-forward discriminability}
-\label{sec:walkforward}
+
+\subsection{The temporal metrics on a series with no dynamics}
+\label{sec:temporal-decomp}
+Table~\ref{tab:decomp} ranks the shuffled control and the two bootstraps on each temporal metric among the ${RPT_U_N_ENTRIES} entries, beside the generators' mean rank and the raw values. The question is which metrics fail to penalise a series with no dynamics.
 
 \begin{table}[htbp]
 \centering
-\caption{Discriminative AUC over every walk-forward fold of every evaluation. $|\mathrm{AUC}-0.5|$ is the quantity Track A ranks. $z$ is the distance of the mean AUC from the empirical null mean $\mu_0=0.506$ in units of $\sigma_0=0.084$, the standard deviation of individual null draws (the standard error of the null mean is ${RPT_WF_NULL_SE}); it is a distance, not a test statistic, and no $p$-value is tabulated (see text). The raw AUC is shown although Track A does not rank it, because its optimum is $0.5$, not $0$; nothing in Track B is ranked, so it is read against the null instead.}
-\label{tab:auc}
-\begin{tabular}{@{}lcccr@{}}
+\caption{Mean rank among the ${RPT_U_N_ENTRIES} entries (1: closest to real) of the shuffled control, i.i.d.\ historical simulation and the returns-tuned block bootstrap on each temporal metric, the mean rank of the five generators, and the raw metric values (mean over ${RPT_U_S4_N_UNITS} units and ${RPT_U_SPREAD_DRAWS} draws): control, i.i.d., and the range over the generators.}
+\label{tab:decomp}
+{\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lccccccc@{}}
 \toprule
-Model & AUC (mean $\pm$ sd) & $|\mathrm{AUC}-0.5|$ & $z$ vs null & Folds \\
+Metric & Ctrl & i.i.d. & Block & Gens & Ctrl raw & i.i.d. raw & Gens raw \\
 \midrule
-${RPT_WF_AUC_ROWS}
+${RPT_U_TD_ROWS}
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\paragraph{\texttt{hurst\_diff} penalises missing dynamics strongly} The control ranks ${RPT_U_TD_HURST_CTRL} and i.i.d.\ historical simulation ${RPT_U_TD_HURST_IID}, against ${RPT_U_TD_HURST_GENS} for the four generators other than the one that fails it.
+
+\paragraph{\texttt{acf\_absolute\_mae} penalises it weakly} A flat autocorrelation function costs ${RPT_U_TD_ABS_CTRL} (control) and ${RPT_U_TD_ABS_IID} (i.i.d.); the best generator, ${RPT_U_TD_ABS_BEST_NAME}, scores ${RPT_U_TD_ABS_BEST}. The gap of ${RPT_U_MECH_GAP} is smaller than that generator's own draw-to-draw standard deviation within a unit (${RPT_U_TD_ABS_DRAW_SD_BEST}; GARCH ${RPT_U_TD_ABS_DRAW_SD_GARCH}), so one draw of about five hundred observations cannot resolve it.
+
+\paragraph{\texttt{acf\_returns\_mae} sits at the noise floor for every entry} Real and shuffled autocorrelations of returns are both near zero, so their mean absolute difference is sampling noise: ${RPT_U_TD_RET_CTRL} for the control, with every entry in the range ${RPT_U_TD_RET_ALL}. The metric has no resolution, and it ranks i.i.d.\ historical simulation (${RPT_U_TD_RET_RANK_IID}) ahead of the control (${RPT_U_TD_RET_RANK_CTRL}).
+
+\paragraph{\texttt{acf\_squared\_mae} is won by the control and by i.i.d.\ historical simulation} They score ${RPT_U_TD_SQ_CTRL} and ${RPT_U_TD_SQ_IID}, better than every generator (${RPT_U_TD_SQ_GENS}). A flat autocorrelation function costs the mean magnitude of the real one, and the generators' volatility clustering is wrong by more than that, in different ways. Measured on the autocorrelation of $|r|$ over lags 1--50 (real: lag 1 ${RPT_U_MECH_REAL_LAG1}, lag 50 ${RPT_U_MECH_REAL_LAG50}, mean ${RPT_U_MECH_REAL_MEAN}), QuantGAN over-produces clustering and never lets it decay (lag 50 ${RPT_U_MECH_Q_LAG50}, mean ${RPT_U_MECH_Q_MEAN}); GARCH and GJR-GARCH are too weak at lag 1 (${RPT_U_MECH_GARCH_LAG1} and ${RPT_U_MECH_GJR_LAG1}); TimeGAN is right on average but erratic from draw to draw, worse than the control in ${RPT_U_MECH_T_WORSE_CTRL}\,\% of draws, while QuantGAN beats it in ${RPT_U_MECH_Q_BEATS_CTRL}\,\%. That is a generator flaw the metric correctly detects, not a broken metric; the profile was measured for $|r|$, and the squared-return metric responds to the same errors but was not profiled separately.
+
+\paragraph{\texttt{resid\_kurtosis\_diff} penalises the wrong entry} It penalises i.i.d.\ historical simulation (rank ${RPT_U_TD_RESID_IID}) but not the control (${RPT_U_TD_RESID_CTRL}, better than every generator, ${RPT_U_TD_RESID_GENS}), because the control has the test block's exact marginal: the temporal family is not free of the oracle either.
+
+
+\subsection{Learned-representation metrics: C-FID and MMD on TS2Vec}
+\label{sec:learned}
+The audit was extended to metrics computed on a learned embedding, the setting of the TSGBench benchmark: a TS2Vec encoder trained per market on the training windows, real and synthetic test windows embedded, and a distance between the two clouds.
+
+\paragraph{C-FID is not estimable here} Stride-1 windows share ${RPT_U_LM_WINDOW_SHARED} of ${RPT_U_LM_WINDOW_LEN} observations, so the ${RPT_U_LM_WINDOWS} test windows carry an effective sample of only ${RPT_U_LM_NEFF_RANGE} independent windows (from the autocorrelation of the leading embedding component), and the embedding covariance has a participation ratio of ${RPT_U_LM_PR_RANGE}. A Fr\'echet distance needs the full covariance of the embedding; it is not estimable from that. This is a property of the windowing, not of the encoder, and no C-FID value is reported.
+
+\paragraph{MMD ranks the shuffled control lowest} An unbiased MMD$^2$ with a Gaussian kernel at the median-heuristic bandwidth, against an exhaustive adjacent-sliding null, ranks the shuffled control as the closest of the six series to the real block under all ${RPT_U_LM_N_CFG} encoder configurations (mean MMD$^2$ ${RPT_U_LM_CTRL_MMD}; the next-lowest series ${RPT_U_LM_NEXT_MMD}): the three are the main configuration, a wider embedding, and TSGBench's own literal training recipe. It is the lowest series in ${RPT_U_LM_CTRL_LOWEST_UNITS} units respectively, and it is detected in ${RPT_U_LM_CTRL_DETECT_UNITS} of ${RPT_U_LM_UNITS} units (${RPT_U_LM_CTRL_DETECT_DRAWS}\,\% of its draws reach $p\le0.05$).
+
+\paragraph{Properly calibrated, the test has almost no power} Under the scale-matched null (the kernel bandwidth fixed at the observed one for null and observed alike) the detection rate of the generator that fails most, TimeGAN, falls from ${RPT_U_LM_TG_RATE_MAIN}\,\% to ${RPT_U_LM_TG_RATE_MATCHED}\,\%.
+
+\paragraph{The embedding carries weak ordering information; the failure belongs to the statistic} A logistic-regression probe fitted on validation-block windows separates real from permuted test-block windows at a mean AUC of ${RPT_U_LM_PROBE_EMB} (${RPT_U_LM_PROBE_EMB_RNG} across the ${RPT_U_LM_PROBE_MARKETS} markets), comparable to ${RPT_U_LM_PROBE_ACF} from a probe on three hand-crafted autocorrelation features (${RPT_U_LM_PROBE_ACF_RNG}); ${RPT_U_LM_PROBE_MARKETS} markets cannot support a significance claim in either direction. The hypothesis that the embedding is permutation-invariant by construction was tested and is refuted by that probe. MMD$^2$ between the real block and its permutations, ${RPT_U_LM_PERM_MMD_RNG} on average, lies below the nulls' medians (${RPT_U_LM_NULL_MEDIAN_RNG}), with $p$-values of ${RPT_U_LM_MMD_PERM_P_RNG} and ${RPT_U_LM_MMD_PERM_DRAW_SHARE}\,\% of permuted draws at $p\le0.05$. The statistic, at this effective sample size, does not use the ordering information that is there.
+
+%% ── Walk-forward ──
+\subsection{Discriminability and the corrected null}
+\label{sec:walkforward}
+
+\paragraph{The earlier null was a different experiment} The previous version of this report quoted a null of ${RPT_U_EARLIER_MEAN}\,$\pm$\,${RPT_U_EARLIER_SD} for the discriminative AUC and described it as measured over real-versus-real half-splits. It was not. The figure comes from an earlier experiment on independent stationary samples (${RPT_U_EARLIER_N} seeds, first recorded on ${RPT_U_EARLIER_FIRST}); its script ${RPT_U_EARLIER_SCRIPT}, it is not the output of the pipeline's own estimator, and no version of the pipeline ever ran ${RPT_U_EARLIER_N} draws of it. It does not describe this pipeline's null and is not used as one. The paired figure from the same experiment, the shift of ${RPT_U_EARLIER_MEAN} to ${RPT_U_EARLIER_SHUF} when the folds are shuffled, stays as a prior measurement of that experiment, correctly labelled; it reproduces in direction under this pipeline's estimator on a stationary reference (below), where the shift is larger (${RPT_U_STAT_SHIFT_RNG_WF} at walk-forward length) than the earlier ${RPT_U_EARLIER_SHIFT}.
+
+\paragraph{The corrected null} The calibration is the fixed-length adjacent sliding null: for every start $s$ of a market's full ${RPT_U_NULL_YEARS}-year series, the AUC between the block $[s,s+L)$ and the block $[s+L,s+2L)$, at both evaluation lengths (the fixed-split test length $L$ of ${RPT_U_NULL_L_TA} observations, and the walk-forward test block, ${RPT_U_NULL_L_WF}), enumerated exhaustively, with the metric's own estimator. \emph{Limitation:} the population spans twenty years while the observed comparison is the test period, and the positions overlap almost completely, so the roughly ${RPT_U_NULL_POSITIONS_TA} positions per market at the fixed-split length carry about ${RPT_U_NULL_PAIRS_TA} independent block pairs, and the roughly ${RPT_U_NULL_POSITIONS_WF} at walk-forward length about ${RPT_U_NULL_PAIRS_WF}. Nothing was done to engineer around this, and a null built from test-period blocks alone cannot be formed: at the evaluation length the test block holds no room for two adjacent blocks.
+
+\begin{table}[htbp]
+\centering
+\caption{The corrected AUC null at the fixed-split length, per market: block length $L$, independent block pairs, and, under contiguous (published) and purged cross-validation, the mean, standard deviation, 97.5th percentile and the share of draws below $0.5$. Features are standardised within each training fold.}
+\label{tab:nulls}
+{\footnotesize
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{@{}lrrrrrrrrr@{}}
+\toprule
+ & & & \multicolumn{4}{c}{contiguous} & \multicolumn{3}{c}{purged} \\
+\cmidrule(lr){4-7}\cmidrule(l){8-10}
+Market & $L$ & Pairs & Mean & Sd & p97.5 & $<0.5$ & Mean & p97.5 & $<0.5$ \\
+\midrule
+${RPT_U_NULL_ROWS_TA}
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{The same at the walk-forward length ($L=\lfloor n/(K+1)\rfloor$ with $K=${RPT_N_FOLDS}$ folds).}
+\label{tab:nullswf}
+{\footnotesize
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{@{}lrrrrrrrrr@{}}
+\toprule
+ & & & \multicolumn{4}{c}{contiguous} & \multicolumn{3}{c}{purged} \\
+\cmidrule(lr){4-7}\cmidrule(l){8-10}
+Market & $L$ & Pairs & Mean & Sd & p97.5 & $<0.5$ & Mean & p97.5 & $<0.5$ \\
+\midrule
+${RPT_U_NULL_ROWS_WF}
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\paragraph{The per-market nulls sit well above $0.5$} Their means are ${RPT_U_NULL_MEAN_RNG_TA} at the fixed-split length and ${RPT_U_NULL_MEAN_RNG_WF} at walk-forward length (${RPT_U_NULL_MEAN_RNG_PURGED_TA} and ${RPT_U_NULL_MEAN_RNG_PURGED_WF} under purged folds), with standard deviations of ${RPT_U_NULL_SD_RNG_TA} and 97.5th percentiles of ${RPT_U_NULL_P975_RNG_TA} at the fixed-split length; the share of draws below $0.5$ is ${RPT_U_NULL_BELOW_RNG_TA}\,\%, depending on the market. An AUC of $0.6$ is therefore unremarkable for real-versus-real data. (The pipeline's earlier half-split null, ${RPT_U_HALFSPLIT_B} half-splits of the test block, gave means of ${RPT_U_HALFSPLIT_MEAN_RNG}; it is kept in the artifacts and is not used here.)
+
+\paragraph{Even under ideal conditions the null is not $0.5$} Independent paths of one stationary GARCH-$t$ process, fitted per market and scored with the same estimator (${RPT_U_STAT_PAIRS} pairs per length; Table~\ref{tab:stat}), give null means of ${RPT_U_STAT_MEAN_RNG_WF} at walk-forward length and ${RPT_U_STAT_MEAN_RNG_TA} at the fixed-split length, standard deviations of ${RPT_U_STAT_SD_RNG_WF}, and 97.5th percentiles of ${RPT_U_STAT_P975_RNG_WF}. The market with the least persistent fit, ${RPT_U_STAT_LOW_MARKET} (persistence ${RPT_U_STAT_LOW_PERSIST}), gives mean ${RPT_U_STAT_LOW_MEAN}, standard deviation ${RPT_U_STAT_LOW_SD} and 97.5th percentile ${RPT_U_STAT_LOW_P975}. Shuffled folds raise the reference null's mean by ${RPT_U_STAT_SHIFT_RNG_WF} at walk-forward length (${RPT_U_STAT_SHIFT_RNG_TA} at the fixed-split length) --- the leak through overlapping windows --- while purged folds leave it at ${RPT_U_STAT_PURGED_RNG_WF}.
+
+\begin{table}[htbp]
+\centering
+\caption{Stationary GARCH-$t$ reference null at walk-forward length, per market: persistence of the fit, contiguous mean, standard deviation and 97.5th percentile, and the purged and shuffled-fold means. Shuffled folds are a diagnostic only.}
+\label{tab:stat}
+{\footnotesize
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+Market & Persistence & Mean & Sd & p97.5 & Purged & Shuffled \\
+\midrule
+${RPT_U_STAT_ROWS_WF}
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\paragraph{Under contiguous folds, drift makes the classifier measure regime change} With the folds cut in time and the volatility level drifting, a classifier fitted on the training chunks meets a test chunk from a different regime, and its AUC can fall below $0.5$. Purged and embargoed folds (Section~\ref{sec:purged}) remove the leakage through overlapping windows without shuffling, and the result shows the drift is real rather than leakage. For NIFTY50, the draws of the fixed-split null whose contiguous AUC is below $0.5$ (${RPT_U_NIF_N} of ${RPT_U_NIF_OF}, ${RPT_U_NIF_SHARE}\,\%) average ${RPT_U_NIF_C} under contiguous folds and ${RPT_U_NIF_P} under purged folds, against ${RPT_U_NIF_S} under shuffled folds (before the scaler fix: ${RPT_U_NIF_C_PRE}, ${RPT_U_NIF_P_PRE} and ${RPT_U_NIF_S_PRE}). Only ${RPT_U_NIF_P_ABOVE}\,\% of them cross $0.5$ under purged folds, against ${RPT_U_NIF_S_ABOVE}\,\% under shuffled folds; the share of the whole null below $0.5$ goes from ${RPT_U_NIF_NULL_BELOW_C}\,\% to ${RPT_U_NIF_NULL_BELOW_P}\,\% when the folds are purged. The shuffled value is what leakage produces, not what a corrected estimator recovers. The same drift sets the shuffled control's AUC, which runs ${RPT_U_CTRL_AUC_C} across the ${RPT_U_CTRL_AUC_N} markets under contiguous folds and ${RPT_U_CTRL_AUC_P} under purged folds: a series with no dynamics, which a working discriminator would put far above the null, lands below it in ${RPT_U_CTRL_BELOW_N} of the ${RPT_U_CTRL_AUC_N} markets.
+
+\paragraph{No cell clears a calibrated threshold on fresh draws; on the published draw one clears the 97.5th percentile} Against the corrected null at the fixed-split length, with each market--model cell the mean over three seeds and twenty fresh generation draws, ${RPT_U_CELLSF_P975} of ${RPT_U_CELLS_N} cells lie above the 97.5th percentile and ${RPT_U_CELLSF_196} above the mean plus 1.96 standard deviations (${RPT_U_CELLSFP_P975} and ${RPT_U_CELLSFP_196} under purged folds). On the published draw, with the cell the mean over the three seeds' single recorded draws, ${RPT_U_CELLSP_P975} of ${RPT_U_CELLSP_N} lies above the 97.5th percentile --- ${RPT_U_CELLSP_MODEL} in ${RPT_U_CELLSP_MARKET}, ${RPT_U_CELLSP_AUC} against ${RPT_U_CELLSP_THR} --- and ${RPT_U_CELLSP_196} above the mean plus 1.96 standard deviations. The published-draw values are the ones computed before the scaler fix (Section~\ref{sec:scaler}), which moves aggregate AUCs by at most ${RPT_U_FIX_MEAN_SHIFT}.
+
+\begin{table}[htbp]
+\centering
+\caption{Discriminative AUC over every walk-forward fold of every evaluation, against the corrected walk-forward null of each market. $z$ is the mean over markets of the distance of the model's market-mean AUC from that market's null mean, in null standard deviations: a distance, not a test statistic. The last columns count market--model cells (of ${RPT_U_NULL_N_MARKETS} markets) above the null's 97.5th percentile and above its mean plus 1.96 standard deviations. \textbf{These AUCs were computed before the scaler fix and cannot be refreshed: the ${RPT_U_WF_FOLD_MODELS} fold models were never saved.} The raw AUC is shown although no metric ranks it; its optimum is $0.5$, not $0$.}
+\label{tab:auc}
+\begin{tabular}{@{}lcccccr@{}}
+\toprule
+Model & AUC (mean $\pm$ sd) & $|\mathrm{AUC}-0.5|$ & $z$ vs null & $>$ p97.5 & $>$ mean+1.96 sd & Folds \\
+\midrule
+${RPT_U_WFAUC_ROWS}
 \bottomrule
 \end{tabular}
 \end{table}
 
 \begin{table}[htbp]
 \centering
-\caption{Mean discriminative AUC by walk-forward fold, over all models and markets. Every fold starts at the same point, so the training window and the calendar period it covers grow together: fold ${RPT_FOLD_FIRST_FOLD} covers ${RPT_CAL_START_YEAR} to ${RPT_CAL_FIRST_END} and fold ${RPT_FOLD_LAST_FOLD} covers ${RPT_CAL_START_YEAR} to ${RPT_CAL_LAST_END}, so length and period are confounded.}
+\caption{Mean discriminative AUC by walk-forward fold, over all models and markets (values computed before the scaler fix). Every fold starts at the same point, so the training window and the calendar period it covers grow together: fold ${RPT_FOLD_FIRST_FOLD} covers ${RPT_CAL_START_YEAR} to ${RPT_CAL_FIRST_END} and fold ${RPT_FOLD_LAST_FOLD} covers ${RPT_CAL_START_YEAR} to ${RPT_CAL_LAST_END}, so length and period are confounded.}
 \label{tab:folds}
 \begin{tabular}{@{}lccc@{}}
 \toprule
@@ -957,13 +1152,9 @@ ${RPT_FOLD_EFFECT_ROWS}
 
 \paragraph{What they show} Tables~\ref{tab:auc} and~\ref{tab:folds} show whether a classifier can tell each model's output from real data out of sample, and how that changes as the training window grows.
 
-\paragraph{How they are computed} In each of the ${RPT_N_FOLDS} walk-forward folds (Section~\ref{sec:pipeline}) a freshly trained model generates a series the length of the fold's test block. A logistic regression then tries to separate real from synthetic 20-day windows described by their mean, standard deviation, mean absolute return and mean squared return, scored by five-fold cross-validation without shuffling. An AUC of 0.5 means the two are indistinguishable.
+\paragraph{How they are computed} In each of the ${RPT_N_FOLDS} walk-forward folds (Section~\ref{sec:pipeline}) a freshly trained model generates a series the length of the fold's test block. A logistic regression then tries to separate real from synthetic ${RPT_U_AUC_WINDOW}-day windows described by their mean, standard deviation, mean absolute return and mean squared return, scored by ${RPT_U_AUC_N_SPLITS}-fold cross-validation without shuffling. An AUC of $0.5$ means the two are indistinguishable, but the null is not $0.5$ (above).
 
-\paragraph{Why this measure} A classifier-based discriminative score is the indistinguishability test of TimeGAN\tcite{4}, adopted by CTBench\tcite{16}. Walk-forward evaluation keeps test data strictly after training data, as time-series evaluation requires (Tashman\tcite{13}; Bergmeir \& Ben\'{\i}tez\tcite{14}); this is the AUC quoted in the Highlights and throughout the text, not the fixed-split \texttt{discriminative\_auc\_dist} of Table~\ref{tab:metrics}. The null is not exactly 0.5: over $B=${RPT_WF_NULL_B}$ real-versus-real half-splits it was $\mu_0=0.506$ with $\sigma_0=0.084$, a prior measurement. $\sigma_0$ is the standard deviation of individual null draws, not the standard error of the null mean ($\sigma_0/\sqrt{B}=${RPT_WF_NULL_SE}$). Each AUC is read as a distance from that null in units of $\sigma_0$.
-
-\paragraph{What this result tells us} \emph{Significance.} ${RPT_WF_Z_N_ABOVE} of ${RPT_WF_Z_N_MODELS} fold-averaged AUCs lie above the null mean; Table~\ref{tab:auc} reports each as a distance from the null mean in units of $\sigma_0$ (the $z$ column), not as a test at a fixed level. Whether an AUC is unusually high for real data is a Monte Carlo question: against $B$ null draws the $p$-value of an observed AUC $a$ is
-\[ p=\frac{1+\#\{\text{null}\ge a\}}{B+1}. \]
-With $B=${RPT_WF_NULL_B}$ its smallest attainable value is $1/${RPT_WF_NULL_B1}=${RPT_WF_P_FLOOR}$, so \emph{no result reaches the 5\,\% level}, however far above the null it lies. The individual null draws were not kept in this run's artifacts, so no per-model $p$-value is tabulated; the floor holds whatever they were. The draws are also not independent: they are half-splits of the same realized series, so the null describes variability conditional on this path, not across independent market histories. A normal-theory threshold such as $z>1.96$ is not used, because it would claim a significance the null cannot support. On multiple comparisons: five models each tested at 5\,\% give ${RPT_WF_EXP_FALSE} expected false flags, and a Bonferroni correction would use $z=${RPT_WF_BONF_Z}$, an AUC threshold of $\mu_0+${RPT_WF_BONF_Z}\,\sigma_0=${RPT_WF_BONF_THR}$ (normal approximation).
+\paragraph{What this result tells us} \emph{Significance.} ${RPT_U_WF_N_MODELS_ABOVE_NULL_MEAN} of ${RPT_U_WF_N_MODELS} models have a pooled AUC above their markets' null means, as they would if any generator were slightly distinguishable, but ${RPT_U_WF_CELLS_P975} of ${RPT_U_WF_CELLS_N} market--model cells lies above the null's 97.5th percentile (${RPT_U_WF_HIT_MODEL} in ${RPT_U_WF_HIT_MARKET}, ${RPT_U_WF_HIT_AUC} against ${RPT_U_WF_HIT_THR}) and ${RPT_U_WF_CELLS_196} above the mean plus 1.96 standard deviations. No $p$-value is tabulated: the null has ${RPT_U_NULL_POSITIONS_WF} positions but about ${RPT_U_NULL_PAIRS_WF} independent block pairs, so the resolution the data support is set by the latter, and an interval or threshold is a fair summary while a small $p$-value would not be. That the AUC of a generator lies above the real-versus-real null is unremarkable, because the null is itself high.
 
 \emph{Trend and its confound.} AUC falls as the training window grows, from ${RPT_FOLD_FIRST_AUC} at fold ${RPT_FOLD_FIRST_FOLD} (training on ${RPT_FOLD_FIRST_LEN} observations) to ${RPT_FOLD_LAST_AUC} at fold ${RPT_FOLD_LAST_FOLD} (${RPT_FOLD_LAST_LEN}), but that is an aggregate over models, markets and seeds, and the decline is ${RPT_FOLD_MONOTONIC}: fold(s) ${RPT_FOLD_RISE_FOLDS} rise above the fold before. Below the aggregate it is no more monotone: of the ${RPT_FOLD_N_SERIES} individual (model, market, seed) series, ${RPT_FOLD_N_SERIES_MONO} fall at every step, and of the ${RPT_FOLD_N_MODEL_CURVES} models' fold-mean curves, ${RPT_FOLD_N_MODELS_MONO} do. Every fold starts at the same point, so training length and historical period grow together: fold ${RPT_FOLD_FIRST_FOLD} covers ${RPT_CAL_START_YEAR} to ${RPT_CAL_FIRST_END} and fold ${RPT_FOLD_LAST_FOLD} covers ${RPT_CAL_START_YEAR} to ${RPT_CAL_LAST_END} (the ends differ by market), so this design cannot separate ``more training data helps'' from ``the later period is easier to imitate''.
 
@@ -1057,7 +1248,7 @@ Stated before a referee states it. \texttt{resid\_kurtosis\_diff} fits a GARCH(1
 
 This is not fatal, and the reason is what the metric asks. It does not ask ``does a GARCH fit this series'' --- that would be circular outright. It asks whether the tails remain heavy \emph{after} GARCH has removed what it can explain, which is Cont's stylized fact 7\tcite{7} and a property a GARCH-$t$ generator can fail. The measured values bear this out: the econometric models score ${RPT_RESID_ECON_VALUES}, against ${RPT_RESID_GAN_RANGE} for the GANs and ${RPT_RESID_CONTROL} for the shuffled control --- ${RPT_RESID_VS_CONTROL}.
 
-It remains an advantage of degree, and it is one reason \texttt{composite\_rank} is reported alongside its two components rather than alone --- \texttt{resid\_kurtosis\_diff} is one of seven temporal metrics, and the temporal result does not rest on it. Gaussian QMLE is used for the fit rather than Student-$t$ precisely to avoid the stronger circularity: a $t$ specification absorbs the excess kurtosis by construction and makes the test uninformative for every model.
+It remains an advantage of degree, and it is one reason \texttt{composite\_rank} is reported alongside its two components rather than alone --- \texttt{resid\_kurtosis\_diff} is one of ${RPT_U_W_TEMP} temporal metrics, and the temporal result does not rest on it. Gaussian QMLE is used for the fit rather than Student-$t$ precisely to avoid the stronger circularity: a $t$ specification absorbs the excess kurtosis by construction and makes the test uninformative for every model.
 
 \subsection{What the budget choice cost}
 \label{sec:budget}
@@ -1082,10 +1273,10 @@ This is not a seeding bug. Loss traces agree to four significant figures at epoc
 \section{Discussion}
 \label{sec:discussion}
 
-\subsection{A small model ranks first, and why that is the interesting part}
+\subsection{A small model is at the top, and this benchmark cannot tell it from a large one}
 The result is not that deep generative models fail. ${RPT_FIDELITY_LEADER} leads the field on \texttt{fidelity\_rank} and the gradient family takes ${RPT_WIN_FIDELITY_GRAD} of ${RPT_WIN_N_CELLS} fidelity wins; these models reproduce the marginal distribution of BRICS returns well, including tails that defeat a Gaussian by orders of magnitude.
 
-The result is that reproducing the marginal is not the hard part, and it is not the part that transfers. On \texttt{temporal\_rank} --- volatility clustering, long memory, conditional heavy tails, indistinguishability --- the econometric family takes ${RPT_WIN_TEMPORAL_ECON} of ${RPT_WIN_N_CELLS}, and ${RPT_COMPUTE_BEST_MODEL} finishes first overall on the equal-weighted composite. The per-cell composite count goes the other way (gradient ${RPT_WIN_COMPOSITE_GRAD} of ${RPT_WIN_N_CELLS}), and ${RPT_COMPUTE_RUNNERUP_MODEL} trails by only ${RPT_COMPUTE_GAP_RUNNERUP}: the econometric edge is in the mean rank and in the dynamics, not a sweep.
+The result is that reproducing the marginal is not the hard part, and it is not the part that transfers. On \texttt{temporal\_rank} --- volatility clustering, long memory, conditional heavy tails, indistinguishability --- the econometric family takes ${RPT_WIN_TEMPORAL_ECON} of ${RPT_WIN_N_CELLS}, and ${RPT_COMPUTE_BEST_MODEL} has the lowest mean composite. The per-cell composite count goes the other way (gradient ${RPT_WIN_COMPOSITE_GRAD} of ${RPT_WIN_N_CELLS}), and ${RPT_COMPUTE_RUNNERUP_MODEL} trails by only ${RPT_COMPUTE_GAP_RUNNERUP}, a margin whose 95\,\% bootstrap interval is ${RPT_U_S4_CI} (Section~\ref{sec:ranking}): the two are statistically indistinguishable, so the claim this report can support is that a ${RPT_U_S4_FIRST_PARAMS}-parameter model fitted in about ${RPT_U_S4_FIRST_SECONDS}\,s is as good as a ${RPT_U_S4_SECOND_PARAMS}-parameter one, and that both clear every fair baseline (Section~\ref{sec:tiers}); not that the small one wins.
 
 Two readings are available and the data does not settle between them. Either the GAN architectures have not been given enough budget, capacity or tuning to reach their potential here --- no hyperparameter search was run, and the budget-sensitivity result shows the budget matters --- or conditional heteroskedasticity with a leverage term is simply a very good model of daily equity returns, and a general-purpose sequence generator learning it from scratch on $\approx$4{,}000 observations per market is at a structural disadvantage. Both are consistent with what we measured. What is not consistent with what we measured is a benchmark that omits the parametric baseline and reports the best GAN as the state of the art.
 
@@ -1098,19 +1289,36 @@ It establishes two things. First, ${RPT_PERM_N_INVARIANT} of ${RPT_PERM_N_METRIC
 
 Second, and less comfortably: on the ordering-sensitive metrics the control still outperforms genuine GAN generators. That is not a metric failure. It is a measurement of the generators, made possible only because a control was present to make it against.
 
+The audit also has limits, and the fair baselines show where. A control that is the test block's own returns wins the composite because of its marginal, not because the temporal family fails (Section~\ref{sec:tiers}); but the temporal family on its own ranks a series with no dynamics level with the generators' mean, because only one of its ${RPT_U_W_TEMP} metrics penalises the absence of dynamics strongly (Section~\ref{sec:temporal-decomp}). Metrics computed on a learned embedding did not help: the statistic at this sample size does not use the ordering information the embedding carries (Section~\ref{sec:learned}).
+
 The general form of the caveat is the part we would ask others to adopt. \textbf{Whether a metric discriminates is a joint property of the metric and the model set.} The same statistic separates GARCH from a shuffled deck and fails to separate three GANs from it, in one run, on one dataset. Reporting a suite's discriminating power without naming the models it was measured against overstates it.
 
 \subsection{Research directions}
 \label{sec:directions}
 Four questions follow directly from the results above. Each is stated with the measurement it would take to answer it.
 
-\paragraph{A metric suite validated against adversarial controls by construction} The shuffled control audits one failure: blindness to ordering. It was added after the fact, and it found that ${RPT_PERM_N_INVARIANT} of ${RPT_PERM_N_METRICS} per-market metrics fail it. The direction is to reverse that order and admit a metric to the ranked suite only after it has been shown to separate the real series from a fixed battery of controls, each of which destroys exactly one property: a random permutation (destroys all dependence), a stationary block bootstrap (keeps short-range dependence, destroys long memory), phase-randomised surrogates that keep the linear autocorrelation and destroy nonlinear dependence such as volatility clustering (Theiler et al.\tcite{45}), and a GARCH-filtered residual shuffle (keeps conditional variance, destroys conditional tails). For each metric and control the quantity to report is the separation at the pooled test length, $n\approx2{,}480$, against its real-versus-real null. The output would be a table stating, for each metric, which properties it can detect --- the permutation-invariance count generalised to every property the fidelity and temporal families claim to measure.
+\paragraph{A metric suite validated against adversarial controls by construction} The shuffled control audits one failure: blindness to ordering. It was added after the fact, and it found that ${RPT_PERM_N_INVARIANT} of ${RPT_PERM_N_METRICS} per-market metrics fail it. The direction is to reverse that order and admit a metric to the ranked suite only after it has been shown to separate the real series from a fixed battery of controls, each of which destroys exactly one property: a random permutation (destroys all dependence), a stationary block bootstrap (keeps short-range dependence, destroys long memory; a first version, used as a fair baseline rather than a control, is in Section~\ref{sec:tiers}), phase-randomised surrogates that keep the linear autocorrelation and destroy nonlinear dependence such as volatility clustering (Theiler et al.\tcite{45}), and a GARCH-filtered residual shuffle (keeps conditional variance, destroys conditional tails). For each metric and control the quantity to report is the separation at the pooled test length, $n\approx2{,}480$, against its real-versus-real null. The output would be a table stating, for each metric, which properties it can detect --- the permutation-invariance count generalised to every property the fidelity and temporal families claim to measure.
 
 \paragraph{Budget dependence of the ranking} Among the gradient-trained models the ordering at a smoke-test budget of 1{,}000 generator updates was reversed at ${RPT_PROV_GEN_UPDATES} (Section~\ref{sec:budget}). Two budgets cannot say whether the ranking converges, keeps changing, or reverses again. The experiment is a budget sweep at fixed seeds --- for example 1{,}000, 2{,}000, 4{,}000, 9{,}000 and 18{,}000 generator updates --- reporting each model's composite rank as a function of budget together with its across-seed spread. The question it answers is whether a single-budget benchmark in this literature is reporting a ranking or a point on a curve. The run-to-run nondeterminism of QuantGAN (Section~\ref{sec:nondeterminism}) sets how many seeds each point needs.
 
 \paragraph{Conditional generation under regimes} Every model here is unconditional: it generates returns without being told whether the market is calm or in crisis, and the crisis episodes in twenty years are few. A regime-conditional generator would take a label --- for instance the tercile of trailing 20-day realised volatility --- and would be scored within each regime, with the same metrics computed separately on the calm and turbulent days of the real test series. The GARCH baselines have a natural conditional counterpart: filter the variance up to the conditioning date, then simulate forward. The test is whether a network conditioned on regime closes the temporal-rank gap to the econometric models, which carry the conditioning implicitly in $\sigma_t^2$. The MOEX suspension of 2022 is a candidate held-out regime.
 
-\paragraph{Whether the six-parameter win holds across asset classes} GJR-GARCH's leverage term encodes the gain--loss asymmetry of equity indices\tcite{40}. The same pipeline run unchanged on asset classes where that structure is weaker or different --- major currency pairs, where the leverage effect is small; commodity futures, with jumps and seasonality; and government bond yields, with regime-dependent volatility --- would show whether the econometric result is a property of the model class or of equity returns. The pipeline needs no change beyond the data files; what it would measure is the composite rank and the temporal rank of each family, asset class by asset class.
+\paragraph{Whether the econometric result holds across asset classes} The leverage term of GJR-GARCH encodes the gain--loss asymmetry of equity indices\tcite{40}. The same pipeline run unchanged on asset classes where that structure is weaker or different --- major currency pairs, where the leverage effect is small; commodity futures, with jumps and seasonality; and government bond yields, with regime-dependent volatility --- would show whether the econometric result is a property of the model class or of equity returns. The pipeline needs no change beyond the data files; what it would measure is the composite rank and the temporal rank of each family, asset class by asset class.
+
+%% ─── Known issues ────────────────────────────────────────────────────────────
+\section{Known issues and what is not resolved}
+\label{sec:issues}
+\begin{tcolorbox}[sharp corners,boxrule=0.5pt,colframe=Rule,colback=white,left=8pt,right=8pt,top=6pt,bottom=6pt]
+This section lists what is not resolved, so that co-authors know before citing a number from this report.
+\end{tcolorbox}
+\begin{enumerate}[leftmargin=1.6em,itemsep=6pt]
+\item \textbf{Downstream utility and the metrics use different generation draws for the GANs.} For ${RPT_U_DSM_N_GANS} of the generators (${RPT_U_DSM_GANS}) the series saved for the downstream backtest is a second call of \texttt{generate()}, not the series their metrics were computed on: ${RPT_U_DSM_GAN_AGREE} of ${RPT_U_DSM_N} market--seed units agree for each of them, against ${RPT_U_DSM_EXACT_N} of ${RPT_U_DSM_N} for ${RPT_U_DSM_EXACT}, which re-seed on every call. Fidelity and VaR/QLIKE therefore describe different samples for the GANs. The published values are unchanged. The correction for the next production run is to feed the metrics draw to the downstream backtest; that change is not yet in the code.
+\item \textbf{The walk-forward discriminative AUC predates the scaler fix and cannot be refreshed} without retraining the ${RPT_U_WF_FOLD_MODELS} fold models (${RPT_U_WF_FILES} model--market--seed files of ${RPT_U_WF_FOLDS} folds each), whose weights were never saved. The fix moved aggregate AUCs (null means and standard deviations) by at most ${RPT_U_FIX_MEAN_SHIFT}, so the conclusions of Section~\ref{sec:walkforward} are expected to hold, but the values in Tables~\ref{tab:auc} and~\ref{tab:folds} are pre-fix.
+\item \textbf{The published discriminative AUC of QuantGAN and CNN-WGAN-GP cannot be reproduced under the fix,} because their CUDA random-number state was not saved. The published series of ${RPT_U_REPRO_MODELS} and of the control can be recomputed (to within ${RPT_U_REPRO_MAX} for the pre-fix value), so the published AUC columns cannot be updated consistently across all five models; they are flagged as pre-fix in every metrics file. Under S4 this does not touch the composite. For the same reason the recorded GAN series behind the published metrics were never stored, so the scenario matrix and the baseline comparison score fresh generation draws of the generators, not the published ones.
+\item \textbf{Diffusion and language-model generators have not been run.} The roster is three GANs and two econometric baselines.
+\item \textbf{The benchmark is univariate.} The ${RPT_U_N_MARKETS} markets are evaluated independently; cross-market dependence is not tested, and per-market training rules it out by design (Section~\ref{sec:decisions}).
+\item \textbf{Some paragraphs written before this version still carry figures typed from earlier measurements} (the ARCH-LM accuracy, the QLIKE small-sample check, the budget-parity timings, the min-max comparison). They are marked as prior measurements where used and are not read from this run's artifacts.
+\end{enumerate}
 
 %% ─── Limitations ─────────────────────────────────────────────────────────────
 \section{Limitations}
@@ -1119,7 +1327,7 @@ Four questions follow directly from the results above. Each is stated with the m
 
 \textbf{One budget, partially characterised.} See Section~\ref{sec:budget}: the winner among the GANs changes between a smoke-test budget and ${RPT_PROV_GEN_UPDATES} updates. Two points do not characterise a curve.
 
-\textbf{No diffusion baseline.} Takahashi \& Mizuno (2025)\tcite{29} report diffusion-based generators outperforming GANs on several stylized-fact metrics. This benchmark does not include one. Reviewers will ask; the answer is not yet.
+\textbf{No diffusion or language-model generator.} Takahashi \& Mizuno (2025)\tcite{29} report diffusion-based generators outperforming GANs on several stylized-fact metrics. This benchmark does not include one, nor a language-model arm. Reviewers will ask; the answer is not yet.
 
 \textbf{Fold confound unseparated.} Fold index, training length and historical period advance together (Table~\ref{tab:folds}).
 
@@ -1137,7 +1345,7 @@ ${RPT_DS_LIMITATION}
 
 \paragraph{The ACF annotation window differs from the ranked metric} The mean absolute errors annotated in Figure~\ref{fig:acf} average lags 1--20; the ranked metrics average lags 1--50 (Section~\ref{sec:acf}). Which was intended is a question about the metric definition and has not been changed.
 
-\paragraph{Some evidence is prior measurement} The empirical AUC null, the repeated-run nondeterminism figures, the smoke-budget ranking and the Monte Carlo accuracy of the ARCH-LM variants were measured before this run and are recorded in the repository's documentation, not in this run's artifacts. They are marked as prior where they are used.
+\paragraph{Some evidence is prior measurement} The repeated-run nondeterminism figures, the smoke-budget ranking and the Monte Carlo accuracy of the ARCH-LM variants were measured before this run and are recorded in the repository's documentation, not in this run's artifacts. They are marked as prior where they are used. The AUC null is no longer among them: it is computed from this run's artifacts (Section~\ref{sec:walkforward}), and the earlier ${RPT_U_EARLIER_MEAN}\,$\pm$\,${RPT_U_EARLIER_SD} figure appears only as a labelled quotation of a different experiment.
 
 \paragraph{The guard log is not tracked} The mode-collapse count is read from the run log in the reports directory. The run's data artifacts are version-controlled; that log is not written alongside them.
 
@@ -1149,9 +1357,10 @@ In order of the value of the information each would add:
 \item \textbf{Budget curve.} Evaluate every gradient-trained model at several budgets and report rank against budget (Section~\ref{sec:directions}). The observed reversal makes this the most informative next run, ahead of adding models.
 \item \textbf{Hyperparameter search.} Random search\tcite{12} of 20--30 candidates per architecture, scored on composite rank, with the best candidate retrained at the full budget. This tests directly whether the generators' temporal deficit is architectural or a matter of configuration.
 \item \textbf{Fixed-length rolling folds.} Walk-forward folds of equal training length on a rolling window, to separate training length from historical period (Section~\ref{sec:walkforward}).
-\item \textbf{Adversarial-control battery.} Add the block-bootstrap, phase-randomised and residual-shuffle controls beside the permutation control and report each metric's separation from each.
+\item \textbf{Adversarial-control battery.} Add the phase-randomised and residual-shuffle controls beside the permutation control and the two fair bootstraps (Section~\ref{sec:tiers}), and report each metric's separation from each.
+\item \textbf{Close the known issues} (Section~\ref{sec:issues}): store the metrics draw and feed it to the downstream backtest, and retrain the walk-forward fold models with the fixed scaler and with their weights saved.
 \item \textbf{Record sampling cost and resolve the ACF window.} Time generation alongside training; decide whether the ACF metrics average lags 1--20 or 1--50, and align figure and metric.
-\item \textbf{A diffusion baseline}\tcite{29}, scored by the same pipeline, since diffusion generators are reported to outperform GANs on several stylised-fact metrics and this benchmark has none.
+\item \textbf{A diffusion baseline}\tcite{29} and a language-model arm, scored by the same pipeline, since diffusion generators are reported to outperform GANs on several stylised-fact metrics and this benchmark has none.
 \end{enumerate}
 %% ─── References ──────────────────────────────────────────────────────────────
 \clearpage
@@ -1311,7 +1520,7 @@ In order of the value of the information each would add:
 \item[QLIKE] A loss function for variance forecasts, $\frac1n\sum_t(\log\sigma_t^2+r_t^2/\sigma_t^2)$. It ranks forecasts consistently even though the squared return is only a noisy proxy for the true variance (Patton\tcite{37}). Lower is better; it can be negative.
 \item[Kupiec and Christoffersen tests] Backtests of a value-at-risk model. The Kupiec test\tcite{34} checks whether violations --- days the loss exceeds the VaR --- occur at the nominal rate; the Christoffersen test\tcite{35} checks whether they are independent rather than clustered. Both are likelihood-ratio tests; a small $p$-value rejects the model.
 \item[Walk-forward validation] Evaluation of a time-series model on test blocks that always follow its training data in time, retraining as the training window moves forward\tcite{13}. It avoids the leakage random cross-validation causes when observations are serially dependent\tcite{14}.
-\item[Discriminative AUC] The area under the ROC curve of a classifier trained to tell real from synthetic windows\tcite{4}. 0.5 means the classifier cannot separate them; 1.0 means it separates them perfectly. The ranked quantity is the distance from 0.5.
+\item[Discriminative AUC] The area under the ROC curve of a classifier trained to tell real from synthetic windows\tcite{4}. 0.5 means the classifier cannot separate them; 1.0 means it separates them perfectly. It is reported but not ranked: the null is not $0.5$ (Section~\ref{sec:walkforward}), and the two columns that were ranked until S4 have no working reference (Section~\ref{sec:s4}).
 \item[Permutation invariance] A metric is permutation-invariant if its value does not change when the observations are put in a different order. Every metric defined on the marginal distribution alone is permutation-invariant, so it scores a shuffled copy of the real data as a perfect match. ${RPT_PERM_N_INVARIANT} of the ${RPT_PERM_N_METRICS} per-market metrics are; seven of them are ranked.
 \item[Mode collapse] A failure of GAN training in which the generator produces a narrow range of outputs --- in this setting, a near-constant or smooth path rather than a return series --- because that output fools the discriminator well enough.
 \item[Gradient penalty] The term $\lambda\,\E[(\|\nabla_{\hat x}D(\hat x)\|_2-1)^2]$ added to the critic loss of a Wasserstein GAN, evaluated at random interpolations between real and generated samples. It keeps the critic approximately 1-Lipschitz, as the Wasserstein objective requires (Gulrajani et al.\tcite{3}). Here $\lambda=10$.
@@ -1330,7 +1539,7 @@ Table~\ref{tab:fixes} records the defects found in the pipeline that changed, or
 {\footnotesize
 \setlength{\tabcolsep}{4pt}
 \begin{xltabular}{\linewidth}{@{}>{\raggedright\arraybackslash}p{3.0cm} >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}p{3.3cm} >{\raggedright\arraybackslash}p{2.6cm}@{}}
-\caption{Significant fixes. Every change to data handling, training or evaluation below was made before the run reported here; the report's numbers are from the corrected pipeline.}\label{tab:fixes}\\
+\caption{Significant fixes. Every change to data handling, training or evaluation below was made before the run reported here, except the one marked \emph{after the run}, which affects only the descriptive AUC values (Section~\ref{sec:scaler}).}\label{tab:fixes}\\
 \toprule
 \bfseries Defect & \bfseries What was wrong, and its effect & \bfseries Resolution & \bfseries Evidence \\
 \midrule
@@ -1362,10 +1571,20 @@ Warnings silenced &
 A second filter re-enables \texttt{UserWarning} from the notebook's own code; a regression check fails if it is removed. &
 Prior: notebook cell~0; \texttt{verify\_notebook.py} check r17. \\
 \addlinespace
-Discriminative AUC direction &
-Ranking ascending on raw AUC put an anti-predictive classifier (0.30) above an indistinguishable one (0.50). &
-Ranked on $|\mathrm{AUC}-0.5|$, with a $z$-score against the empirical null. &
-Prior: repository documentation. \\
+Discriminative AUC direction and calibration &
+Ranking ascending on raw AUC put an anti-predictive classifier (0.30) above an indistinguishable one (0.50); the replacement ranks assumed a null of $0.5$ or a null of ${RPT_U_EARLIER_MEAN}\,$\pm$\,${RPT_U_EARLIER_SD} that came from a different experiment (next rows). &
+Ranked on $|\mathrm{AUC}-0.5|$ and a $z$-score, then, at S4, not ranked (Section~\ref{sec:s4}). &
+Prior: repository documentation. Computed: corrected null (Section~\ref{sec:walkforward}). \\
+\addlinespace
+AUC null quoted from another experiment &
+The null ${RPT_U_EARLIER_MEAN}\,$\pm$\,${RPT_U_EARLIER_SD} was described as ${RPT_U_EARLIER_N} real-versus-real half-splits; it came from an experiment on independent stationary samples whose script ${RPT_U_EARLIER_SCRIPT}. The pipeline's own null is ${RPT_U_NULL_MEAN_RNG_TA} at the fixed-split length. &
+Relabelled; the null regenerated as the fixed-length adjacent sliding null at both lengths, with a stationary GARCH-$t$ reference (Section~\ref{sec:walkforward}). &
+Computed: \texttt{auc\_null.json}, stationary reference. \\
+\addlinespace
+Scaler fitted before the folds were cut (\emph{after the run}) &
+The discriminative metric standardised its features on all rows before cross-validation, so test-fold statistics entered training under every scheme. Null means and standard deviations move by at most ${RPT_U_FIX_MEAN_SHIFT}; single AUC values by up to ${RPT_U_FIX_MAX_SINGLE}. &
+Scaler inside a \texttt{Pipeline}, fitted within each training fold; AUC-null caches keyed on the convention; published AUCs flagged pre-fix, not overwritten (Section~\ref{sec:scaler}). &
+Computed: pre- and post-fix nulls and cells. \\
 \addlinespace
 GARCH fits at the integrated boundary &
 Maximum-likelihood GARCH fits converged, with no convergence warning, to persistence 1 and then simulated explosive paths. On one SHANGHAI walk-forward fold in an earlier production run, Wasserstein distance was 74.8, 7.8 and 43.0 across three seeds against a run-wide median of 0.0025. Whether a boundary fit explodes flipped between environments. &
@@ -1461,7 +1680,7 @@ Prior: repository history. \\
 10 & Indistinguish\-ability &
   A classifier trained to separate real from synthetic should perform at chance level. &
   $\operatorname{AUC}(\text{classifier}) \to 0.5$ at GAN optimum &
-  discriminative\_auc\_dist, discriminative\_auc\_absz $\cdot$ \textsc{Temporal} \\
+  discriminative\_auc\_dist, discriminative\_auc\_absz $\cdot$ \textsc{Descriptive} (ranked until S4) \\
 
 \bottomrule
 \end{longtable}
@@ -1485,7 +1704,7 @@ Each entry records an issue found in the pipeline's code or design, the evidence
 
 \auditrow{FIXED}{Amber}{ABg}%
   {Discriminative AUC: direction inverted, and no null calibration}%
-  {Ascending rank on raw AUC put $0.30$ above $0.50$; the optimum is $0.5$, not $0$. The null is not exactly $0.5$ either --- measured at $0.506\pm0.084$ over 15 real-vs-real half-splits, so an observed $0.62$ is consistent with a perfect generator. \textbf{Fix:} rank on $|\text{AUC}-0.5|$, report a $z$-score against the empirical null, and do not shuffle the CV folds (shuffling moves the null to $0.584$, because 20-day windows overlap by 19 observations).}
+  {Ascending rank on raw AUC put $0.30$ above $0.50$; the optimum is $0.5$, not $0$. The null is not $0.5$ either: it is ${RPT_U_NULL_MEAN_RNG_TA} on the real series at the fixed-split length, so an observed $0.62$ is consistent with a perfect generator; the earlier figure of ${RPT_U_EARLIER_MEAN}\,$\pm$\,${RPT_U_EARLIER_SD} came from a different experiment. \textbf{Fix:} the column no longer counts toward the rank (S4), the null is the corrected sliding null, the folds are not shuffled (${RPT_U_AUC_WINDOW}-day windows overlap by ${RPT_U_AUC_WINDOW_OVERLAP} observations), and the scaler is fitted within each training fold.}
 
 \auditrow{FIXED}{Amber}{ABg}%
   {Budgets specified in epochs rather than gradient steps}%
@@ -1711,15 +1930,6 @@ def main():
         "RPT_TEMPORAL_LEADER_PARAMS": comp["temporal_leader_params"],
         "RPT_ECON_POSITIONS": comp["econ_positions"],
         "RPT_LEVERAGE_VERDICT": comp["leverage_verdict"],
-        "RPT_WF_Z_N_MODELS": fmt["wf_auc_prose"]["n_models"],
-        "RPT_WF_NULL_B": fmt["wf_auc_prose"]["null_b"],
-        "RPT_WF_NULL_B1": fmt["wf_auc_prose"]["null_b_plus_1"],
-        "RPT_WF_P_FLOOR": fmt["wf_auc_prose"]["p_floor"],
-        "RPT_WF_NULL_SE": fmt["wf_auc_prose"]["null_se"],
-        "RPT_WF_EXP_FALSE": fmt["wf_auc_prose"]["expected_false_flags"],
-        "RPT_WF_BONF_Z": fmt["wf_auc_prose"]["bonf_z"],
-        "RPT_WF_BONF_THR": fmt["wf_auc_prose"]["bonf_threshold"],
-        "RPT_WF_Z_N_ABOVE": fmt["wf_auc_prose"]["n_above"],
         "RPT_RESID_ECON_VALUES": fmt["resid_kurt_prose"]["econ_values"],
         "RPT_RESID_GAN_RANGE": fmt["resid_kurt_prose"]["gan_range"],
         "RPT_RESID_CONTROL": fmt["resid_kurt_prose"]["control"],
@@ -1773,7 +1983,6 @@ def main():
         "RPT_AUDIT_HURST_BEATEN": audit["hurst_diff"]["beaten"],
 
         # Walk-forward
-        "RPT_WF_AUC_ROWS": fmt["wf_auc_rows"],
         "RPT_FOLD_EFFECT_ROWS": fmt["fold_effect_rows"],
         "RPT_FOLD_FIRST_FOLD": fold["first_fold"],
         "RPT_FOLD_LAST_FOLD": fold["last_fold"],
@@ -1916,6 +2125,8 @@ def main():
         "RPT_PERSIST_LL_LARGEST": pst["ll_largest"],
     }
     mapping.update(guard_cells)
+    # Findings added on 2026-09-21: read from artifacts by report_data.build_update_evidence; one placeholder per key.
+    mapping.update({f"RPT_U_{k.upper()}": v for k, v in fmt["update"].items()})
 
     # A placeholder left unsubstituted renders as a literal "${RPT_...}" in the
     # PDF, which is exactly the silent-failure mode this data layer exists to

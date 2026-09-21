@@ -1331,13 +1331,8 @@ def _build_control_audit_prose(pooled: pd.DataFrame, models: list,
 # Walk-forward: AUC against the empirical null, and the fold-length effect
 # ============================================================================
 
-# Measured over 15 real-vs-real half-splits; see Methods. Rank is on
-# |AUC - 0.5|, never on raw AUC.
-AUC_NULL_MEAN = 0.506
-# Standard deviation of the INDIVIDUAL null draws, not the standard error of
-# the null mean (AUC_NULL_SD / sqrt(AUC_NULL_B) = 0.022).
-AUC_NULL_SD = 0.084
-AUC_NULL_B = 15
+# The walk-forward AUC is read against the per-market nulls in <market>/auc_null.json (see build_update_evidence);
+# no null constant is kept here.
 
 
 def _pooled_walk_forward(runs: list) -> pd.DataFrame:
@@ -1351,59 +1346,6 @@ def _pooled_walk_forward(runs: list) -> pd.DataFrame:
     if not frames:
         raise ReportDataError("No walk-forward CSVs to pool")
     return pd.concat(frames, ignore_index=True)
-
-
-def _build_wf_auc_rows(wf: pd.DataFrame) -> str:
-    """Per model: mean +/- sd discriminative AUC across every fold of every
-    (market, seed), and its distance from the empirical null in null sd
-    units -- the only reading of an AUC that is interpretable, since the
-    null is 0.506 +/- 0.084 rather than exactly 0.5."""
-    if "discriminative_auc" not in wf.columns:
-        raise ReportDataError(
-            "walk-forward CSVs have no discriminative_auc column")
-    lines = []
-    for model, grp in wf.groupby("model"):
-        mean = grp["discriminative_auc"].mean()
-        sd = grp["discriminative_auc"].std()
-        z = abs(mean - AUC_NULL_MEAN) / AUC_NULL_SD
-        lines.append(
-            f"{_escape_latex(str(model))} & {_fnum(mean, 3)} $\\pm$ {_fnum(sd, 3)} & "
-            f"{_fnum(abs(mean - 0.5), 3)} & {_fnum(z, 2)} & {_fint(len(grp))} \\\\"
-        )
-    return "\n".join(lines)
-
-
-def _build_wf_auc_prose(wf: pd.DataFrame) -> dict:
-    """How many models' fold-averaged AUC lies above the empirical null mean,
-    and the constants of the Monte Carlo p-value formulation.
-
-    No "beyond 1.96 sd" count: with B = 15 null draws the smallest attainable
-    Monte Carlo p is 1/(B+1) = 0.0625, so no result reaches 5%, and a
-    normal-theory threshold would claim a significance the null cannot
-    support.
-    """
-    z = {}
-    above = 0
-    for model, grp in wf.groupby("model"):
-        mean = grp["discriminative_auc"].mean()
-        z[str(model)] = abs(mean - AUC_NULL_MEAN) / AUC_NULL_SD
-        above += int(mean > AUC_NULL_MEAN)
-    # Monte Carlo p = (1 + #{null >= observed}) / (B + 1): the floor is
-    # 1/(B+1) whatever the observed value, so it is a property of B alone.
-    n_models = len(z)
-    p_floor = 1.0 / (AUC_NULL_B + 1)
-    bonf_z = round(float(stats.norm.ppf(1 - 0.05 / (2 * n_models))), 2)
-    return {
-        "null_b": str(AUC_NULL_B),
-        "null_b_plus_1": str(AUC_NULL_B + 1),
-        "p_floor": _fnum(p_floor, 4),
-        "null_se": _fnum(AUC_NULL_SD / math.sqrt(AUC_NULL_B), 3),
-        "expected_false_flags": _fnum(0.05 * n_models, 2),
-        "bonf_z": _fnum(bonf_z, 2),
-        "bonf_threshold": _fnum(AUC_NULL_MEAN + bonf_z * AUC_NULL_SD, 3),
-        "n_models": str(len(z)),
-        "n_above": str(above),
-    }
 
 
 def _build_fold_effect_rows(wf: pd.DataFrame) -> str:
@@ -2400,6 +2342,442 @@ def _build_control_audit_header(models: list) -> dict:
     }
 
 
+
+# ============================================================================
+# Findings added since the previous version (2026-09-21): S4, the corrected AUC
+# null, the fair baselines, the learned-metric audit, the temporal decomposition
+# and the known issues. Every value below is read from an artifact file; nothing
+# is typed here except the labels. The caller maps each key to a ${RPT_U_<KEY>}
+# placeholder, so a value that is missing fails the build instead of printing.
+# ============================================================================
+
+_MARKETS_ORDER = ["BOVESPA", "FTSE", "MOEX", "NIFTY50", "SHANGHAI"]
+_NUM_WORDS = {0: "zero", 1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six",
+              7: "seven", 8: "eight", 9: "nine", 10: "ten", 11: "eleven", 12: "twelve",
+              13: "thirteen", 14: "fourteen", 15: "fifteen"}
+
+
+def _word(n) -> str:
+    n = int(n)
+    return _NUM_WORDS.get(n, str(n))
+
+
+def _sg(x, d=3) -> str:
+    """Signed number in math mode, so the minus sign is a minus sign."""
+    if x is None or (isinstance(x, float) and x != x):
+        return "---"
+    return f"${'+' if x >= 0 else '-'}{abs(x):.{d}f}$"
+
+
+def _ci(lo, hi, d=3) -> str:
+    def s(v):
+        return f"{'+' if v >= 0 else '-'}{abs(v):.{d}f}"
+    return f"$[{s(lo)},\\,{s(hi)}]$"
+
+
+def _thou(n) -> str:
+    """Integer with a LaTeX-safe thousands separator."""
+    return f"{int(n):,}".replace(",", "{,}")
+
+
+def _rng(values, d=3) -> str:
+    values = list(values)
+    return f"{min(values):.{d}f}--{max(values):.{d}f}"
+
+
+def _tex_model(m) -> str:
+    return _escape_latex(str(m))
+
+
+def _n_params(per_seed_market: pd.DataFrame) -> dict:
+    d = per_seed_market[~per_seed_market["model"].apply(_is_control)]
+    return {m: float(g["n_params_g"].dropna().iloc[0]) for m, g in d.groupby("model") if g["n_params_g"].notna().any()}
+
+
+def _load_update_artifacts(results_dir: Path) -> dict:
+    r = results_dir
+    a = {
+        "s4": _read_json(r / "scenario_matrix" / "s4_published_draw.json"),
+        "scen": _read_csv(r / "scenario_matrix" / "scenario_summary.csv"),
+        "seed_spread": _read_csv(r / "scenario_matrix" / "seed_spread.csv"),
+        "noise_floor": _read_csv(r / "scenario_matrix" / "noise_floor_position_changes.csv"),
+        "noise_d2d": _read_json(r / "scenario_matrix" / "noise_floor_draw_to_draw.json"),
+        "ctrl_comp": _read_csv(r / "scenario_matrix" / "control_composite.csv"),
+        "embargo": _read_csv(r / "scenario_matrix" / "part1_embargo_cost.csv"),
+        "nifty_pre": _read_csv(r / "scenario_matrix" / "part1_nifty50_sub_0_5.csv"),
+        "bl_prov": _read_json(r / "baseline_generators" / "baseline_provenance.json"),
+        "bl_verify": _read_json(r / "baseline_generators" / "verify_no_oracle.json"),
+        "bl_ranks": _read_csv(r / "baseline_generators" / "overall_ranks.csv"),
+        "bl_boot": _read_csv(r / "baseline_generators" / "bootstrap_margins.csv"),
+        "bl_gvb": _read_csv(r / "baseline_generators" / "generator_vs_baseline_margins.csv"),
+        "bl_spread": _read_csv(r / "baseline_generators" / "draw_to_draw_spread.csv"),
+        "bl_pm": _read_csv(r / "baseline_generators" / "per_metric_mean_rank_frame_A.csv"),
+        "bl_raw": _read_csv(r / "baseline_generators" / "raw_temporal_metrics_mean_by_entry.csv"),
+        "bl_mech": _read_csv(r / "baseline_generators" / "acf_abs_mechanism.csv"),
+        "bl_extra": _read_json(r / "baseline_generators" / "extra_checks.json"),
+        "emb": _read_json(r / "embedding_distance_summary_COMMIT_DRIFT.json"),
+        "emb_unit": _read_json(r / "BOVESPA" / "seed42" / "embedding_distance_COMMIT_DRIFT.json"),
+        "emb_cfg": _read_json(r / "overnight_2026-09-21" / "part5_summary.json"),
+        "emb_fixed": _read_json(r / "overnight_2026-09-21" / "part2c_fixed_sigma.json"),
+        "probe": _read_csv(r / "overnight_2026-09-21" / "part1_permutation_sensitivity.csv"),
+        "npz": _read_csv(r / "overnight_2026-09-21" / "part4_npz_vs_recorded_metrics.csv"),
+        "stat_ref": _read_json(r / "auc_null_reference" / "stationary_reference_null.json"),
+        "nifty_fix": _read_json(r / "auc_null_reference" / "nifty50_sub_0_5.json"),
+        "earlier": _read_json(r / "auc_null_reference" / "earlier_experiment_provenance.json"),
+        "fix": _read_json(r / "scaler_fix_measurement" / "pre_post_summary.json"),
+        "fix_obs": _read_csv(r / "scaler_fix_measurement" / "observed_frameF_auc.csv"),
+        "fix_pub": _read_csv(r / "scaler_fix_measurement" / "published_subset_auc.csv"),
+        "nulls": {m: _read_json(r / m / "auc_null.json") for m in _MARKETS_ORDER},
+    }
+    for m, j in a["nulls"].items():
+        if j.get("auc_scaler") != "fit_within_training_fold" or "sliding" not in j:
+            raise ReportDataError(f"{r / m / 'auc_null.json'} is not the regenerated (fixed-scaler, sliding) null; "
+                                  "rerun precompute_auc_null (the auc_scaler cache key forces it)")
+    return a
+
+
+def _build_s4_and_noise(a: dict, nparams: dict, fit_seconds: dict) -> dict:
+    s4 = a["s4"]; scen = a["scen"]; out = {}
+    lo, hi = s4["bootstrap"]["ci_lo"], s4["bootstrap"]["ci_hi"]
+    first, second = s4["first"], s4["second"]
+    out.update({
+        "s4_first": _tex_model(first), "s4_second": _tex_model(second),
+        "s4_first_params": _thou(nparams[first]), "s4_second_params": _thou(nparams[second]),
+        "s4_first_seconds": _fsig2(fit_seconds[first]), "s4_second_seconds": _fsig2(fit_seconds[second]),
+        "s4_margin": _sg(s4["margin"]), "s4_margin_abs": _fnum(s4["margin"], 3),
+        "s4_ci": _ci(lo, hi), "s4_ci_lo": _sg(lo), "s4_ci_hi": _sg(hi),
+        "s4_resamples": _thou(s4["bootstrap"]["resamples"]), "s4_n_units": str(s4["bootstrap"]["n_units"]),
+        "s4_width": _fnum(hi - lo, 1), "s4_halfwidth": _fnum((hi - lo) / 2, 2),
+        "s4_ahead_units": str(s4["first_ahead_of_second_units"]),
+        "s4_by_seed": ", ".join(_sg(v) for v in s4["margin_by_seed"].values()),
+        "s4_seeds_positive": _word(sum(v > 0 for v in s4["margin_by_seed"].values())),
+        "s4_n_seeds": _word(len(s4["margin_by_seed"])),
+        "s4_excludes_zero": "excludes" if s4["bootstrap"]["excludes_zero"] else "does not exclude",
+    })
+    # S0 published scheme, and the length-matched variant that flipped the order
+    p0 = scen[(scen.frame == "P") & (scen.scenario == "S0")].iloc[0]; p1 = scen[(scen.frame == "P") & (scen.scenario == "S1")].iloc[0]
+    ss = a["seed_spread"]; m0 = ss[(ss.frame == "P") & (ss.scenario == "S0") & ss.model.str.startswith("MARGIN")].iloc[0]["margins_by_seed"]
+    vals0 = [float(v) for v in str(m0).split(";")]
+    out.update({
+        "s0_first": _tex_model(p0["first"]), "s0_margin": _sg(p0["margin"]), "s0_by_seed": ", ".join(_sg(v) for v in vals0),
+        "s0_seeds_ahead": _word(sum(v > 0 for v in vals0)), "s0_n_seeds": _word(len(vals0)),
+        "s0_ci": _ci(p0["ci_lo"], p0["ci_hi"]),
+        "s1_first": _tex_model(p1["first"]), "s1_second": _tex_model(p1["second"]), "s1_margin": _fnum(p1["margin"], 3),
+    })
+    frame_f = scen[scen.frame == "F"]
+    out["n_scenarios"] = _word(len(scen)); out["n_scenarios_excl_zero"] = _word(int(scen["excludes_zero"].sum()))
+    nf = a["noise_floor"]; chg = nf[nf.scenario.isin(["S1", "S2", "S3", "S5"])]["same_draw_position_changes_vs_S0_mean"]
+    out.update({"noise_draw_to_draw": _fint(round(a["noise_d2d"]["draw_to_draw_S0_mean"])), "noise_units_total": _fint(s4["n_units"] * len(s4["models"])),
+                "noise_scheme_lo": _fint(round(chg.min())), "noise_scheme_hi": _fint(round(chg.max())),
+                "noise_s4": _fint(round(nf[nf.scenario == "S4"]["same_draw_position_changes_vs_S0_mean"].iloc[0]))})
+    return out
+
+
+_ENTRY_LABEL = {"iid": "i.i.d.\\ historical simulation", "sb_r": "stationary block bootstrap, tuned on $r$",
+                "sb_abs": "block bootstrap, tuned on $|r|$", "CONTROL: shuffled real": "shuffled control (oracle marginal)"}
+
+
+def _entry(e) -> str:
+    return _ENTRY_LABEL.get(e, _tex_model(e))
+
+
+def _build_baselines(a: dict, gens: list) -> dict:
+    out = {}; R = a["bl_ranks"]; G = a["bl_gvb"]; bp = a["bl_prov"]; bt = a["bl_boot"]
+    ov = lambda fr, sc, e, c: R[(R.frame == fr) & (R.scenario == sc) & (R.entry == e)][c].iloc[0]
+    # eight-entry table (frame A): every entry with fidelity, temporal (S0 / S4), composite (S0 / S4), position (S0 / S4)
+    ents = list(R[(R.frame == "A") & (R.scenario == "S0")].entry)
+    ents = sorted(ents, key=lambda e: ov("A", "S0", e, "composite"))
+    rows = []
+    for e in ents:
+        rows.append(f"{_entry(e)} & {_fnum(ov('A','S0',e,'fidelity_rank'),2)} & {_fnum(ov('A','S0',e,'temporal_rank'),2)} / {_fnum(ov('A','S4',e,'temporal_rank'),2)} & "
+                    f"{_fnum(ov('A','S0',e,'composite'),2)} & {_fnum(ov('A','S4',e,'composite'),2)} & {_fint(ov('A','S0',e,'position'))} / {_fint(ov('A','S4',e,'position'))} \\\\")
+    if "sb_abs" in set(R[R.frame == "B"].entry):
+        e = "sb_abs"; rows.append(f"{_entry(e)}$^\\dagger$ & {_fnum(ov('B','S0',e,'fidelity_rank'),2)} & {_fnum(ov('B','S0',e,'temporal_rank'),2)} / {_fnum(ov('B','S4',e,'temporal_rank'),2)} & "
+                                  f"{_fnum(ov('B','S0',e,'composite'),2)} & {_fnum(ov('B','S4',e,'composite'),2)} & {_fint(ov('B','S0',e,'position'))} / {_fint(ov('B','S4',e,'position'))} \\\\")
+    out["tier_rows"] = "\n".join(rows); out["n_entries"] = _word(len(ents))
+    # best generator (frame A) against each fair baseline
+    best = str(bt[(bt.frame == "A") & (bt.scenario == "S0")].best_generator.iloc[0]); out["bl_best_gen"] = _tex_model(best)
+    def bm(fr, sc, e):
+        r = bt[(bt.frame == fr) & (bt.scenario == sc) & (bt.entry == e)].iloc[0]; return r
+    for sc in ("S0", "S4"):
+        r = bm("A", sc, "iid"); out[f"iid_margin_{sc.lower()}"] = _fnum(abs(r.margin_best_minus_entry), 2); out[f"iid_ci_{sc.lower()}"] = _ci(-r.ci_hi, -r.ci_lo, 2)
+    out["iid_all_excl_zero"] = "all excluding zero" if bool(bt[bt.entry.isin(["iid", "sb_r"])].excludes_zero.all() and bt[bt.entry.isin(["iid", "sb_r"])].two_level_excludes_zero.all()) else "not all excluding zero"
+    # tiers by rule: 'top' = generator ahead of iid, sb_r and the |r|-tuned bootstrap with an interval excluding zero under S0 and S4;
+    # 'bottom' = baseline point-estimate ahead of the generator against i.i.d. under both; the rest are 'middle'
+    tiers = {"top": [], "middle": [], "bottom": []}
+    for g in gens:
+        sub = G[G.generator == g]
+        clear_all = bool(sub.generator_ahead_significant.all())
+        below_iid = bool((sub[sub.baseline == "iid"].margin_generator_minus_baseline > 0).all())
+        (tiers["top"] if clear_all else tiers["bottom"] if below_iid else tiers["middle"]).append(g)
+    out["tier_top"] = " and ".join(_tex_model(g) for g in tiers["top"]); out["tier_middle"] = " and ".join(_tex_model(g) for g in tiers["middle"]); out["tier_bottom"] = " and ".join(_tex_model(g) for g in tiers["bottom"])
+    out["n_top"] = _word(len(tiers["top"])); out["n_middle"] = _word(len(tiers["middle"])); out["n_bottom"] = _word(len(tiers["bottom"]))
+    # middle tier against the |r|-tuned block bootstrap (both schemes)
+    mid_rows = []
+    for g in tiers["middle"]:
+        cells = []
+        for sc in ("S0", "S4"):
+            r = G[(G.generator == g) & (G.baseline == "sb_abs") & (G.scenario == sc)].iloc[0]; cells.append(f"{_sg(r.margin_generator_minus_baseline, 2)} {_ci(r.ci_lo, r.ci_hi, 2)}")
+        r0 = G[(G.generator == g) & (G.baseline == "iid") & (G.scenario == "S4")].iloc[0]
+        mid_rows.append(f"{_tex_model(g)} & {cells[0]} & {cells[1]} & {_sg(r0.margin_generator_minus_baseline, 2)} {_ci(r0.ci_lo, r0.ci_hi, 2)} \\\\")
+    out["mid_rows"] = "\n".join(mid_rows)
+    out["mid_all_contain_zero"] = "every interval contains zero" if not bool(G[(G.generator.isin(tiers["middle"])) & (G.baseline == "sb_abs")][["generator_ahead_significant", "baseline_ahead_significant"]].any().any()) else "not every interval contains zero"
+    # bottom tier: position and margin to i.i.d.
+    for g in tiers["bottom"][:1]:
+        out["bottom_model"] = _tex_model(g); out["bottom_position"] = _word(ov("A", "S0", g, "position")); out["bottom_n"] = _word(len(ents))
+        for sc in ("S0", "S4"):
+            r = G[(G.generator == g) & (G.baseline == "iid") & (G.scenario == sc)].iloc[0]
+            out[f"bottom_vs_iid_{sc.lower()}"] = f"{_sg(r.margin_generator_minus_baseline, 2)} {_ci(r.ci_lo, r.ci_hi, 2)}"
+            out[f"bottom_vs_iid_{sc.lower()}_excl"] = "excludes zero" if r.baseline_ahead_significant else "contains zero"
+        out["iid_position"] = _word(ov("A", "S0", "iid", "position")); out["iid_position_s4"] = _word(ov("A", "S4", "iid", "position"))
+    # parameters of the two bootstraps
+    pw = {m: v["politis_white_stationary"] for m, v in bp["markets"].items()}; used = {m: v["mean_block_length_used"] for m, v in bp["markets"].items()}
+    out["pw_r_range"] = _rng([v["returns"] for v in pw.values()], 2); out["pw_abs_range"] = _rng([v["abs_returns"] for v in pw.values()], 0)
+    out["pw_floored"] = _word(sum(1 for v in pw.values() if v["returns"] < 1.0))
+    out["pw_r_used_range"] = _rng([v["sb_r"] for v in used.values()], 2)
+    out["pw_rows"] = "\n".join(f"{m} & {_fint(bp['markets'][m]['n_train'])} & {_fint(bp['markets'][m]['target_length'])} & {_fnum(pw[m]['returns'],2)} & {_fnum(pw[m]['abs_returns'],1)} & {_fnum(used[m]['sb_r'],2)} & {_fnum(used[m]['sb_abs'],1)} \\\\" for m in _MARKETS_ORDER if m in pw)
+    out["bl_n_draws"] = _thou(a["bl_verify"]["draws_checked"]); out["bl_outside"] = _fint(a["bl_verify"]["values_outside_training_block"])
+    out["bl_draws_per_unit"] = _fint(bp["n_draws"]); out["bl_n_seeds"] = _word(len(bp["seeds"]))
+    out["bl_arch"] = _escape_latex(bp["arch"])
+    # draw-to-draw spread of the two specified baselines (S0 / S4, frame A)
+    sp = a["bl_spread"]
+    for e in ("iid", "sb_r"):
+        s0 = sp[(sp.frame == "A") & (sp.scenario == "S0") & (sp.entry == e)].iloc[0]; s4 = sp[(sp.frame == "A") & (sp.scenario == "S4") & (sp.entry == e)].iloc[0]
+        out[f"spread_{e}_positions"] = f"{_fint(min(s0.position_min, s4.position_min))}--{_fint(max(s0.position_max, s4.position_max))}"
+        out[f"spread_{e}_ahead"] = _fint(max(s0.draws_ahead_of_all_generators, s4.draws_ahead_of_all_generators))
+    out["spread_draws"] = _fint(sp.draws.iloc[0])
+    # the shuffled control: composite when allowed to compete (published draw), and where its advantage comes from (fresh draws, eight entries)
+    cc = a["ctrl_comp"]; c0 = cc[(cc.frame == "P") & (cc.scenario == "S0")].iloc[0]
+    out.update({"ctrl_comp": _fnum(c0.control_composite_6pool, 3), "ctrl_best_comp": _fnum(c0.best_generator_composite_6pool, 3), "ctrl_best_name": _tex_model(c0.best_generator),
+                "ctrl_fid_rank": _fnum(c0.control_fidelity_rank_6pool, 3), "ctrl_units_beats": _fint(c0.units_control_beats_best_generator)})
+    for sc in ("S0", "S4"):
+        d = ov("A", sc, "iid", "composite") - ov("A", sc, "CONTROL: shuffled real", "composite"); df = .5 * (ov("A", sc, "iid", "fidelity_rank") - ov("A", sc, "CONTROL: shuffled real", "fidelity_rank"))
+        out[f"ctrl_fid_share_{sc.lower()}"] = _fnum(100 * df / d, 0)
+    # generators' own family temporal mean (for the text), S0 / S4
+    out["gen_temp_s0"] = _fnum(np.mean([ov("A", "S0", g, "temporal_rank") for g in gens]), 2); out["gen_temp_s4"] = _fnum(np.mean([ov("A", "S4", g, "temporal_rank") for g in gens]), 2)
+    out["ctrl_temp_s0"] = _fnum(ov("A", "S0", "CONTROL: shuffled real", "temporal_rank"), 2); out["ctrl_temp_s4"] = _fnum(ov("A", "S4", "CONTROL: shuffled real", "temporal_rank"), 2)
+    return out
+
+
+def _build_temporal_decomposition(a: dict, gens: list) -> dict:
+    out = {}; pm = a["bl_pm"].set_index("metric"); raw = a["bl_raw"].set_index("model"); mech = a["bl_mech"].set_index(a["bl_mech"].columns[0])
+    ctrl = "CONTROL: shuffled real"; temporal = ["acf_returns_mae", "acf_absolute_mae", "acf_squared_mae", "hurst_diff", "resid_kurtosis_diff"]
+    rows = []
+    for c in temporal:
+        g = pm.loc[c, gens]
+        rows.append(f"{_escape_latex(c)} & {_fnum(pm.loc[c, ctrl],2)} & {_fnum(pm.loc[c,'iid'],2)} & {_fnum(pm.loc[c,'sb_r'],2)} & {_fnum(g.mean(),2)} & "
+                    f"{_fnum(raw.loc[ctrl, c],4)} & {_fnum(raw.loc['iid', c],4)} & {_fnum(raw.loc[gens, c].min(),4)}--{_fnum(raw.loc[gens, c].max(),4)} \\\\")
+    out["td_rows"] = "\n".join(rows)
+    out["td_hurst_ctrl"] = _fnum(pm.loc["hurst_diff", ctrl], 2); out["td_hurst_iid"] = _fnum(pm.loc["hurst_diff", "iid"], 2)
+    hg = pm.loc["hurst_diff", [g for g in gens if g != "TimeGAN"]]; out["td_hurst_gens"] = _fnum(hg.min(), 1) + "--" + _fnum(hg.max(), 1)
+    out["td_abs_ctrl"] = _fnum(raw.loc[ctrl, "acf_absolute_mae"], 4); out["td_abs_iid"] = _fnum(raw.loc["iid", "acf_absolute_mae"], 4)
+    out["td_abs_best"] = _fnum(raw.loc[gens, "acf_absolute_mae"].min(), 4); out["td_abs_best_name"] = _tex_model(raw.loc[gens, "acf_absolute_mae"].idxmin())
+    out["td_abs_draw_sd_best"] = _fnum(a["bl_extra"]["acf_abs_within_unit_sd"][raw.loc[gens, "acf_absolute_mae"].idxmin()], 3)
+    out["td_abs_draw_sd_garch"] = _fnum(a["bl_extra"]["acf_abs_within_unit_sd"]["GARCH"], 3)
+    out["td_sq_ctrl"] = _fnum(raw.loc[ctrl, "acf_squared_mae"], 4); out["td_sq_iid"] = _fnum(raw.loc["iid", "acf_squared_mae"], 4); out["td_sq_gens"] = _fnum(raw.loc[gens, "acf_squared_mae"].min(), 4) + "--" + _fnum(raw.loc[gens, "acf_squared_mae"].max(), 4)
+    out["td_ret_ctrl"] = _fnum(raw.loc[ctrl, "acf_returns_mae"], 4); out["td_ret_all"] = _fnum(raw[["acf_returns_mae"]].min().iloc[0], 3) + "--" + _fnum(raw[["acf_returns_mae"]].max().iloc[0], 3)
+    out["td_ret_rank_ctrl"] = _fnum(pm.loc["acf_returns_mae", ctrl], 2); out["td_ret_rank_iid"] = _fnum(pm.loc["acf_returns_mae", "iid"], 2)
+    out["td_resid_ctrl"] = _fnum(pm.loc["resid_kurtosis_diff", ctrl], 2); out["td_resid_iid"] = _fnum(pm.loc["resid_kurtosis_diff", "iid"], 2)
+    g = pm.loc["resid_kurtosis_diff", gens]; out["td_resid_gens"] = _fnum(g.min(), 2) + "--" + _fnum(g.max(), 2)
+    # the ACF(|r|) profile of QuantGAN against the real series
+    out["mech_q_lag50"] = _sg(mech.loc["QuantGAN", "acf_abs_lag50"]); out["mech_real_lag50"] = _sg(mech.loc["real", "acf_abs_lag50"])
+    out["mech_q_mean"] = _fnum(mech.loc["QuantGAN", "mean_acf_abs_lags_1_50"], 3); out["mech_real_mean"] = _fnum(mech.loc["real", "mean_acf_abs_lags_1_50"], 3)
+    out["mech_garch_lag1"] = _fnum(mech.loc["GARCH", "acf_abs_lag1"], 3); out["mech_gjr_lag1"] = _fnum(mech.loc["GJR-GARCH", "acf_abs_lag1"], 3); out["mech_real_lag1"] = _fnum(mech.loc["real", "acf_abs_lag1"], 3)
+    out["mech_q_beats_ctrl"] = _fnum(100 * (1 - mech.loc["QuantGAN", "share_units_draws_mae_gt_control"]), 0); out["mech_t_worse_ctrl"] = _fnum(100 * mech.loc["TimeGAN", "share_units_draws_mae_gt_control"], 0)
+    out["mech_gap"] = _fnum(raw.loc[ctrl, "acf_absolute_mae"] - raw.loc[gens, "acf_absolute_mae"].min(), 3)
+    return out
+
+
+def _build_learned_metrics(a: dict) -> dict:
+    out = {}; emb = a["emb"]; pm = emb["per_market"]; cfg = a["emb_cfg"]; fx = a["emb_fixed"]; pr = a["probe"]
+    out["lm_neff_range"] = _rng([m["n_eff"] for m in pm], 1); out["lm_pr_range"] = _rng([m["participation_ratio"] for m in pm], 1)
+    wl = int(a["emb_unit"]["windows"]["length"]); out["lm_window_len"] = _fint(wl); out["lm_window_shared"] = _fint(wl - 1)
+    out["lm_windows"] = f"{min(m['L'] for m in pm) - wl + 1}--{max(m['L'] for m in pm) - wl + 1}"
+    out["lm_units"] = str(emb["units"])
+    # per-config control MMD
+    ctrl = {}
+    for k, v in cfg.items():
+        t = {r["series"]: r for r in v["table"]}; ctrl[k] = (t["control"]["mmd2"], min(t[s]["mmd2"] for s in t if s != "control"), v["control_rank"]["rbf"]["units_control_lowest"], v["control_rank"]["rbf"]["units"], t["control"]["share_p05"], t["control"]["poly3_share_p05"])
+    out["lm_ctrl_mmd"] = ", ".join(_fnum(ctrl[k][0], 3) for k in cfg); out["lm_next_mmd"] = ", ".join(_fnum(ctrl[k][1], 3) for k in cfg)
+    out["lm_ctrl_lowest_units"] = ", ".join(f"{ctrl[k][2]} of {ctrl[k][3]}" for k in cfg); out["lm_n_cfg"] = _word(len(cfg))
+    out["lm_ctrl_detect_draws"] = _fnum(100 * max(ctrl[k][4] for k in cfg), 1); out["lm_ctrl_detect_units"] = str(int(emb["control"]["significant_in_half_of_draws_by_kernel"]["rbf_x1"]))
+    tg = [r for r in emb["per_model_rbf_x1"] if r["model"] == "TimeGAN"][0]; out["lm_tg_rate_main"] = _fnum(100 * tg["draws p<=.05"], 0)
+    out["lm_tg_rate_matched"] = _fnum(100 * fx["rates_p_le_05"]["all (exhaustive)"]["TimeGAN"], 1)
+        # probe
+    out["lm_probe_emb"] = _fnum(pr["auc_valid_to_test_mean"].mean(), 2); out["lm_probe_acf"] = _fnum(pr["auc_acf_valid_to_test_mean"].mean(), 2)
+    out["lm_probe_emb_rng"] = _rng(pr["auc_valid_to_test_mean"], 2); out["lm_probe_acf_rng"] = _rng(pr["auc_acf_valid_to_test_mean"], 2)
+    out["lm_probe_markets"] = _word(len(pr)); out["lm_mmd_perm_p_rng"] = _rng(pr["p_rbf_mean"], 2)
+    out["lm_mmd_perm_draw_share"] = _fnum(100 * pr["share_p_le_05"].max(), 0)
+    out["lm_perm_mmd_rng"] = _rng(pr["rbf_mean"], 2); out["lm_null_median_rng"] = _rng(pr["null_median"], 2)
+    return out
+
+
+def _null_block(a: dict, market: str, tag: str, cv: str) -> dict:
+    return a["nulls"][market]["sliding"][tag][cv]
+
+
+def _q975(blk: dict) -> float:
+    return blk["quantiles"]["97.5"]
+
+
+def _build_discriminability(a: dict, wf: pd.DataFrame, runs: list, gens: list, ctrl_name: str) -> dict:
+    out = {}; N = a["nulls"]; SR = a["stat_ref"]
+    # per-market nulls (approved fixed-length adjacent sliding construction), both lengths, contiguous and purged
+    for tag, key in (("track_a", "ta"), ("walk_forward", "wf")):
+        rows = []
+        for m in _MARKETS_ORDER:
+            s = N[m]["sliding"][tag]; c, p = s["contiguous"], s["purged"]
+            rows.append(f"{m} & {_fint(s['length'])} & {_fnum(s['independent_block_pairs'],1)} & {_fnum(c['mean'],3)} & {_fnum(c['std'],3)} & {_fnum(_q975(c),3)} & "
+                        f"{_fnum(100*c['frac_below_0.5'],0)}\\,\\% & {_fnum(p['mean'],3)} & {_fnum(_q975(p),3)} & {_fnum(100*p['frac_below_0.5'],0)}\\,\\% \\\\")
+        out[f"null_rows_{key}"] = "\n".join(rows)
+        out[f"null_mean_rng_{key}"] = _rng([N[m]["sliding"][tag]["contiguous"]["mean"] for m in _MARKETS_ORDER], 2)
+        out[f"null_mean_rng_purged_{key}"] = _rng([N[m]["sliding"][tag]["purged"]["mean"] for m in _MARKETS_ORDER], 2)
+        out[f"null_sd_rng_{key}"] = _rng([N[m]["sliding"][tag]["contiguous"]["std"] for m in _MARKETS_ORDER], 2)
+        out[f"null_p975_rng_{key}"] = _rng([_q975(N[m]["sliding"][tag]["contiguous"]) for m in _MARKETS_ORDER], 2)
+        out[f"null_below_rng_{key}"] = _fnum(100 * min(N[m]["sliding"][tag]["contiguous"]["frac_below_0.5"] for m in _MARKETS_ORDER), 0) + "--" + _fnum(100 * max(N[m]["sliding"][tag]["contiguous"]["frac_below_0.5"] for m in _MARKETS_ORDER), 0)
+        out[f"null_L_{key}"] = _rng([N[m]["sliding"][tag]["length"] for m in _MARKETS_ORDER], 0)
+        out[f"null_pairs_{key}"] = _fnum(np.mean([N[m]["sliding"][tag]["independent_block_pairs"] for m in _MARKETS_ORDER]), 0)
+        out[f"null_positions_{key}"] = _thou(np.mean([N[m]["sliding"][tag]["positions"] for m in _MARKETS_ORDER]))
+    j0 = N[_MARKETS_ORDER[0]]; out.update({"legacy_nrep": _fint(j0["legacy_null"]["n_rep"]), "auc_window": _fint(j0["window"]), "auc_window_overlap": _fint(j0["window"] - 1), "auc_n_splits": _word(j0["n_splits"])})
+    out["null_n_markets"] = _word(len(_MARKETS_ORDER)); out["null_folds"] = _word(N[_MARKETS_ORDER[0]]["sliding"]["n_folds"])
+    out["null_years"] = _fnum(N[_MARKETS_ORDER[0]]["sliding"]["n_full"] / 252, 0)
+    hs = [N[m]["mean"] for m in _MARKETS_ORDER]; out["halfsplit_mean_rng"] = _rng(hs, 2); out["halfsplit_b"] = _thou(N[_MARKETS_ORDER[0]]["n_draws"])
+    # the earlier experiment, quoted with its provenance
+    e = a["earlier"]["earlier_experiment"]
+    out.update({"earlier_mean": _fnum(e["null_mean"], 3), "earlier_sd": _fnum(e["null_sd"], 3), "earlier_n": _word(e["n_seeds"]), "earlier_shuf": _fnum(e["shuffled_folds_null_mean"], 3), "earlier_shift": _fnum(e["shuffled_folds_null_mean"] - e["null_mean"], 3),
+                "earlier_first": _escape_latex(e["first_appears"]), "earlier_script": "is not in the repository" if not e["script_in_repository"] else "is in the repository"})
+    # stationary GARCH-t reference: per market, both lengths; contiguous / purged / shuffled means
+    for tag, key in (("track_a", "ta"), ("walk_forward", "wf")):
+        rows = []
+        for m in _MARKETS_ORDER:
+            s = SR[m]["nulls"][tag]; rows.append(f"{m} & {_fnum(SR[m]['persistence'],4)} & {_fnum(s['contiguous']['mean'],3)} & {_fnum(s['contiguous']['std'],3)} & {_fnum(s['contiguous']['quantiles']['97.5'],3)} & {_fnum(s['purged']['mean'],3)} & {_fnum(s['shuffled']['mean'],3)} \\\\")
+        out[f"stat_rows_{key}"] = "\n".join(rows)
+        out[f"stat_mean_rng_{key}"] = _rng([SR[m]["nulls"][tag]["contiguous"]["mean"] for m in _MARKETS_ORDER], 2)
+        out[f"stat_sd_rng_{key}"] = _rng([SR[m]["nulls"][tag]["contiguous"]["std"] for m in _MARKETS_ORDER], 2)
+        out[f"stat_p975_rng_{key}"] = _rng([SR[m]["nulls"][tag]["contiguous"]["quantiles"]["97.5"] for m in _MARKETS_ORDER], 2)
+        out[f"stat_purged_rng_{key}"] = _rng([SR[m]["nulls"][tag]["purged"]["mean"] for m in _MARKETS_ORDER], 2)
+        out[f"stat_shuf_rng_{key}"] = _rng([SR[m]["nulls"][tag]["shuffled"]["mean"] for m in _MARKETS_ORDER], 2)
+        out[f"stat_shift_rng_{key}"] = _rng([SR[m]["nulls"][tag]["shuffled"]["mean"] - SR[m]["nulls"][tag]["contiguous"]["mean"] for m in _MARKETS_ORDER], 2)
+    low = min(_MARKETS_ORDER, key=lambda m: SR[m]["nulls"]["walk_forward"]["contiguous"]["mean"]); s = SR[low]["nulls"]["walk_forward"]["contiguous"]
+    out.update({"stat_low_market": low, "stat_low_mean": _fnum(s["mean"], 2), "stat_low_sd": _fnum(s["std"], 2), "stat_low_p975": _fnum(s["quantiles"]["97.5"], 2), "stat_low_persist": _fnum(SR[low]["persistence"], 3),
+                "stat_pairs": _fint(SR[low]["nulls"]["walk_forward"]["n_pairs"]), "stat_n_markets": _word(len(_MARKETS_ORDER))})
+    # NIFTY50: the draws below 0.5, fixed scaler, and the same before the fix (Task 11, Track A)
+    nf = a["nifty_fix"]["track_a"]; pre = a["nifty_pre"]; pre_row = pre[pre.construction.str.startswith("full-series sliding null, track_a")].iloc[0]
+    out.update({"nif_c": _fnum(nf["mean_contiguous"], 3), "nif_p": _fnum(nf["mean_purged"], 3), "nif_s": _fnum(nf["mean_shuffled"], 3), "nif_n": _fint(nf["n_sub_0_5"]), "nif_of": _fint(nf["positions"]), "nif_share": _fnum(100 * nf["share_sub_0_5"], 0),
+                "nif_p_above": _fnum(100 * nf["share_above_0_5_purged"], 1), "nif_s_above": _fnum(100 * nf["share_above_0_5_shuffled"], 0), "nif_null_below_c": _fnum(100 * nf["share_null_below_0_5_contiguous"], 0), "nif_null_below_p": _fnum(100 * nf["share_null_below_0_5_purged"], 0),
+                "nif_c_pre": _fnum(pre_row.mean_contiguous, 3), "nif_p_pre": _fnum(pre_row.mean_purged, 3), "nif_s_pre": _fnum(pre_row.mean_shuffled, 3)})
+    wfn = a["nifty_fix"]["walk_forward"]; out.update({"nif_wf_c": _fnum(wfn["mean_contiguous"], 3), "nif_wf_p": _fnum(wfn["mean_purged"], 3), "nif_wf_s": _fnum(wfn["mean_shuffled"], 3)})
+    # embargo cost (purged CV)
+    emb = a["embargo"]; ta = emb[emb.length == "track_a"]; wfe = emb[emb.length == "walk_forward"]
+    out.update({"emb_window": _fint(ta.embargo.iloc[0]), "emb_dropped": " / ".join(_fint(v) for v in json.loads(ta.dropped_per_fold.iloc[0])), "emb_pct_ta": _fnum(ta.pct_dropped_min.min(), 0) + "--" + _fnum(ta.pct_dropped_max.max(), 0),
+                "emb_pct_wf": _fnum(wfe.pct_dropped_min.min(), 0) + "--" + _fnum(wfe.pct_dropped_max.max(), 0), "emb_min_train": _fint(ta.min_train_rows.min()), "emb_folds": _word(len(json.loads(ta.dropped_per_fold.iloc[0])))})
+    # cells against the regenerated null: fresh draws (Frame F, fixed scaler) and the published draw (pre-fix AUC values)
+    obs = a["fix_obs"]; gset = [g for g in gens]
+    def cells(df, col, cv):
+        res = []
+        for m in _MARKETS_ORDER:
+            blk = _null_block(a, m, "track_a", cv)
+            for g in gset:
+                v = df[(df.market == m) & (df.model == g)][col]
+                if len(v) == 0: continue
+                res.append((m, g, float(v.mean()), _q975(blk), blk["mean"] + 1.96 * blk["std"]))
+        return res
+    cf = cells(obs, "post_contiguous", "contiguous"); cp = cells(obs, "post_purged", "purged")
+    out.update({"cells_n": _fint(len(cf)), "cellsF_p975": _fint(sum(x[2] > x[3] for x in cf)), "cellsF_196": _fint(sum(x[2] > x[4] for x in cf)),
+                "cellsFp_p975": _fint(sum(x[2] > x[3] for x in cp)), "cellsFp_196": _fint(sum(x[2] > x[4] for x in cp))})
+    pub = pd.concat([r["metrics"].assign(market=r["market"], seed=r["seed"]) for r in runs]); pub = pub[~pub.model.apply(_is_control)]
+    pc = pub.groupby(["market", "model"])["discriminative_auc_raw"].mean().reset_index(); cnt = 0; cnt196 = 0; hit = []
+    for _, r in pc.iterrows():
+        blk = _null_block(a, r.market, "track_a", "contiguous")
+        if r.discriminative_auc_raw > _q975(blk): cnt += 1; hit.append((r.market, r.model, r.discriminative_auc_raw, _q975(blk)))
+        cnt196 += int(r.discriminative_auc_raw > blk["mean"] + 1.96 * blk["std"])
+    out.update({"cellsP_n": _fint(len(pc)), "cellsP_p975": _fint(cnt), "cellsP_196": _fint(cnt196)})
+    if hit:
+        h = hit[0]; out.update({"cellsP_market": _escape_latex(h[0]), "cellsP_model": _tex_model(h[1]), "cellsP_auc": _fnum(h[2], 3), "cellsP_thr": _fnum(h[3], 3)})
+    else:
+        out.update({"cellsP_market": "none", "cellsP_model": "none", "cellsP_auc": "---", "cellsP_thr": "---"})
+    # control AUC range across markets (fresh draws, fixed scaler)
+    cm = obs[obs.model == ctrl_name].groupby("market")[["post_contiguous", "post_purged"]].mean()
+    below = sum(1 for m in cm.index if cm.loc[m, "post_purged"] < N[m]["sliding"]["track_a"]["purged"]["mean"])
+    out.update({"ctrl_auc_c": _rng(cm.post_contiguous, 2), "ctrl_auc_p": _rng(cm.post_purged, 2), "ctrl_auc_n": _word(len(cm)), "ctrl_below_n": _word(below)})
+    # walk-forward AUC (pre-fix values) against the regenerated walk-forward null
+    rows = []; wf_p975 = 0; wf_196 = 0; wf_cells = 0; wf_hits = []
+    for model, g in wf.groupby("model"):
+        per = g.groupby("market")["discriminative_auc"].mean(); zs = []; c975 = 0; c196 = 0
+        for m in _MARKETS_ORDER:
+            if m not in per.index: continue
+            blk = _null_block(a, m, "walk_forward", "contiguous"); zs.append((per[m] - blk["mean"]) / blk["std"]); c975 += int(per[m] > _q975(blk)); c196 += int(per[m] > blk["mean"] + 1.96 * blk["std"]); wf_cells += 1
+            if per[m] > _q975(blk): wf_hits.append((m, model, float(per[m]), _q975(blk)))
+        wf_p975 += c975; wf_196 += c196
+        rows.append(f"{_tex_model(model)} & {_fnum(g['discriminative_auc'].mean(),3)} $\\pm$ {_fnum(g['discriminative_auc'].std(),3)} & {_fnum(abs(g['discriminative_auc'].mean()-0.5),3)} & {_sg(float(np.mean(zs)),2)} & {c975} of {len(zs)} & {c196} of {len(zs)} & {_fint(len(g))} \\\\")
+    out["wfauc_rows"] = "\n".join(rows); out["wf_cells_n"] = _fint(wf_cells); out["wf_cells_p975"] = _fint(wf_p975); out["wf_cells_196"] = _fint(wf_196)
+    out["wf_n_models_above_null_mean"] = _word(sum(1 for model, g in wf.groupby("model") if np.mean([(g[g.market == m]["discriminative_auc"].mean() - _null_block(a, m, "walk_forward", "contiguous")["mean"]) for m in _MARKETS_ORDER if (g.market == m).any()]) > 0))
+    out["wf_n_models"] = _word(wf["model"].nunique())
+    h = wf_hits[0] if wf_hits else None
+    out.update({"wf_hit_market": _escape_latex(h[0]) if h else "none", "wf_hit_model": _tex_model(h[1]) if h else "none", "wf_hit_auc": _fnum(h[2], 3) if h else "---", "wf_hit_thr": _fnum(h[3], 3) if h else "---"})
+    return out
+
+
+def _build_methods_and_issues(a: dict, runs: list, wf: pd.DataFrame, results_dir: Path) -> dict:
+    out = {}; fx = a["fix"]; ma = fx["max_abs_change"]; nm = fx["null_max_abs_change_by_market"]
+    d_mean = [v for v in fx["null_mean_signed_change"].values()]
+    out.update({"fix_mean_shift": _fnum(max(abs(v) for v in d_mean), 3), "fix_max_single": _fnum(max(ma["observed_frameF_contiguous"], ma["observed_frameF_purged"]), 2), "fix_max_null_pos": _fnum(max(ma["null_max_abs_change_contiguous"], ma["null_max_abs_change_purged"]), 2),
+                "fix_pub_max": _fnum(max(ma["observed_published_subset_contiguous"], ma["observed_published_subset_purged"]), 3)})
+    leg = fx["legacy_999"]; out["fix_legacy_shang"] = _fnum(leg["SHANGHAI"]["post"]["mean"] - leg["SHANGHAI"]["pre"]["mean"], 3)
+    cells = fx["cells"]; out["fix_cells_F"] = _fint(cells["contiguous|post"]["F_cells"])
+    ctl = a["fix"]["cells"]["purged|post"]["F_control_range"]; out["fix_ctrl_purged"] = f"{ctl[0]:.2f}--{ctl[1]:.2f}"
+    # the published-draw AUC that can be recomputed after the fix
+    fp = a["fix_pub"]; ok = fp.groupby("model")["pre_minus_published"].apply(lambda s: s.abs().max())
+    out["repro_models"] = ", ".join(_tex_model(m) for m in sorted(m for m in ok.index if not _is_control(m)))
+    out["repro_max"] = _fnum(ok[[m for m in ok.index if not _is_control(m)]].max(), 4)
+    # downstream draw mismatch
+    npz = a["npz"]; mism = {}
+    for m, g in npz.groupby("model"): mism[m] = (int(g["agrees"].sum()), len(g))
+    gans = [m for m in mism if mism[m][0] == 0]; exact = [m for m in mism if mism[m][0] == mism[m][1]]
+    out.update({"dsm_gans": ", ".join(_tex_model(m) for m in sorted(gans)), "dsm_gan_agree": _fint(max(mism[m][0] for m in gans)), "dsm_n": _fint(mism[gans[0]][1]),
+                "dsm_exact": ", ".join(_tex_model(m) for m in sorted(exact)), "dsm_exact_n": _fint(min(mism[m][0] for m in exact)), "dsm_n_gans": _word(len(gans))})
+    # walk-forward fold models that would have to be retrained
+    n_files = len(list((results_dir / "walk_forward").glob("*/walk_forward_*_seed*.csv"))); n_folds = int(wf["fold"].nunique())
+    out.update({"wf_fold_models": _thou(len(wf)), "wf_files": _fint(n_files), "wf_folds": _word(n_folds)})
+    out["n_markets"] = _word(len({r["market"] for r in runs})); out["n_units"] = _word(len(runs)) if len(runs) < 16 else str(len(runs))
+    return out
+
+
+# Columns the pooled downstream backtest adds to DESCRIPTIVE_COLS (they appear in no per-market file).
+_POOLED_DESCRIPTIVE = ["var_coverage_error", "garch_persistence_diff"]
+_FIDELITY_NAMES = ["mean_diff", "std_diff", "wasserstein", "energy_distance", "quantile_mse", "tail_index_diff", "extreme_events_diff"]
+
+
+def _build_family_counts(runs: list) -> dict:
+    """How many metrics are in each family, counted from the per-market metrics CSV: a metric is ranked iff it has a <metric>_rank column."""
+    cols = list(runs[0]["metrics"].columns)
+    ranked = [c[:-5] for c in cols if c.endswith("_rank") and c not in ("fidelity_rank", "temporal_rank", "composite_rank", "avg_rank")]
+    raw = [c for c in cols if c != "model" and not c.endswith("_rank")]
+    fid = [c for c in ranked if c in _FIDELITY_NAMES]; tmp = [c for c in ranked if c not in _FIDELITY_NAMES]
+    desc_pm = [c for c in raw if c not in ranked]
+    moved = [c for c in desc_pm if c.startswith("discriminative_auc_") and not c.endswith("_raw")]   # the columns S4 moved out of the temporal family
+    n_f, n_t, n_d = len(fid), len(tmp), len(desc_pm)
+    return {"n_fid": str(n_f), "n_temp": str(n_t), "n_desc_pm": str(n_d), "n_ranked": str(len(ranked)), "n_metrics_pm": str(len(raw)),
+            "w_fid": _word(n_f), "w_temp": _word(n_t), "w_desc_pm": _word(n_d), "w_ranked": _word(len(ranked)), "w_desc_total": _word(n_d + len(_POOLED_DESCRIPTIVE)),
+            "family_sum": f"{n_f}+{n_t}+{n_d}", "w_temp_plus2": _word(n_t + len(moved)), "w_moved": _word(len(moved)), "w_pooled_desc": _word(len(_POOLED_DESCRIPTIVE)),
+            "w_fid_cap": _word(n_f).capitalize(), "w_temp_cap": _word(n_t).capitalize()}
+
+
+def build_update_evidence(results_dir, per_seed_market: pd.DataFrame, wf: pd.DataFrame, runs: list, models: list) -> dict:
+    """All values for the sections added on 2026-09-21, as strings ready for ${RPT_U_<KEY>} placeholders."""
+    results_dir = Path(results_dir); a = _load_update_artifacts(results_dir)
+    npar = _n_params(per_seed_market); d = per_seed_market[~per_seed_market["model"].apply(_is_control)]
+    fit_s = {m: float(g["train_seconds"].mean()) for m, g in d.groupby("model")}
+    ctrl = _control_name(_pooled_metrics(runs)); out = {}
+    out.update(_build_s4_and_noise(a, npar, fit_s)); out.update(_build_baselines(a, models)); out.update(_build_temporal_decomposition(a, models))
+    out.update(_build_learned_metrics(a)); out.update(_build_discriminability(a, wf, runs, models, ctrl)); out.update(_build_methods_and_issues(a, runs, wf, results_dir))
+    out.update(_build_family_counts(runs))
+    bad = [k for k, v in out.items() if not isinstance(v, str)]
+    if bad:
+        raise ReportDataError(f"update evidence values that are not strings: {bad}")
+    return out
+
+
 # ============================================================================
 # Public entry point
 # ============================================================================
@@ -2424,6 +2802,11 @@ def load_report_context(results_dir="thesis_results/production",
     stale_walk_forward = []   # files for models not in their run -- skipped, reported
     for market, seed, seed_dir in discover_market_seed_dirs(results_dir):
         metrics = _read_csv(seed_dir / f"{market}_metrics.csv")
+        # Provenance flag written when the AUC columns were left as computed before
+        # the scaler fix (2026-09-21): it is not a metric, so it is read and set aside.
+        auc_pre_fix = bool(metrics["discriminative_auc_pre_scaler_fix"].astype(bool).all()) \
+            if "discriminative_auc_pre_scaler_fix" in metrics.columns else False
+        metrics = metrics.drop(columns=["discriminative_auc_pre_scaler_fix"], errors="ignore")
         # Pre-2026-09-10 layout only; newer runs write one pooled file at the root.
         _legacy_du = seed_dir / "pooled_downstream_utility.csv"
         pooled_utility = _read_csv(_legacy_du) if _legacy_du.exists() else None
@@ -2440,6 +2823,7 @@ def load_report_context(results_dir="thesis_results/production",
             "market": market,
             "seed": seed,
             "metrics": metrics,
+            "auc_pre_scaler_fix": auc_pre_fix,
             "pooled_utility": pooled_utility,
             "persistence": persistence,
             "walk_forward": walk_forward,
@@ -2478,9 +2862,9 @@ def load_report_context(results_dir="thesis_results/production",
     # notebook's, and this module never recomputes a rank.
     fidelity_cols = ["mean_diff", "std_diff", "wasserstein", "energy_distance",
                      "quantile_mse", "tail_index_diff", "extreme_events_diff"]
+    # Five since S4 (2026-09-21): discriminative_auc_dist and _absz are descriptive.
     temporal_cols = ["acf_returns_mae", "acf_absolute_mae", "acf_squared_mae",
-                     "hurst_diff", "resid_kurtosis_diff",
-                     "discriminative_auc_dist", "discriminative_auc_absz"]
+                     "hurst_diff", "resid_kurtosis_diff"]
 
     families = _model_families(per_seed_market)
     pooled = _pooled_metrics(runs)
@@ -2528,8 +2912,6 @@ def load_report_context(results_dir="thesis_results/production",
         "control_audit_prose": _build_control_audit_prose(pooled, models, families),
 
         # Walk-forward
-        "wf_auc_rows": _build_wf_auc_rows(wf),
-        "wf_auc_prose": _build_wf_auc_prose(wf),
         "resid_kurt_prose": _build_resid_kurt_prose(pooled, families),
         "fold_effect_rows": _build_fold_effect_rows(wf),
         "fold_effect_prose": _build_fold_effect_prose(wf),
@@ -2572,6 +2954,7 @@ def load_report_context(results_dir="thesis_results/production",
         "figure_graphics": _build_figure_graphics(primary["figures"],
                                                   int(primary["metrics"]["model"].nunique()) + 1),
         "downstream_best": _build_downstream_best(downstream),
+        "update": build_update_evidence(results_dir, per_seed_market, wf, runs, models),
     }
     return ctx
 
