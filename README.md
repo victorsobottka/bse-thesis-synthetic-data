@@ -9,7 +9,14 @@ Peer-reviewed paper benchmarking five generators of daily returns -- three GANs
 (**GARCH(1,1)-t**, **GJR-GARCH(1,1)-t**) -- on five BRICS emerging-market log-return
 series (Bovespa, FTSE JSE, MOEX, Nifty 50, Shanghai Composite), 2006-08-30 to
 2026-08-28. Models are ranked on a metric suite that is audited against a shuffled
-copy of the real data, and checked in walk-forward validation.
+copy of the real data and against fair resampling baselines, and checked in
+walk-forward validation.
+
+The audit is a result in its own right: a large share of standard evaluation metrics
+are permutation-invariant, the discriminative AUC null is per-market and far from 0.5,
+and C-FID is not estimable on stride-1 financial windows. See the latest report in
+`reports/production/` for the current findings and the "Known issues and what is not
+resolved" section for what the benchmark does not yet establish.
 
 Collaboration between **Barcelona School of Economics (BSE)** and **UPC**.
 
@@ -56,6 +63,11 @@ Collaboration between **Barcelona School of Economics (BSE)** and **UPC**.
 │   ├── production/                                # Real runs (SMOKE_TEST=False) -- tracked
 │   └── smoke/                                     # Structural-check runs -- gitignored, not tracked
 │
+├── analysis/                                      # Per-round analysis scripts and outputs (not pipeline artifacts)
+├── vendor/ts2vec/                                 # Official TS2Vec, unmodified, MIT, pinned commit
+├── embedding_distance.py                          # MMD and C-FID on TS2Vec embeddings (audit, outside the ranked set)
+├── embedding_distance_summary.py                  # Aggregates the embedding-distance outputs
+│
 ├── papers/                                        # Reference papers for the BRICS paper (gitignored)
 ├── knowledge_base/                                # 16-chapter LaTeX book; `make` builds knowledge_base.pdf (gitignored)
 │
@@ -91,11 +103,22 @@ models are exempt: maximum likelihood has no gradient-step analogue.
 | Family      | Metrics | Role |
 |-------------|---------|------|
 | Fidelity (7)   | mean, sd, Wasserstein-1, energy distance, quantile MSE, tail index (Hill), extreme-event frequency | ranked; permutation-invariant |
-| Temporal (7)   | ACF of returns / absolute returns / squared returns, Hurst exponent, residual kurtosis, discriminative AUC (`\|AUC − 0.5\|` and its z-score against the empirical null) | ranked; order-sensitive |
-| Descriptive    | skewness, kurtosis, ARCH-LM p-value and statistic, raw AUC, VaR coverage error, GARCH persistence difference | reported, never ranked |
+| Temporal (5)   | ACF of returns / absolute returns / squared returns, Hurst exponent, residual kurtosis | ranked; order-sensitive |
+| Descriptive (7)| skewness, kurtosis, ARCH-LM p-value and statistic, discriminative AUC (`\|AUC − 0.5\|` and its z-score against the empirical null), raw AUC, VaR coverage error, GARCH persistence difference | reported, never ranked |
 
 Models are ranked on `composite_rank = ½ (fidelity_rank + temporal_rank)`. A shuffled
-copy of the real data is scored by the same code as a control and is not ranked.
+copy of the real data is scored by the same code as a control and is not ranked: it has
+oracle access to the test marginal, and would win the composite if allowed to compete.
+Fair baselines that read the **training block only** — i.i.d. historical simulation and a
+stationary block bootstrap — are scored by the same pipeline and do not win.
+
+The two discriminative AUC columns left the ranked set on 2026-09-21. No reference for
+them works under any calibration tested, and their value is determined by which way the
+market drifted rather than by generator quality. They are still computed and reported.
+
+**The composite cannot resolve small differences.** The 95% bootstrap interval on the
+first-second margin spans about 0.9 rank points over 15 market-seed units, and two fresh
+generation draws disagree on 53 of 75 within-unit positions. Report intervals, not winners.
 
 Walk-forward validation is a separate track: 5 expanding folds on the **full** series
 (fold *k* trains on the first n − L·(5 − *k*) observations and is tested on the next

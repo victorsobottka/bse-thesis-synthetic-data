@@ -52,11 +52,30 @@ It is the equal-weighted mean of the two metric families, and it exists because
 an unweighted mean over all metrics **was won by the shuffled-real control**:
 1.24 against 2.47 for a genuine generator.
 
-Nine of the nineteen originally ranked metrics were permutation-invariant, so
-they scored a shuffled deck perfectly by construction. No weighting of the
-remaining ten could overcome that. Model selection uses `composite_rank`;
+Nine of the nineteen per-market metrics are permutation-invariant, so they score
+a shuffled deck perfectly by construction. Model selection uses `composite_rank`;
 `avg_rank` is retained only for comparability and must never be the selection
 criterion.
+
+**The split did not solve the control problem.** With the control allowed to
+compete it still wins the composite, 2.224 against 3.231 for the best generator
+(S0, published draw). Only its exclusion from the ranks keeps it out. That
+exclusion is legitimate — the control is the test block's own returns, so it has
+oracle access to the test marginal, and fidelity accounts for 81–91% of its gap
+to a fair i.i.d. baseline — but the exclusion, not the split, is what does the
+work. Say so wherever the split is justified.
+
+**As of 2026-09-21 (S4), `TEMPORAL_COLS` holds five metrics:** `acf_returns_mae`,
+`acf_absolute_mae`, `acf_squared_mae`, `hurst_diff`, `resid_kurtosis_diff`.
+`discriminative_auc_dist` and `discriminative_auc_absz` moved to
+`DESCRIPTIVE_COLS` — computed and reported, never ranked. Twelve metrics are
+ranked in total. Grounds in §6.
+
+**The composite cannot resolve small differences.** The 95% bootstrap interval on
+the first-second margin spans ~0.9 rank points over 15 market-seed units
+(19,999 resamples), so a gap below ~0.45 is not a result. Two fresh generation
+draws disagree on 53 of 75 within-unit positions; a change of ranking scheme
+moves 6–13. Never report a winner without its interval.
 
 ---
 
@@ -162,25 +181,46 @@ suspension (2022-02-25 → 2022-03-24). Recorded as a known gap, not interpolate
 displayed, never ranked. `tail_index_diff` is the ranked heavy-tail metric. Hill
 returns `NaN` above α = 20, because a degenerate series drove it to 31,581.
 
-**Metric taxonomy.** 7 fidelity (permutation-invariant) + 7 temporal
-(ordering-sensitive) + 7 descriptive (excluded from ranking). NaN ranks last via
+**Metric taxonomy.** 7 fidelity (permutation-invariant, ranked) + 5 temporal
+(ordering-sensitive, ranked) + 7 descriptive (computed, never ranked). Changed
+2026-09-21 by S4 — see §2. Nineteen metrics appear in each per-market CSV;
+`var_coverage_error` and `garch_persistence_diff` are computed elsewhere. NaN ranks last via
 `na_option='bottom'`, so a failed metric counts as the worst outcome rather than
 being silently dropped.
 
-**The discriminative AUC null is not 0.5, and it is not one number.**
-`compute_auc_null` draws `n_rep=20` random-cut half-splits of each market's real
-test block (`default_rng(42)`); it has used 20 since 2026-08-29 and no version
-has ever run 15. Its per-market means run from 0.48 to 0.79. The figure
-0.506 ± 0.084 quoted elsewhere is not that estimator's output: it first appears
-on 2026-08-30 as "15 seeds on identical distributions" (independent samples),
-and its script is not in the repository. The legacy cut scheme also compares the
-first against the last observations past the midpoint, so treat its values as
-unrepaired; repointing `discriminative_auc_absz` at any other null is a §5
-decision. Rank on `|AUC − 0.5|`, never on raw AUC: ranking ascending on the raw
-value treats anti-predictive (0.30) as better than indistinguishable (0.50).
-Cross-validation must not be shuffled; 20-day windows overlap by 19
-observations, and shuffling moves an independent-samples null from about 0.50
-to 0.58–0.60.
+**The discriminative AUC null is not 0.5, is not one number, and no longer feeds
+the ranking.** Per-market B=999 nulls: BOVESPA 0.549, FTSE 0.755, MOEX 0.616,
+NIFTY50 0.557, SHANGHAI 0.569, with 97.5th percentiles 0.808 / 0.960 / 0.837 /
+0.996 / 0.863. A stationary GARCH-t reference gives means 0.51–0.65 with spread
+0.11–0.20 and p97.5 0.71–0.99 — the null is not 0.5 even under ideal conditions.
+
+**0.506 ± 0.084 came from a different experiment**: independent stationary
+samples, first recorded on 2026-08-30 as "15 seeds on identical distributions"
+and relabelled as real-versus-real half-splits in `064f008` with the value
+untouched. Its script is not in the repository. The estimator never changed and
+never ran 15 replicates — `compute_auc_null` has used `n_rep=20` since
+2026-08-29. Treat any surviving 0.506 as a quotation of that other experiment and
+label it as such.
+
+The legacy half-split scheme has a **left-anchored truncation defect**: past the
+midpoint it compares the first n observations against the last n, leaving a gap
+of 2·cut − N, in 121–125 of about 250 cuts per market. The approved construction
+is the fixed-length adjacent sliding null, enumerated at every start position, at
+both evaluation lengths. Note that a test-period null cannot be built: at the
+evaluation length the test block holds 0 positions, 1 including validation.
+
+Under contiguous folds and drift the classifier measures regime change rather
+than real-versus-synthetic difference. Purged, embargoed CV (embargo 20 windows,
+5–11% of training rows) confirms the drift is real rather than leakage: NIFTY50
+0.375 contiguous → 0.352 purged, against 0.619 shuffled.
+
+**0 of 25** market-model cells clear any calibrated threshold on fresh draws or at
+mean + 1.96 sd; **1 of 25** clears p97.5 on the published draw (FTSE TimeGAN,
+0.832 against 0.805). State both. Rank on `|AUC − 0.5|`, never on raw AUC:
+ranking ascending on the raw value treats anti-predictive (0.30) as better than
+indistinguishable (0.50). Cross-validation must not be shuffled; 20-day windows
+overlap by 19 observations, and shuffling moves an independent-samples null from
+about 0.50 to 0.58–0.60.
 
 **Statistical power.** Kupiec at true p = 7% against a claimed 5%: 17% power at
 n = 125, ~56% at n = 496, ~99% at n = 2,480. Per-market non-rejections are
@@ -199,6 +239,11 @@ including every walk-forward fold). CNN-WGAN-GP drifts slightly: Wasserstein CV 
 WF AUC sd 0.009. QuantGAN drifts substantially: Wasserstein CV 37%,
 `tail_index_diff` CV 79%, raw AUC 0.551–0.734.
 
+Those figures are retrains with the generation stream held fixed. Phase B's own
+20-draw spread, same weights and fresh noise, is CV 0.68 for QuantGAN Wasserstein
+and 0.79 for its `tail_index_diff` — use the Phase B figures when judging whether
+a difference between fresh draws is meaningful.
+
 Not a seeding bug — loss traces agree to four significant figures at epoch 1 and
 separate by epoch 5. Consistent with QuantGAN being the only model combining
 WGAN-GP double-backward with dilated convolutions.
@@ -209,6 +254,10 @@ deliberately unset; the cost is now measured rather than assumed.
 TimeGAN 2.643–2.714). But `tail_index_diff`, `hurst_diff` and `mean_diff` change
 their winner between runs. Never report a single-run winner on
 `tail_index_diff` — QuantGAN spans 0.065–1.707 against CNN-WGAN-GP's 0.357–0.865.
+
+That stability was measured at a 1,000-update smoke budget with the generation
+stream fixed. It does not generalise: at 9,000 updates the ranking reverses, and
+across fresh generation draws 53 of 75 within-unit positions move (§2).
 
 **Non-stationary GARCH fits.** Maximum-likelihood GARCH can converge — `convergence_flag
 = 0`, so the non-convergence guard never fires — to parameters on the
@@ -294,6 +343,55 @@ comparisons (44%). QLIKE's
 mean across cells is uninformative whenever one variance forecast is near zero — report
 the median beside it.
 
+**Known defect, not yet fixed in code (2026-09-21).** For the three GANs the series
+in `downstream_utility_inputs.npz` is a second `generate()` call, not the draw the
+19 metrics were computed on: 0 of 15 market-seed units agree per GAN, against 15 of
+15 for GARCH and GJR-GARCH, which re-seed on every call. Fidelity and VaR/QLIKE
+therefore describe different samples for the GANs. Published values are unchanged;
+the correction is to feed the metrics draw to the downstream backtest.
+
+**Two execution phases (2026-09-20).** Phase A trains and fits, writing weights and
+`_meta.json` (RunPod, ~18 h, ~$14). Phase B loads weights, regenerates series and
+recomputes metrics (local, CPU, free). Run Phase B with `phase_b_venv/bin/python`,
+where pandas is pinned to 2.3.3, matching `requirements.txt`'s `>=2.0,<3.0`. A
+pandas 2.3.3-versus-3.0.5 A/B over 20 draws × 6 series gave a maximum difference of
+0.0 on every metric and rank column, so the pin is hygiene rather than a known risk.
+`_meta.json` now carries `data_mean` and `data_std`; without them a loaded model
+cannot denormalise, because `__init__` leaves them `None`.
+
+**`compute_discriminative_score` scales inside each fold (2026-09-21).** It uses a
+`Pipeline` of `StandardScaler` and `LogisticRegression`. The previous version fitted
+the scaler on all rows before cutting folds, leaking test-fold statistics under every
+CV scheme including purged. The fix moved null means by ≤0.008 but single AUC values
+by up to 0.176 in strongly drifting stretches; no audit conclusion changed. All three
+callers — the null, Track A and Track B — go through this one function.
+
+**The AUC-null cache key includes `auc_scaler`.** Without it, nulls computed before
+the scaler fix would be reused silently against post-fix AUCs.
+
+**Not all published draws are reproducible.** GARCH, GJR-GARCH and the control
+reproduce exactly; TimeGAN reproduces via CPU RNG replay (correlation 0.999998),
+because it draws noise on the CPU; QuantGAN and CNN-WGAN-GP cannot, because their
+CUDA RNG state was never saved. Walk-forward fold models were never saved at all, so
+walk-forward AUC cannot be refreshed without retraining all 375 (~15 h, ~$11.50).
+
+**Fair baselines read the training block only.** i.i.d. historical simulation and a
+stationary block bootstrap, both scored by the same pipeline. Tune the block length
+by Politis–White on **|r|**, not raw returns — raw returns lack linear
+autocorrelation, so tuning on them collapses the block length to 0.3–5.4 and
+degenerates to i.i.d. The correct version (~110–128 days) is indistinguishable from
+GARCH and QuantGAN; TimeGAN ranks below plain i.i.d. resampling.
+
+**Learned metrics do not rescue the audit.** C-FID is not estimable here: stride-1
+windows share 127 of 128 observations, so 369 windows carry 3.6–4.4 independent
+observations of a 100–320-dimensional distribution — a property of the windowing, not
+the encoder. MMD on TS2Vec embeddings ranks the shuffled control lowest of six series
+under all three encoder configurations and detects it in 0 of 15 units. Calibrated
+against a scale-matched null, collapsed TimeGAN is detected in 0.7% of draws, down
+from 37%. TS2Vec does carry ordering information — a linear probe separates real from
+permuted at mean AUC 0.63, comparable to 0.67 from three ACF features — so the failure
+belongs to the statistic at this sample size, not to the representation.
+
 **Model naming.** The CNN-deconvolution WGAN-GP generator is **CNN-WGAN-GP** (class
 `CNN_WGAN_GP`). Until 2026-09-10 it was called `FinGAN`, which collides with the published
 Fin-GAN (Vuletić, Prenzel & Cucuringu 2024, *Quantitative Finance* 24(2), 175–199) — a
@@ -316,6 +414,9 @@ filesystem, so it reads either.
 | `report_data.py` | data layer for `generate_report.py`; reads `thesis_results/production/` by default |
 | `generate_report.py` | builds the main PDF report; `--results-dir`/`--reports-dir` to point elsewhere |
 | `Makefile` | `make report` / `report-smoke` / `verify` |
+| `analysis/` | one directory per analysis round; scripts and outputs that are not pipeline artifacts |
+| `vendor/ts2vec/` | official TS2Vec, unmodified, MIT licence, pinned commit — used by the embedding-distance audit |
+| `embedding_distance.py`, `embedding_distance_summary.py` | MMD and C-FID on TS2Vec embeddings; writes outside the ranked metric set |
 | `reports/production/` | shareable reports; main PDFs, metric diagnostics HTML, run metadata, run logs |
 | `reports/smoke/` | same, for a smoke run — **gitignored**, split for the same reason as `thesis_results/smoke/` |
 
